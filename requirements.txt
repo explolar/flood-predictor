@@ -3,5 +3,5 @@ earthengine-api
 geemap 
 xyzservices 
 python-box 
-folium 
+folium
 streamlit-folium
