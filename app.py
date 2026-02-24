@@ -26,7 +26,7 @@ st.markdown("""
 # ==========================================
 project_id = 'xward-481405'
 
-ddef initialize_ee():
+def initialize_ee():
     try:
         # Priority 1: Use the Cloud Run Service Account Identity
         creds = ee.ComputeEngineCredentials()
