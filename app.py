@@ -6,13 +6,17 @@ app = Flask(__name__)
 project_id = 'xward-481405'
 
 def init_ee():
-    if not ee.data._initialized:
+    try:
+        # Check if already initialized by trying to get a dummy info object
+        ee.data.getAssetInfo('projects/earthengine-public/assets/COPERNICUS/S1_GRD')
+    except Exception:
+        # If not initialized, perform the Cloud Run Identity auth
         try:
             creds = ee.ComputeEngineCredentials()
             ee.Initialize(creds, project=project_id)
-        except:
+        except Exception:
+            # Fallback for local testing
             ee.Initialize(project=project_id)
-
 @app.route('/')
 def index():
     return "Bihar Hydro-Climatic Risk Atlas: Flask Backend Active. Access /analyze for SAR results."
