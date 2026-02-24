@@ -22,26 +22,31 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # ==========================================
-# 2. INITIALIZE EARTH ENGINE (Cloud Run Ready)
+# 2. INITIALIZE EARTH ENGINE (Cloud Run Optimized)
 # ==========================================
 project_id = 'xward-481405'
 
-try:
-    # On Cloud Run, this will automatically use the assigned Service Account
-    creds = ee.ComputeEngineCredentials()
-    ee.Initialize(creds, project=project_id)
-except Exception:
-    # Fallback for local development or if secrets are provided
-    if "gcp_service_account" in st.secrets:
-        creds = ee.ServiceAccountCredentials(
-            st.secrets["gcp_service_account"]["client_email"],
-            key_data=st.secrets["gcp_service_account"]["private_key"]
-        )
+def initialize_ee():
+    try:
+        # First Priority: Use the Cloud Run Service Account Identity
+        creds = ee.ComputeEngineCredentials()
         ee.Initialize(creds, project=project_id)
-    else:
-        # Final fallback for local ee.Authenticate()
-        ee.Initialize(project=project_id)
+    except Exception:
+        try:
+            # Second Priority: Check for local secrets (for local testing only)
+            if "gcp_service_account" in st.secrets:
+                creds = ee.ServiceAccountCredentials(
+                    st.secrets["gcp_service_account"]["client_email"],
+                    st.secrets["gcp_service_account"]["private_key"]
+                )
+                ee.Initialize(creds, project=project_id)
+            else:
+                # Third Priority: Standard local auth
+                ee.Initialize(project=project_id)
+        except Exception as e:
+            st.error(f"Authentication Failed: {e}")
 
+initialize_ee()
 # ==========================================
 # 3. HELPER FUNCTIONS (LEGENDS & UI)
 # ==========================================
