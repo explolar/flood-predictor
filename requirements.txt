@@ -1,3 +1,13 @@
+<<<<<<< HEAD
 Flask
 earthengine-api
 folium
+=======
+streamlit
+earthengine-api
+folium
+streamlit-folium
+geemap
+xyzservices
+python-box
+>>>>>>> f9cfed366a104b1dec85890abd124b0f5f00f259
