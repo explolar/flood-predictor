@@ -4,11 +4,11 @@ import folium
 import json
 import streamlit.components.v1 as components
 import datetime
-
+from streamlit_folium import folium_static
 # ==========================================
 # 1. STYLING
 # ==========================================
-st.set_page_config(page_title="Bihar Risk Atlas | 30m", layout="wide", page_icon="🌍")
+st.set_page_config(page_title="Global Hydro-Climatic Risk Atlas | 30m Flood Dashboard", layout="wide", initial_sidebar_state="expanded")
 
 st.markdown("""
     <style>
