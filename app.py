@@ -38,12 +38,12 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # ==========================================
-# 2. LEGEND HELPERS
+# 2. HAZARD RANKING LEGENDS
 # ==========================================
 def get_mca_legend():
     return '''
     <div style="position: fixed; bottom: 30px; left: 30px; width: 140px; background-color: rgba(13,27,42,0.9); 
-    border: 1px solid #00FFFF; color: white; z-index:9999; font-size:11px; padding: 10px; border-radius: 10px;">
+    border: 1px solid #00FFFF; color: white; z-index:9999; font-size:11px; padding: 10px; border-radius: 10px; backdrop-filter: blur(5px);">
     <b style="color:#00FFFF">Risk Index</b><br>
     <i class="fa fa-square" style="color:#d73027"></i> Very High (5)<br>
     <i class="fa fa-square" style="color:#fc8d59"></i> High (4)<br>
@@ -56,7 +56,7 @@ def get_mca_legend():
 def get_sar_legend():
     return '''
     <div style="position: fixed; bottom: 30px; left: 30px; width: 150px; background-color: rgba(13,27,42,0.9); 
-    border: 1px solid #00FFFF; color: white; z-index:9999; font-size:11px; padding: 10px; border-radius: 10px;">
+    border: 1px solid #00FFFF; color: white; z-index:9999; font-size:11px; padding: 10px; border-radius: 10px; backdrop-filter: blur(5px);">
     <b style="color:#00FFFF">SAR Indicators</b><br>
     <i class="fa fa-square" style="color:#00FFFF"></i> Active Flood<br>
     <i class="fa fa-square" style="color:#00008B"></i> Permanent Water<br>
@@ -86,7 +86,7 @@ def initialize_ee():
 initialize_ee()
 
 # ==========================================
-# 4. SIDEBAR & GLOBAL AOI
+# 4. SIDEBAR & AOI
 # ==========================================
 with st.sidebar:
     st.image("https://upload.wikimedia.org/wikipedia/en/1/1c/IIT_Kharagpur_Logo.png", width=90)
@@ -127,9 +127,18 @@ with st.sidebar:
 # ==========================================
 def calculate_flood_risk(aoi_geom):
     dem = ee.Image('USGS/SRTMGL1_003').select('elevation').clip(aoi_geom)
-    slope_r = ee.Terrain.slope(dem).where(ee.Terrain.slope(dem).lte(2), 5).where(ee.Terrain.slope(dem).gt(20), 1)
-    lulc_r = ee.ImageCollection("ESA/WorldCover/v200").mosaic().select('Map').clip(aoi_geom).remap([10,20,30,40,50,60,80,90], [1,2,2,3,5,4,5,5])
-    return lulc_r.multiply(0.40).add(slope_r.multiply(0.60)).clip(aoi_geom).round()
+    slope = ee.Terrain.slope(dem).clip(aoi_geom)
+    # Slope Reclassification (Higher risk for flatter areas)
+    slope_r = slope.where(slope.lte(2), 5).where(slope.gt(2).And(slope.lte(5)), 4).where(slope.gt(5).And(slope.lte(10)), 3).where(slope.gt(10).And(slope.lte(20)), 2).where(slope.gt(20), 1)
+    
+    lulc = ee.ImageCollection("ESA/WorldCover/v200").mosaic().select('Map').clip(aoi_geom)
+    lulc_r = lulc.remap([10,20,30,40,50,60,80,90], [1,2,2,3,5,4,5,5])
+    
+    rain = ee.ImageCollection("UCSB-CHG/CHIRPS/DAILY").filterDate('2023-01-01', '2024-01-01').sum().clip(aoi_geom)
+    rain_r = rain.where(rain.lt(1860), 1).where(rain.gte(1860).And(rain.lt(1880)), 2).where(rain.gte(1880).And(rain.lt(1910)), 3).where(rain.gte(1910).And(rain.lt(1950)), 4).where(rain.gte(1950), 5)
+    
+    # Weighted Multi-Criteria Analysis (MCA) Formula
+    return lulc_r.multiply(0.40).add(slope_r.multiply(0.30)).add(rain_r.multiply(0.30)).clip(aoi_geom).round()
 
 def calculate_sar_flood(aoi_geom, start_date, threshold):
     s1 = ee.ImageCollection('COPERNICUS/S1_GRD').filterBounds(aoi_geom).filter(ee.Filter.listContains('transmitterReceiverPolarisation', 'VH')).select('VH')
@@ -148,12 +157,22 @@ def calculate_sar_flood(aoi_geom, start_date, threshold):
 # ==========================================
 st.title("🛰️ Global Hydro-Climatic Risk Atlas")
 
-with st.expander("🛠️ TECHNICAL METHODOLOGY & LOGIC", expanded=True):
+with st.expander("🛠️ TECHNICAL CALCULATION BASIS & LOGIC", expanded=True):
     st.markdown("""
     <div class="tech-glass">
-        <b>Terrain Guard:</b> SRTM 30m Slope Mask (<code>Slope < 8°</code>) eliminates <b>Radar Shadows</b> in <b>Manali/Naggar</b>.<br>
-        <b>SAR Pipeline:</b> Refined log-ratio backscatter difference with focal smoothing.<br>
-        <b>Dashboard Resolution:</b> 30m Native | 50m Area Stats Optimized.
+        <h4>Phase 1: Multi-Criteria Analysis (MCA) Calculation</h4>
+        <p>The Hazard Ranking is calculated using a Weighted Linear Combination (WLC) of three global spatial layers:</p>
+        <ul>
+            <li><b>LULC (40%):</b> ESA WorldCover 10m land use data reclassified for surface permeability.</li>
+            <li><b>Slope (30%):</b> Derived from SRTM 30m DEM. Flatter areas (0-2°) receive a rank of 5.</li>
+            <li><b>Rainfall (30%):</b> CHIRPS Daily Precipitation 2023-2024 cumulative sum.</li>
+        </ul>
+        <hr style="border-color:rgba(0,255,255,0.2)">
+        <h4>Phase 2: SAR Active Inundation Logic</h4>
+        <ul>
+            <li><b>Detection:</b> Log-ratio backscatter difference between dry-season (May) and peak-monsoon (August) Sentinel-1 VH polarization.</li>
+            <li><b>Terrain Guard:</b> Strictly masks areas with <code>Slope > 8°</code> to prevent <b>Radar Shadows</b> in high-relief regions like <b>Manali/Naggar</b>.</li>
+        </ul>
     </div>
     """, unsafe_allow_html=True)
 
