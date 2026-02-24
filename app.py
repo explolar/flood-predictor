@@ -28,16 +28,21 @@ project_id = 'xward-481405'
 
 def initialize_ee():
     try:
-        # Priority 1: Use the Cloud Run Service Account Identity (Correct Path)
-        creds = ee.data.ComputeEngineCredentials() 
-        ee.Initialize(creds, project=project_id)
+        # Priority 1: Modern path for Cloud Run Identity
+        try:
+            from ee import compute_engine
+            creds = compute_engine.ComputeEngineCredentials()
+            ee.Initialize(creds, project=project_id)
+        except (ImportError, AttributeError):
+            # Priority 2: Standard auto-initialization (often works on GCP)
+            ee.Initialize(project=project_id)
         
-        # Connection check for your MTP research
+        # Connection check for your MTP research at IIT Kharagpur
         ee.data.getSTAC() 
-        st.success("✅ Connected to Google Earth Engine via Cloud Run")
+        st.success("✅ Connected to Google Earth Engine")
     except Exception as e:
         st.error(f"❌ Initialization Failed: {e}")
-        st.info("If it says 'No Attribute', ensure your requirements.txt includes earthengine-api")
+        st.info("Ensure earthengine-api is listed in requirements.txt")
 
 initialize_ee()
 # ==========================================
