@@ -25,7 +25,8 @@ except ImportError:
 # ==========================================
 # 1. PAGE CONFIG & STYLING
 # ==========================================
-st.set_page_config(page_title="HydroRisk Atlas | IIT Kgp", layout="wide", page_icon="🛰️")
+st.set_page_config(page_title="HydroRisk Atlas | IIT Kgp", layout="wide", page_icon="🛰️",
+                   initial_sidebar_state="collapsed")
 
 st.markdown("""
     <style>
@@ -38,6 +39,41 @@ st.markdown("""
     ::-webkit-scrollbar { width: 4px; }
     ::-webkit-scrollbar-track { background: #020c1b; }
     ::-webkit-scrollbar-thumb { background: rgba(0,255,255,0.25); border-radius: 2px; }
+
+    /* ── MOBILE RESPONSIVE ────────────────────────────── */
+    @media (max-width: 768px) {
+        /* Collapse sidebar completely — accessible via ☰ hamburger only */
+        [data-testid="collapsedControl"] { display: flex !important; }
+        section[data-testid="stSidebar"] { display: none !important; }
+        section[data-testid="stSidebar"].expanded { display: flex !important; }
+
+        /* Stack columns vertically */
+        [data-testid="stHorizontalBlock"] { flex-direction: column !important; }
+        [data-testid="stHorizontalBlock"] > div { width: 100% !important; min-width: 100% !important; }
+
+        /* Shrink heading on small screens */
+        h1 { font-size: 1.4rem !important; letter-spacing: 2px !important; }
+        .page-header .subtitle { font-size: 0.6rem !important; letter-spacing: 1.5px !important; }
+
+        /* Full-width metric cards */
+        .metric-card { padding: 14px 12px !important; }
+        .metric-card .metric-value { font-size: 1.9rem !important; }
+
+        /* Stat chips wrap cleanly */
+        .stats-row { gap: 6px !important; }
+        .stat-chip { font-size: 0.7rem !important; padding: 6px 8px !important; }
+
+        /* Tabs scroll horizontally instead of wrapping */
+        [data-testid="stTabs"] [role="tablist"] { overflow-x: auto !important; flex-wrap: nowrap !important; }
+        [data-testid="stTabs"] button[role="tab"] { padding: 0.45rem 0.9rem !important; font-size: 0.78rem !important; white-space: nowrap !important; }
+
+        /* Maps take full width */
+        iframe { width: 100% !important; }
+
+        /* Dual-label row stacks */
+        .dual-label-row { flex-direction: column !important; }
+        .dual-label:first-child, .dual-label:last-child { border-radius: 6px !important; border-left: 1px solid rgba(0,255,255,0.12) !important; }
+    }
 
     .stApp {
         background: #020c1b;
