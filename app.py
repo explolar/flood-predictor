@@ -26,25 +26,21 @@ st.markdown("""
 # ==========================================
 project_id = 'xward-481405'
 
-def initialize_ee():
+ddef initialize_ee():
     try:
-        # First Priority: Use the Cloud Run Service Account Identity
+        # Priority 1: Use the Cloud Run Service Account Identity
         creds = ee.ComputeEngineCredentials()
         ee.Initialize(creds, project=project_id)
-    except Exception:
-        try:
-            # Second Priority: Check for local secrets (for local testing only)
-            if "gcp_service_account" in st.secrets:
-                creds = ee.ServiceAccountCredentials(
-                    st.secrets["gcp_service_account"]["client_email"],
-                    st.secrets["gcp_service_account"]["private_key"]
-                )
-                ee.Initialize(creds, project=project_id)
-            else:
-                # Third Priority: Standard local auth
-                ee.Initialize(project=project_id)
-        except Exception as e:
-            st.error(f"Authentication Failed: {e}")
+        
+        # --- TEST LINE ---
+        # If this fails, it means the service account doesn't have the right roles.
+        ee.data.getSTAC() 
+        # -----------------
+        
+        st.success("✅ Connected to Google Earth Engine via Cloud Run Identity.")
+    except Exception as e:
+        st.error(f"❌ Initialization Failed: {e}")
+        st.info("Check if ff-490@xward-481405.iam.gserviceaccount.com has the 'Earth Engine Resource Viewer' role.")
 
 initialize_ee()
 # ==========================================
