@@ -1,71 +1,256 @@
 # HydroRisk Atlas
 ### Flood Risk Intelligence Platform · IIT Kharagpur
 
-A satellite-powered flood risk assessment dashboard built with **Google Earth Engine**, **Sentinel-1 SAR**, and **Streamlit**. Designed for rapid geospatial flood analysis at 30m resolution using multi-source Earth observation data.
+[![GitHub](https://img.shields.io/badge/GitHub-explolar-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/explolar)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-Ankit%20Kumar-0A66C2?style=for-the-badge&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/ankit-kumar-9b3b06228/)
+[![Python](https://img.shields.io/badge/Python-3.10+-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
+[![Streamlit](https://img.shields.io/badge/Streamlit-1.30+-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white)](https://streamlit.io/)
+[![Google Earth Engine](https://img.shields.io/badge/Google%20Earth%20Engine-GEE-4285F4?style=for-the-badge&logo=google&logoColor=white)](https://earthengine.google.com/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-22c55e?style=for-the-badge)](https://opensource.org/licenses/MIT)
+
+A satellite-powered flood risk assessment dashboard built with **Google Earth Engine**, **Sentinel-1 SAR**, and **Streamlit**. Designed for rapid geospatial flood inundation mapping and multi-hazard risk analysis at 30 m resolution using freely available Earth observation data.
 
 ---
 
-## Features
+## Table of Contents
 
-### Phase 1 — MCA Susceptibility Mapping
-- Multi-Criteria Analysis combining LULC, slope, and rainfall into a 1–5 hazard rank
-- Interactive weight sliders (LULC / Slope / Rainfall %)
-- AOI terrain statistics (area, elevation range, mean slope)
-- Optional overlays: JRC Flood Frequency, Sentinel-2 True Color, HydroSHEDS Watershed
+1. [Overview](#overview)
+2. [Technical Architecture](#technical-architecture)
+3. [Analytical Methodology](#analytical-methodology)
+4. [Data Sources](#data-sources)
+5. [Features](#features)
+6. [Installation](#installation)
+7. [Configuration](#configuration)
+8. [Usage](#usage)
+9. [Caching Strategy](#caching-strategy)
+10. [Dependencies](#dependencies)
+11. [Author](#author)
+12. [License](#license)
 
-### Phase 2 — SAR Inundation Detection
-- Sentinel-1 change detection between user-defined pre/post flood windows
-- VH / VV polarization toggle
-- Lee speckle filter (focal mean 3×3)
-- Adjustable backscatter threshold (0.5–6.0 dB)
-- Six map views: Flood Mask, Severity Zones, Pre-SAR, Post-SAR, Change Intensity, NDVI Damage
-- OSM infrastructure overlay (hospitals, schools, fire stations, police)
-- Population exposure estimate (WorldPop 2020 · 100m)
-- CHIRPS daily rainfall time series chart
-- Gumbel flood return period analysis (2 / 5 / 10 / 25 / 50 / 100-year)
+---
 
-### Dual-View (Tab 3)
-- Synchronized side-by-side pre/post SAR comparison using Folium DualMap
-- Flood mask overlay on post-flood panel
+## Overview
 
-### Flood Progression (Tab 4)
-- Month-by-month monsoon progression (Jun–Oct) for any year 2019–2024
-- CHIRPS monthly rainfall bar chart with season totals
-- Per-month SAR flood mask relative to dry-season reference (Jan–Mar)
+HydroRisk Atlas implements a two-phase geospatial flood intelligence pipeline:
 
-### Additional
-- Place name search with auto-AOI (Nominatim geocoder)
-- Coordinate click picker on the MCA map
-- GeoJSON AOI upload
-- Export: plain-text technical report, PDF report (fpdf2)
-- All GEE tile computations cached (`@st.cache_data`) for instant tab switching
+- **Phase 1 — MCA Susceptibility:** Weighted multi-criteria analysis of land cover, terrain slope, and historical rainfall to produce a static flood susceptibility index.
+- **Phase 2 — SAR Inundation:** Sentinel-1 SAR change-detection between a dry-season reference window and a user-defined post-event window to map active inundation extent.
+
+Both phases operate entirely on the GEE server; no raster data is downloaded to the client. Tile URLs returned by `getMapId()` are served directly from Google's tile infrastructure to the Folium map in the browser.
+
+---
+
+## Technical Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        Streamlit Frontend                       │
+│  Sidebar controls  →  Session state  →  4-tab render engine    │
+└────────────────────┬────────────────────────────────────────────┘
+                     │ @st.cache_data (TTL 3600 s)
+                     ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                   GEE Python Client Library                     │
+│   ee.ImageCollection  ·  ee.Image  ·  ee.FeatureCollection     │
+│   ee.Reducer  ·  ee.Geometry  ·  ee.Algorithms                 │
+└────────────────────┬────────────────────────────────────────────┘
+                     │ getMapId() → tile URL strings
+                     ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                  Folium / Leaflet.js Maps                       │
+│  TileLayer  ·  GeoJson  ·  DualMap  ·  L.control legends       │
+│  Fullscreen  ·  MiniMap  ·  LayerControl  ·  st_folium         │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Key design decisions:**
+
+- GEE `Image` objects are not serializable, so `@st.cache_data` functions return **tile URL strings** (serializable) instead of Image objects. This avoids redundant GEE computation on every Streamlit rerun.
+- EE initialization is wrapped in `@st.cache_resource` to create a singleton authenticated session shared across all users.
+- Folium legends are injected as Leaflet `L.control` objects via JavaScript (not raw HTML divs), ensuring they persist inside the map container during fullscreen mode.
+- The AOI geometry is serialized to a JSON string (`json.dumps(aoi.getInfo())`) to serve as a hashable cache key, then deserialized with `json.loads()` inside cached functions before passing to `ee.Geometry()`.
+
+---
+
+## Analytical Methodology
+
+### Phase 1 — Multi-Criteria Analysis (MCA)
+
+Each input layer is reclassified to a 1–5 integer hazard rank, then combined as a weighted sum:
+
+```
+Risk Score = (LULC_rank × w₁) + (Slope_rank × w₂) + (Rainfall_rank × w₃)
+```
+
+where w₁ + w₂ + w₃ = 100 % (user-adjustable; w₃ auto-computed as remainder).
+
+**LULC reclassification** (ESA WorldCover v200):
+
+| Class code | Land cover type | Hazard rank |
+|:----------:|----------------|:-----------:|
+| 10 | Trees | 1 |
+| 20, 30 | Shrubland / Grassland | 2 |
+| 40 | Cropland | 3 |
+| 50 | Built-up | 5 |
+| 60 | Bare / sparse | 4 |
+| 80, 90 | Permanent water / Wetland | 5 |
+
+**Slope reclassification** (SRTM 30 m):
+
+| Slope range | Interpretation | Hazard rank |
+|:-----------:|---------------|:-----------:|
+| ≤ 2° | Flat floodplain | 5 |
+| 2° – 20° | Gentle to moderate | interpolated |
+| > 20° | Steep terrain | 1 |
+
+**Rainfall reclassification** (CHIRPS annual cumulative, 2023):
+
+| Cumulative rainfall | Hazard rank |
+|:-------------------:|:-----------:|
+| < 1860 mm | 1 |
+| ≥ 1950 mm | 5 |
+
+Final score is rounded to the nearest integer (1–5) to produce a discrete risk class.
+
+---
+
+### Phase 2 — SAR Change-Detection Flood Mapping
+
+**Processing chain:**
+
+```
+S1 GRD (VH or VV)
+    │
+    ├── filterDate(pre_start, pre_end)  → median composite  → PRE image
+    └── filterDate(post_start, post_end) → median composite → POST image
+             │
+             ▼  [optional] Lee speckle filter: focal_mean(radius=1, kernelType='square')
+             │
+             ▼  Change image: DIFF = PRE − POST
+             │  (positive values = backscatter drop = open water / inundation)
+             │
+             ▼  Threshold: DIFF > T dB  →  binary flood mask
+             │
+             ├── Terrain guard: mask pixels where slope > 8°  (radar shadow removal)
+             ├── Permanent water mask: JRC seasonality ≥ 10 months (exclude standing water)
+             └── Morphological cleanup: focal_mode(40 m radius, circular kernel)
+```
+
+**SAR visualization parameters:**
+
+| View | Band | min | max | Palette |
+|------|------|-----|-----|---------|
+| Raw backscatter | VH or VV | −25 dB | 0 dB | dark-navy → white |
+| Change intensity | DIFF | −2 dB | 8 dB | dark-navy → cyan → white |
+| Severity zones | classified | 1 | 3 | yellow → orange → red |
+
+**Flood severity classification** uses DEM elevation percentiles within the AOI:
+
+| Elevation zone | Severity class |
+|---------------|:--------------:|
+| ≤ 10th percentile | Deep (3) |
+| 10th – 50th percentile | Moderate (2) |
+| > 50th percentile | Shallow (1) |
+
+---
+
+### Flood Return Period — Gumbel Extreme Value Distribution
+
+Annual monsoon rainfall totals (Jun–Oct) are extracted from CHIRPS for 2000–2023 using a server-side GEE `map()` operation (single `getInfo()` call for 24 years).
+
+Gumbel Type-I parameters:
+
+```
+β  = σ × √6 / π
+u  = μ − 0.5772 × β
+
+x(T) = u − β × ln(−ln(1 − 1/T))
+```
+
+where μ = sample mean, σ = sample standard deviation, T = return period in years.
+
+---
+
+### NDVI Crop Damage Index
+
+```
+NDVI_pre  = (B8 − B4) / (B8 + B4)   [Sentinel-2 SR, pre-flood composite]
+NDVI_post = (B8 − B4) / (B8 + B4)   [Sentinel-2 SR, post-flood composite]
+Damage    = NDVI_pre − NDVI_post     [positive = vegetation loss]
+```
+
+Visualized on a green → yellow → red scale (min = −0.3, max = 0.5).
+
+---
+
+### Flood Progression (Multi-date)
+
+Each month (Jun–Oct) of the selected year uses the Jan–Mar median composite of that year as the dry-season reference. A separate `get_month_sar_tile()` function (cached per month) performs the full change-detection chain and returns a tile URL for the selected month's flood extent.
 
 ---
 
 ## Data Sources
 
-| Dataset | Provider | Use |
-|---------|----------|-----|
-| Sentinel-1 GRD | ESA / Copernicus | SAR backscatter, flood detection |
-| ESA WorldCover v200 | ESA | LULC classification |
-| SRTM DEM 30m | USGS | Slope, terrain masking |
-| CHIRPS Daily | UCSB-CHG | Rainfall time series, return period |
-| JRC Global Surface Water | EC JRC | Flood frequency, permanent water mask |
-| WorldPop 100m | WorldPop | Population exposure |
-| Sentinel-2 SR | ESA / Copernicus | NDVI damage, true color |
-| HydroSHEDS Basins L8 | WWF | Watershed delineation |
-| OpenStreetMap | OSM / Overpass API | Infrastructure risk |
+| Dataset | GEE Asset ID | Resolution | Use |
+|---------|-------------|:----------:|-----|
+| Sentinel-1 GRD | `COPERNICUS/S1_GRD` | 10 m | SAR backscatter, change detection |
+| ESA WorldCover v200 | `ESA/WorldCover/v200` | 10 m | LULC classification |
+| SRTM DEM | `USGS/SRTMGL1_003` | 30 m | Slope, terrain masking, severity |
+| CHIRPS Daily | `UCSB-CHG/CHIRPS/DAILY` | ~5.5 km | Rainfall time series, return period |
+| JRC Global Surface Water | `JRC/GSW1_4/GlobalSurfaceWater` | 30 m | Flood frequency, permanent water |
+| WorldPop 100m | `WorldPop/GP/100m/pop` | 100 m | Population exposure |
+| Sentinel-2 SR (Harmonized) | `COPERNICUS/S2_SR_HARMONIZED` | 10 m | NDVI damage, true color |
+| HydroSHEDS Basins L8 | `WWF/HydroSHEDS/v1/Basins/hybas_8` | vector | Watershed delineation |
+| OSM via Overpass API | `https://overpass-api.de` | vector | Infrastructure risk |
+
+---
+
+## Features
+
+### Tab 1 — MCA Susceptibility Map
+- Weighted three-layer MCA (LULC + Slope + Rainfall) with interactive weight sliders
+- AOI terrain statistics: area (km²), elevation min/max/mean, mean slope
+- Optional layers: JRC Flood Frequency, Sentinel-2 True Color, HydroSHEDS Watershed boundaries
+- Coordinate click picker (via `st_folium`) — clicked lat/lon shown as overlay pill
+- GeoTIFF direct download via GEE `getDownloadUrl()`
+
+### Tab 2 — SAR Inundation Detection
+- Six selectable map layers: Flood Mask, Severity Zones, Pre-SAR, Post-SAR, Change Intensity, NDVI Damage
+- Population exposure estimate (WorldPop 2020 sum within flood mask)
+- OSM infrastructure overlay — hospitals, schools, fire stations, police (Overpass API)
+- CHIRPS daily rainfall time series chart (AOI mean, `st.area_chart`)
+- Gumbel flood return period table (2 / 5 / 10 / 25 / 50 / 100-year)
+
+### Tab 3 — Dual-View SAR Comparison
+- `folium.plugins.DualMap` synchronized side-by-side map
+- Left panel: pre-flood SAR backscatter; right panel: post-flood SAR + flood mask overlay
+- Rendered via `components.html()` for full DualMap compatibility
+
+### Tab 4 — Flood Progression
+- CHIRPS monthly rainfall bar chart (Jun–Oct) for selected year
+- Per-month SAR flood mask (selectbox-driven, cached per month)
+- Dry-season reference: Jan–Mar of the selected year
+- Season-total and peak-month statistics
+
+### Sidebar
+- Place name geocoding (Nominatim) → auto-fill AOI bounding box
+- Bounding box inputs or GeoJSON file upload
+- MCA weight sliders (LULC %, Slope %; Rainfall % = 100 − sum)
+- SAR date pickers: pre-flood and post-flood windows
+- VH / VV polarization toggle
+- Backscatter threshold slider (0.5 – 6.0 dB)
+- Lee speckle filter checkbox
+- Progression year selector (2019 – 2024)
+- Plain-text technical report download
+- PDF report download (fpdf2)
 
 ---
 
 ## Installation
 
 ```bash
-# Clone the repository
 git clone https://github.com/<your-username>/flood-predictor.git
 cd flood-predictor
-
-# Install dependencies
 pip install streamlit earthengine-api folium streamlit-folium pandas requests geopy fpdf2
 ```
 
@@ -75,11 +260,19 @@ pip install streamlit earthengine-api folium streamlit-folium pandas requests ge
 earthengine authenticate
 ```
 
-Then update the `project_id` variable in `app.py` with your GEE Cloud Project ID:
+A browser window will open for OAuth2 sign-in. Once complete, credentials are stored in `~/.config/earthengine/credentials`.
+
+---
+
+## Configuration
+
+Open `app.py` and set your GEE Cloud Project ID on line:
 
 ```python
 project_id = 'your-gee-project-id'
 ```
+
+The project must have the **Earth Engine API** enabled in Google Cloud Console. On Compute Engine or Cloud Run the app will automatically use `ComputeEngineCredentials`; locally it uses the credentials written by `earthengine authenticate`.
 
 ---
 
@@ -89,27 +282,52 @@ project_id = 'your-gee-project-id'
 streamlit run app.py
 ```
 
-Open `http://localhost:8501` in your browser.
+Open `http://localhost:8501`.
 
-**Workflow:**
-1. Search a place name or enter bounding box coordinates in the sidebar
-2. Click **INITIALIZE AOI** to set the study area
-3. Adjust MCA weights, SAR date windows, polarization, and threshold
-4. Explore the four analysis tabs
+**Typical workflow:**
+
+1. Enter a place name (e.g. `Patna, Bihar`) and click **SEARCH & SET AOI**, or manually enter bounding box coordinates and click **INITIALIZE AOI**.
+2. Adjust MCA weights in the sidebar. The Rainfall weight auto-computes as `100 − LULC% − Slope%`.
+3. Set pre-flood and post-flood date windows for SAR analysis.
+4. Choose VH or VV polarization and set the backscatter change threshold.
+5. Switch between tabs to explore susceptibility, inundation, dual-view comparison, and monthly progression.
+6. Download the technical report or PDF from the sidebar.
+
+---
+
+## Caching Strategy
+
+| Scope | Decorator | Key inputs | Notes |
+|-------|-----------|-----------|-------|
+| EE session | `@st.cache_resource` | — | Singleton across reruns |
+| MCA tile URL | `@st.cache_data(ttl=3600)` | aoi_json, w_lulc, w_slope, w_rain | String output — serializable |
+| SAR all tiles + stats | `@st.cache_data(ttl=3600)` | aoi_json, dates, threshold, polar, speckle | All outputs serializable |
+| NDVI tile URL | `@st.cache_data(ttl=3600)` | aoi_json, pre/post dates | Computed only when selected |
+| AOI terrain stats | `@st.cache_data(ttl=3600)` | aoi_json | Dict of floats |
+| CHIRPS time series | `@st.cache_data(ttl=3600)` | aoi_json, start, end | Pandas DataFrame |
+| JRC / S2 / Watershed tiles | `@st.cache_data(ttl=3600)` | aoi_json | Computed only when selected |
+| Return period | `@st.cache_data(ttl=7200)` | aoi_json | 24-yr batch GEE call |
+| Progression stats | `@st.cache_data(ttl=7200)` | aoi_json, year | 5-month batch GEE call |
+| Monthly SAR tile | `@st.cache_data(ttl=3600)` | aoi_json, year, month, params | Per-month cache key |
+| OSM infrastructure | `@st.cache_data(ttl=3600)` | aoi_json | Overpass API HTTP call |
+
+The AOI geometry is serialized to a JSON string for cache keying (`json.dumps(aoi.getInfo())`) and deserialized back to a dict inside each function (`json.loads(aoi_json)`) before passing to `ee.Geometry()`.
 
 ---
 
 ## Dependencies
 
 ```
-streamlit
-earthengine-api
-folium
-streamlit-folium
-pandas
-requests
-geopy          # optional — place name search
-fpdf2          # optional — PDF report export
+streamlit          >= 1.30
+earthengine-api    >= 0.1.390
+folium             >= 0.15
+streamlit-folium   >= 0.18
+pandas             >= 2.0
+requests           >= 2.31
+
+# optional
+geopy              >= 2.4    # place name geocoding
+fpdf2              >= 2.7    # PDF report export
 ```
 
 ---
@@ -118,22 +336,19 @@ fpdf2          # optional — PDF report export
 
 ```
 flood-predictor/
-├── app.py          # Main application (single-file Streamlit app)
+├── app.py       # Single-file Streamlit application (~1000 lines)
 └── README.md
 ```
-
----
-
-## Screenshots
-
-> Add screenshots of the MCA map, SAR dual-view, and progression tab here.
 
 ---
 
 ## Author
 
 **Ankit Kumar**
-Indian Institute of Technology Kharagpur
+Land and Water Resource Engineering, Department of Agricultural and Food Engineering, Indian Institute of Technology Kharagpur
+
+[![GitHub](https://img.shields.io/badge/GitHub-explolar-181717?style=flat-square&logo=github&logoColor=white)](https://github.com/explolar)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-Ankit%20Kumar-0A66C2?style=flat-square&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/ankit-kumar-9b3b06228/)
 
 ---
 
