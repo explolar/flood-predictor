@@ -21,26 +21,21 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# ==========================================
-# 2. INITIALIZE EARTH ENGINE (Web-Ready)
-# ==========================================
-# Your Google Cloud Project ID
 project_id = 'xward-481405'
 
-# Enhanced logic to handle both local and Cloud environments
-if "gcp_service_account" in st.secrets:
-    # Use Service Account credentials from Streamlit Secrets for web deployment
-    creds = ee.ServiceAccountCredentials(
-        st.secrets["gcp_service_account"]["client_email"],
-        key_data=st.secrets["gcp_service_account"]["private_key"]
-    )
+try:
+    # This will work automatically on Cloud Run using the assigned Service Account
+    creds = ee.ComputeEngineCredentials()
     ee.Initialize(creds, project=project_id)
-else:
-    # Fallback for local development on your machine
-    try:
-        ee.Initialize(project=project_id)
-    except Exception:
-        ee.Authenticate()
+except Exception:
+    # Fallback for local development or Streamlit Cloud
+    if "gcp_service_account" in st.secrets:
+        creds = ee.ServiceAccountCredentials(
+            st.secrets["gcp_service_account"]["client_email"],
+            key_data=st.secrets["gcp_service_account"]["private_key"]
+        )
+        ee.Initialize(creds, project=project_id)
+    else:
         ee.Initialize(project=project_id)
 
 # ==========================================
