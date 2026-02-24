@@ -482,14 +482,14 @@ def calculate_flood_risk(aoi_geom, w_lulc=0.40, w_slope=0.30, w_rain=0.30):
 # ── CACHED TILE GETTERS ────────────────────────────────
 @st.cache_data(show_spinner=False, ttl=3600)
 def get_mca_tile(aoi_json, w_lulc, w_slope, w_rain):
-    aoi_geom = ee.Geometry(aoi_json)
+    aoi_geom = ee.Geometry(json.loads(aoi_json))
     risk = calculate_flood_risk(aoi_geom, w_lulc, w_slope, w_rain)
     return risk.getMapId({'min':1,'max':5,'palette':['1a9850','91cf60','ffffbf','fc8d59','d73027']})['tile_fetcher'].url_format
 
 @st.cache_data(show_spinner=False, ttl=3600)
 def get_all_sar_data(aoi_json, f_start, f_end, p_start, p_end, threshold, polarization, speckle):
     """Compute all SAR layers and stats; return serializable dict for caching."""
-    aoi_geom = ee.Geometry(aoi_json)
+    aoi_geom = ee.Geometry(json.loads(aoi_json))
     s1 = (ee.ImageCollection('COPERNICUS/S1_GRD')
           .filterBounds(aoi_geom)
           .filter(ee.Filter.listContains('transmitterReceiverPolarisation', polarization))
@@ -543,7 +543,7 @@ def get_all_sar_data(aoi_json, f_start, f_end, p_start, p_end, threshold, polari
 
 @st.cache_data(show_spinner=False, ttl=3600)
 def get_ndvi_tile(aoi_json, p_start, p_end, f_start, f_end):
-    aoi_geom = ee.Geometry(aoi_json)
+    aoi_geom = ee.Geometry(json.loads(aoi_json))
     s2_pre  = (ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")
                .filterBounds(aoi_geom).filterDate(str(p_start), str(p_end))
                .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 30)).median())
@@ -557,13 +557,13 @@ def get_ndvi_tile(aoi_json, p_start, p_end, f_start, f_end):
 
 @st.cache_data(show_spinner=False, ttl=3600)
 def get_jrc_freq_tile(aoi_json):
-    aoi_geom = ee.Geometry(aoi_json)
+    aoi_geom = ee.Geometry(json.loads(aoi_json))
     freq = ee.Image("JRC/GSW1_4/GlobalSurfaceWater").select('occurrence').clip(aoi_geom)
     return freq.getMapId({'min':0,'max':100,'palette':['ffffff','0000ff']})['tile_fetcher'].url_format
 
 @st.cache_data(show_spinner=False, ttl=3600)
 def get_s2_rgb_tile(aoi_json):
-    aoi_geom = ee.Geometry(aoi_json)
+    aoi_geom = ee.Geometry(json.loads(aoi_json))
     s2 = (ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")
           .filterBounds(aoi_geom).filterDate('2024-01-01','2024-12-31')
           .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 20)).median().clip(aoi_geom))
@@ -571,7 +571,7 @@ def get_s2_rgb_tile(aoi_json):
 
 @st.cache_data(show_spinner=False, ttl=3600)
 def get_aoi_stats(aoi_json):
-    aoi_geom = ee.Geometry(aoi_json)
+    aoi_geom = ee.Geometry(json.loads(aoi_json))
     dem   = ee.Image('USGS/SRTMGL1_003').select('elevation').clip(aoi_geom)
     slope = ee.Terrain.slope(dem).clip(aoi_geom)
     combined = dem.rename('elev').addBands(slope.rename('slope'))
@@ -590,7 +590,7 @@ def get_aoi_stats(aoi_json):
 
 @st.cache_data(show_spinner=False, ttl=3600)
 def get_chirps_series(aoi_json, start_str, end_str):
-    aoi_geom = ee.Geometry(aoi_json)
+    aoi_geom = ee.Geometry(json.loads(aoi_json))
     chirps = ee.ImageCollection("UCSB-CHG/CHIRPS/DAILY").filterDate(start_str, end_str).filterBounds(aoi_geom)
     def extract(img):
         mean = img.reduceRegion(reducer=ee.Reducer.mean(), geometry=aoi_geom, scale=5000, maxPixels=1e8)
@@ -608,7 +608,7 @@ def get_chirps_series(aoi_json, start_str, end_str):
 @st.cache_data(show_spinner=False, ttl=7200)
 def get_watershed_geojson(aoi_json):
     try:
-        aoi_geom = ee.Geometry(aoi_json)
+        aoi_geom = ee.Geometry(json.loads(aoi_json))
         hydrobasins = ee.FeatureCollection("WWF/HydroSHEDS/v1/Basins/hybas_8")
         ws = hydrobasins.filterBounds(aoi_geom)
         return ws.geometry().getInfo()
@@ -619,7 +619,7 @@ def get_watershed_geojson(aoi_json):
 @st.cache_data(show_spinner=False, ttl=3600)
 def get_osm_infrastructure(aoi_json):
     try:
-        aoi_geom = ee.Geometry(aoi_json)
+        aoi_geom = ee.Geometry(json.loads(aoi_json))
         bb = aoi_geom.bounds().getInfo()['coordinates'][0]
         lats = [c[1] for c in bb];  lons = [c[0] for c in bb]
         s, n, w, e = min(lats), max(lats), min(lons), max(lons)
@@ -646,7 +646,7 @@ out center 100;"""
 @st.cache_data(show_spinner=False, ttl=7200)
 def get_return_period(aoi_json):
     try:
-        aoi_geom = ee.Geometry(aoi_json)
+        aoi_geom = ee.Geometry(json.loads(aoi_json))
         years_ee = ee.List.sequence(2000, 2023)
         def annual_monsoon(yr):
             yr = ee.Number(yr).int()
@@ -680,7 +680,7 @@ def get_return_period(aoi_json):
 @st.cache_data(show_spinner=False, ttl=7200)
 def get_progression_stats(aoi_json, year):
     try:
-        aoi_geom = ee.Geometry(aoi_json)
+        aoi_geom = ee.Geometry(json.loads(aoi_json))
         months_ee = ee.List([6, 7, 8, 9, 10])
         def monthly_rain(m):
             m = ee.Number(m).int()
@@ -705,7 +705,7 @@ def get_progression_stats(aoi_json, year):
 @st.cache_data(show_spinner=False, ttl=3600)
 def get_month_sar_tile(aoi_json, year, month_num, polarization, threshold, speckle):
     try:
-        aoi_geom = ee.Geometry(aoi_json)
+        aoi_geom = ee.Geometry(json.loads(aoi_json))
         s1 = (ee.ImageCollection('COPERNICUS/S1_GRD')
               .filterBounds(aoi_geom)
               .filter(ee.Filter.listContains('transmitterReceiverPolarisation', polarization))
