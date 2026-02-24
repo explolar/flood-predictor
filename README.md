@@ -345,7 +345,9 @@ flood-predictor/
 ## Author
 
 **Ankit Kumar**
-Land and Water Resource Engineering, Department of Agricultural and Food Engineering, Indian Institute of Technology Kharagpur
+Land and Water Resource Engineering,
+ Department of Agricultural and Food Engineering, 
+ Indian Institute of Technology Kharagpur
 
 [![GitHub](https://img.shields.io/badge/GitHub-explolar-181717?style=flat-square&logo=github&logoColor=white)](https://github.com/explolar)
 [![LinkedIn](https://img.shields.io/badge/LinkedIn-Ankit%20Kumar-0A66C2?style=flat-square&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/ankit-kumar-9b3b06228/)
