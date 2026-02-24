@@ -24,18 +24,19 @@ st.markdown("""
 # ==========================================
 # 2. INITIALIZE EARTH ENGINE (Web-Ready)
 # ==========================================
+# Your Google Cloud Project ID
 project_id = 'xward-481405'
 
-# Logic to handle both local and Streamlit Cloud authentication
+# Enhanced logic to handle both local and Cloud environments
 if "gcp_service_account" in st.secrets:
-    # Use Service Account credentials for Streamlit Cloud deployment
+    # Use Service Account credentials from Streamlit Secrets for web deployment
     creds = ee.ServiceAccountCredentials(
         st.secrets["gcp_service_account"]["client_email"],
         key_data=st.secrets["gcp_service_account"]["private_key"]
     )
     ee.Initialize(creds, project=project_id)
 else:
-    # Fallback for local development
+    # Fallback for local development on your machine
     try:
         ee.Initialize(project=project_id)
     except Exception:
@@ -76,7 +77,7 @@ st.sidebar.title("⚙️ Project Parameters")
 
 input_method = st.sidebar.radio("Input Method", ("Bounding Box", "Upload GeoJSON"), label_visibility="collapsed")
 aoi = None
-map_center = [25.61, 85.12] 
+map_center = [25.61, 85.12] # Default center near Patna/Danapur
 
 if input_method == "Bounding Box":
     col1, col2 = st.sidebar.columns(2)
@@ -106,15 +107,15 @@ elif input_method == "Upload GeoJSON":
 st.sidebar.divider()
 st.sidebar.markdown("### 🛰️ SAR Parameters")
 pre_start = st.sidebar.date_input("Pre-Flood Start", datetime.date(2024, 5, 1))
-pre_end = st.sidebar.date_input("Pre-Flood End", datetime.date(2024, 5, 30))
+pre_end = st.sidebar.date_input("Pre-End", datetime.date(2024, 5, 30))
 post_start = st.sidebar.date_input("Post-Flood Start", datetime.date(2024, 8, 1))
-post_end = st.sidebar.date_input("Post-Flood End", datetime.date(2024, 8, 30))
+post_end = st.sidebar.date_input("Post-End", datetime.date(2024, 8, 30))
 flood_threshold = st.sidebar.slider("Sensitivity (dB)", 1.0, 5.0, 1.25, 0.05)
 
 st.sidebar.divider()
 st.sidebar.markdown("### About the Developer")
 st.sidebar.markdown("**Ankit Kumar**")
-st.sidebar.caption("M.Tech Scholar, IIT Kharagpur")
+st.sidebar.caption("M.Tech Scholar, Land and Water Resources Engineering | IIT Kharagpur")
 
 # ==========================================
 # 5. CORE ANALYTICAL PIPELINES
@@ -123,11 +124,16 @@ st.sidebar.caption("M.Tech Scholar, IIT Kharagpur")
 def calculate_flood_risk(aoi_geom):
     dem = ee.Image('USGS/SRTMGL1_003').select('elevation').clip(aoi_geom)
     slope = ee.Terrain.slope(dem).clip(aoi_geom).clamp(0, 40)
+    # Slope Reclassification (Higher risk for flatter areas)
     slope_r = slope.where(slope.lte(2), 5).where(slope.gt(2).And(slope.lte(5)), 4).where(slope.gt(5).And(slope.lte(10)), 3).where(slope.gt(10).And(slope.lte(20)), 2).where(slope.gt(20), 1)
+    
     lulc = ee.ImageCollection("ESA/WorldCover/v200").mosaic().select('Map').clip(aoi_geom)
     lulc_r = lulc.remap([10,20,30,40,50,60,80,90], [1,2,2,3,5,4,5,5])
+    
     rain = ee.ImageCollection("UCSB-CHG/CHIRPS/DAILY").filterDate('2023-01-01', '2024-01-01').sum().clip(aoi_geom)
     rain_r = rain.where(rain.lt(1860), 1).where(rain.gte(1860).And(rain.lt(1880)), 2).where(rain.gte(1880).And(rain.lt(1910)), 3).where(rain.gte(1910).And(rain.lt(1950)), 4).where(rain.gte(1950), 5)
+    
+    # Weighted MCA
     return lulc_r.multiply(0.40).add(slope_r.multiply(0.30)).add(rain_r.multiply(0.30)).clip(aoi_geom).round()
 
 def calculate_sar_flood(aoi_geom, pre_s, pre_e, post_s, post_e, threshold):
@@ -140,16 +146,20 @@ def calculate_sar_flood(aoi_geom, pre_s, pre_e, post_s, post_e, threshold):
     pre_img = s1.filterDate(str(pre_s), str(pre_e)).median().clip(aoi_geom)
     post_img = s1.filterDate(str(post_s), str(post_e)).median().clip(aoi_geom)
     
+    # Refined Smoothing to handle Speckle
     pre_f = pre_img.focal_mean(60, 'circle', 'meters')
     post_f = post_img.focal_mean(60, 'circle', 'meters')
     diff = pre_f.subtract(post_f)
     
+    # TERRAIN GUARD: Mask steep slopes to prevent Radar Shadowing (critical for mountain areas)
     dem = ee.Image('USGS/SRTMGL1_003').clip(aoi_geom)
     slope = ee.Terrain.slope(dem)
-    slope_mask = slope.lt(8) # Corrects for terrain-induced radar noise (shadows)
+    slope_mask = slope.lt(8) 
     
+    # Water Masking using JRC Global Surface Water
     permanent_water = ee.Image("JRC/GSW1_4/GlobalSurfaceWater").select('seasonality').gte(10).clip(aoi_geom)
     
+    # Logical Intersection for Flood detection
     flooded = diff.gt(threshold).updateMask(slope_mask).where(permanent_water, 0)
     final = flooded.focal_mode(40, 'circle', 'meters').updateMask(flooded)
     
@@ -162,8 +172,8 @@ tab1, tab2 = st.tabs(["📊 Phase 1: Risk Modeling (MCA)", "🛰️ Phase 2: Act
 
 if aoi is not None:
     with tab1:
-        st.info("**Multi-Criteria Analysis (MCA):** Identifies risk using Slope, Rainfall, and Land Cover overlay.")
-        with st.spinner('Generating Susceptibility Map...'):
+        st.info("**Multi-Criteria Analysis (MCA):** Identifies susceptibility using Slope, Rainfall, and Land Cover (ESA WorldCover).")
+        with st.spinner('Calculating Weighted Overlay...'):
             risk_map = calculate_flood_risk(aoi)
             m1 = folium.Map(location=map_center, zoom_start=11)
             folium.TileLayer(
@@ -174,12 +184,12 @@ if aoi is not None:
             components.html(m1.get_root().render(), height=600)
 
     with tab2:
-        st.info("**SAR Detection:** Uses Sentinel-1 radar to detect new inundation. Terrain shadows are filtered via Slope Guard.")
-        with st.spinner('Processing Radar Data...'):
+        st.info("**SAR Methodology:** Sentinel-1 radar detects smooth water surfaces. Mountain shadows are filtered via Slope Guard.")
+        with st.spinner('Analyzing Microwave Backscatter...'):
             try:
                 flood, water = calculate_sar_flood(aoi, pre_start, pre_end, post_start, post_end, flood_threshold)
                 
-                # Dynamic Area Calculation
+                # Impact Metric Calculation
                 stats = flood.multiply(ee.Image.pixelArea()).reduceRegion(
                     reducer=ee.Reducer.sum(),
                     geometry=aoi,
@@ -202,9 +212,9 @@ if aoi is not None:
                 components.html(m2.get_root().render(), height=550)
                 
                 download_url = flood.getDownloadUrl({'scale': 30, 'crs': 'EPSG:4326', 'format': 'GeoTIFF'})
-                st.success(f"✅ Analysis Complete. [Download GeoTIFF]({download_url})")
+                st.success(f"✅ Analysis Complete. [Download Flood Mask (GeoTIFF)]({download_url})")
             
             except Exception as e:
-                st.error(f"⚠️ Radar Data Gap: {e}")
+                st.error(f"⚠️ Analysis Error: {e}. Check AOI or date ranges.")
 else:
-    st.info("👈 Please define boundaries and click 'Initialize AOI'.")
+    st.info("👈 Please define boundaries in the sidebar and click 'Initialize AOI'.")
