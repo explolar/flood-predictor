@@ -24,25 +24,31 @@ st.markdown("""
 # ==========================================
 # 2. INITIALIZE EARTH ENGINE (Cloud Run Ready)
 # ==========================================
+# ==========================================
+# 2. INITIALIZE EARTH ENGINE (Final Stable Version)
+# ==========================================
 project_id = 'xward-481405'
 
 def initialize_ee():
     try:
-        # Priority 1: Modern path for Cloud Run Identity
+        # Try the most direct Cloud Run authentication first
         try:
             from ee import compute_engine
             creds = compute_engine.ComputeEngineCredentials()
             ee.Initialize(creds, project=project_id)
-        except (ImportError, AttributeError):
-            # Priority 2: Standard auto-initialization (often works on GCP)
+        except:
+            # Fallback to auto-detection
             ee.Initialize(project=project_id)
         
-        # Connection check for your MTP research at IIT Kharagpur
-        ee.data.getSTAC() 
-        st.success("✅ Connected to Google Earth Engine")
+        # --- NEW ROBUST HEALTH CHECK ---
+        # Instead of getSTAC, we'll try to get basic info about a public dataset
+        ee.Image('USGS/SRTMGL1_003').getInfo()
+        # -------------------------------
+        
+        st.success("✅ Earth Engine Connection Verified")
     except Exception as e:
         st.error(f"❌ Initialization Failed: {e}")
-        st.info("Ensure earthengine-api is listed in requirements.txt")
+        st.info("Check if your Service Account has 'Earth Engine Resource Viewer' role.")
 
 initialize_ee()
 # ==========================================
