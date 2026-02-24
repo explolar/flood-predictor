@@ -22,25 +22,22 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # ==========================================
-# 2. INITIALIZE EARTH ENGINE (Cloud Run Optimized)
+# 2. INITIALIZE EARTH ENGINE (Cloud Run Ready)
 # ==========================================
 project_id = 'xward-481405'
 
 def initialize_ee():
     try:
-        # Priority 1: Use the Cloud Run Service Account Identity
-        creds = ee.ComputeEngineCredentials()
+        # Priority 1: Use the Cloud Run Service Account Identity (Correct Path)
+        creds = ee.data.ComputeEngineCredentials() 
         ee.Initialize(creds, project=project_id)
         
-        # --- TEST LINE ---
-        # If this fails, it means the service account doesn't have the right roles.
+        # Connection check for your MTP research
         ee.data.getSTAC() 
-        # -----------------
-        
-        st.success("✅ Connected to Google Earth Engine via Cloud Run Identity.")
+        st.success("✅ Connected to Google Earth Engine via Cloud Run")
     except Exception as e:
         st.error(f"❌ Initialization Failed: {e}")
-        st.info("Check if ff-490@xward-481405.iam.gserviceaccount.com has the 'Earth Engine Resource Viewer' role.")
+        st.info("If it says 'No Attribute', ensure your requirements.txt includes earthengine-api")
 
 initialize_ee()
 # ==========================================
