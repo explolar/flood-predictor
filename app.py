@@ -27,19 +27,18 @@ st.markdown("""
 project_id = 'xward-481405'
 
 try:
-    # On Cloud Run, this will automatically use the assigned Service Account
+    # Uses the Service Account identity of the Cloud Run instance
     creds = ee.ComputeEngineCredentials()
     ee.Initialize(creds, project=project_id)
 except Exception:
-    # Fallback for local development or if secrets are provided
-    if "gcp_service_account" in st.secrets:
+    # Fallback for local development or Streamlit Cloud
+    if hasattr(st, "secrets") and "gcp_service_account" in st.secrets:
         creds = ee.ServiceAccountCredentials(
             st.secrets["gcp_service_account"]["client_email"],
             key_data=st.secrets["gcp_service_account"]["private_key"]
         )
         ee.Initialize(creds, project=project_id)
     else:
-        # Final fallback for local ee.Authenticate()
         ee.Initialize(project=project_id)
 
 # ==========================================
