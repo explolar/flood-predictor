@@ -21,14 +21,17 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
+# ==========================================
+# 2. INITIALIZE EARTH ENGINE (Cloud Run Ready)
+# ==========================================
 project_id = 'xward-481405'
 
 try:
-    # This will work automatically on Cloud Run using the assigned Service Account
+    # On Cloud Run, this will automatically use the assigned Service Account
     creds = ee.ComputeEngineCredentials()
     ee.Initialize(creds, project=project_id)
 except Exception:
-    # Fallback for local development or Streamlit Cloud
+    # Fallback for local development or if secrets are provided
     if "gcp_service_account" in st.secrets:
         creds = ee.ServiceAccountCredentials(
             st.secrets["gcp_service_account"]["client_email"],
@@ -36,6 +39,7 @@ except Exception:
         )
         ee.Initialize(creds, project=project_id)
     else:
+        # Final fallback for local ee.Authenticate()
         ee.Initialize(project=project_id)
 
 # ==========================================
