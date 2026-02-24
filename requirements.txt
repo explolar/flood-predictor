@@ -1,7 +1,7 @@
-streamlit 
-earthengine-api 
-geemap 
-xyzservices 
-python-box 
+streamlit
+earthengine-api
 folium
 streamlit-folium
+geemap
+xyzservices
+python-box
