@@ -11,12 +11,6 @@ from streamlit_folium import folium_static, st_folium
 import requests
 
 try:
-    from geopy.geocoders import Nominatim
-    _GEOPY = True
-except ImportError:
-    _GEOPY = False
-
-try:
     from fpdf import FPDF
     _FPDF = True
 except ImportError:
@@ -940,18 +934,23 @@ with st.sidebar:
     if st.button("SEARCH & SET AOI", use_container_width=True):
         if not place_query.strip():
             st.warning("Type a place name first.")
-        elif not _GEOPY:
-            st.error("geopy not installed. Run: pip install geopy")
         else:
             try:
                 with st.spinner("Searching..."):
-                    geo = Nominatim(user_agent="hydroriskatlas_v3")
-                    loc = geo.geocode(place_query.strip(), timeout=10)
-                if loc:
-                    lat, lon, d = loc.latitude, loc.longitude, 0.25
+                    resp = requests.get(
+                        "https://nominatim.openstreetmap.org/search",
+                        params={"q": place_query.strip(), "format": "json", "limit": 1},
+                        headers={"User-Agent": "HydroRiskAtlas/1.0"},
+                        timeout=10,
+                    )
+                    results = resp.json()
+                if results:
+                    lat = float(results[0]["lat"])
+                    lon = float(results[0]["lon"])
+                    d   = 0.25
                     st.session_state.aoi = ee.Geometry.BBox(lon-d, lat-d, lon+d, lat+d)
                     st.session_state.map_center = [lat, lon]
-                    st.success(f"✓ {loc.address[:55]}")
+                    st.success(f"✓ {results[0]['display_name'][:60]}")
                 else:
                     st.warning(f'"{place_query}" not found. Try a more specific name.')
             except Exception as ex:
