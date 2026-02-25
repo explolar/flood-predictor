@@ -903,6 +903,142 @@ def get_s2_rgb_tiles(aoi_json, pre_start, pre_end, post_start, post_end):
         return None
 
 
+# ── HELPER: Haversine distance ─────────────────────────
+def _haversine_km(lat1, lon1, lat2, lon2):
+    R = 6371.0
+    dlat = math.radians(lat2 - lat1)
+    dlon = math.radians(lon2 - lon1)
+    a = math.sin(dlat / 2) ** 2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon / 2) ** 2
+    return R * 2 * math.asin(math.sqrt(a))
+
+
+# ── OSM ROAD NETWORK ───────────────────────────────────
+@st.cache_data(show_spinner=False, ttl=3600)
+def get_osm_roads(aoi_json):
+    """Fetch road network from OSM Overpass. Returns roads list + km-by-type dict.
+    Evacuation candidates = major roads (primary+) that cross within margin of AOI edge.
+    """
+    try:
+        aoi_geom = ee.Geometry(json.loads(aoi_json))
+        bb   = aoi_geom.bounds().getInfo()['coordinates'][0]
+        lats = [c[1] for c in bb]; lons = [c[0] for c in bb]
+        s, n, w, e = min(lats), max(lats), min(lons), max(lons)
+        query = f"""[out:json][timeout:30];
+way["highway"~"motorway|trunk|primary|secondary|tertiary"]({s},{w},{n},{e});
+out geom 500;"""
+        r = requests.post("https://overpass-api.de/api/interpreter", data=query, timeout=35)
+        r.raise_for_status()
+        elements = r.json().get('elements', [])
+        roads, km_by_type = [], {}
+        margin = max((n - s), (e - w)) * 0.15   # 15% of span = boundary zone
+        for el in elements:
+            geom = el.get('geometry', [])
+            if len(geom) < 2:
+                continue
+            hw   = el.get('tags', {}).get('highway', 'road')
+            name = el.get('tags', {}).get('name', '')
+            coords = [[p['lon'], p['lat']] for p in geom]
+            length_km = sum(
+                _haversine_km(geom[i]['lat'], geom[i]['lon'], geom[i+1]['lat'], geom[i+1]['lon'])
+                for i in range(len(geom) - 1)
+            )
+            km_by_type[hw] = km_by_type.get(hw, 0) + length_km
+            # Evacuation candidate: major road with at least one node near AOI edge
+            near_edge = any(
+                p['lat'] < s + margin or p['lat'] > n - margin or
+                p['lon'] < w + margin or p['lon'] > e - margin
+                for p in geom
+            )
+            evacuation = near_edge and hw in ('motorway', 'trunk', 'primary', 'secondary')
+            roads.append({'coords': coords, 'highway': hw, 'name': name,
+                          'length_km': round(length_km, 2), 'evacuation': evacuation})
+        return {'roads': roads, 'km_by_type': {k: round(v, 1) for k, v in km_by_type.items()}}
+    except Exception:
+        return None
+
+
+# ── DAM / RESERVOIR OVERLAY (GRanD) ───────────────────
+@st.cache_data(show_spinner=False, ttl=7200)
+def get_dam_data(aoi_json):
+    """Return dams/reservoirs within 150 km of AOI from GRanD v1.3 (GEE asset)."""
+    try:
+        aoi_geom    = ee.Geometry(json.loads(aoi_json))
+        aoi_buf     = aoi_geom.buffer(150000)      # 150 km radius
+        dams_fc     = ee.FeatureCollection('projects/sat-io/open-datasets/GRanD/GRAND_Dams_v1_3').filterBounds(aoi_buf)
+        dam_info    = dams_fc.getInfo()
+        result = []
+        for feat in dam_info.get('features', []):
+            p    = feat.get('properties', {})
+            geom = feat.get('geometry', {})
+            if geom.get('type') == 'Point':
+                lon, lat = geom['coordinates']
+                result.append({
+                    'lat':          lat,
+                    'lon':          lon,
+                    'name':         p.get('DAM_NAME', 'Unknown'),
+                    'river':        p.get('RIVER', '—'),
+                    'capacity_mcm': round(float(p.get('CAP_MCM') or 0), 0),
+                    'main_use':     p.get('MAIN_USE', '—'),
+                    'year':         int(p.get('YEAR') or 0) or '—',
+                })
+        # Sort by capacity descending
+        result.sort(key=lambda x: x['capacity_mcm'], reverse=True)
+        return result
+    except Exception:
+        return []
+
+
+# ── FLOOD RECESSION TRACKER ────────────────────────────
+@st.cache_data(show_spinner=False, ttl=3600)
+def get_recession_data(aoi_json, f_end_str, p_start_str, p_end_str, polarization, threshold, speckle):
+    """Compute flood extent (ha) at T=0, +12d, +24d, +36d after flood end using SAR.
+    Pre-flood reference = p_start → p_end (same as main analysis).
+    Each recession window is 12 days wide (matches S-1 ~12-day revisit).
+    """
+    try:
+        aoi_geom   = ee.Geometry(json.loads(aoi_json))
+        f_end_dt   = datetime.date.fromisoformat(f_end_str)
+        s1 = (ee.ImageCollection('COPERNICUS/S1_GRD')
+              .filterBounds(aoi_geom)
+              .filter(ee.Filter.listContains('transmitterReceiverPolarisation', polarization))
+              .select(polarization))
+        pre = s1.filterDate(p_start_str, p_end_str).median().clip(aoi_geom)
+        if speckle:
+            pre = pre.focal_mean(radius=1, kernelType='square', units='pixels')
+        slope_mask = ee.Terrain.slope(ee.Image('USGS/SRTMGL1_003').clip(aoi_geom)).lt(8)
+        water      = ee.Image("JRC/GSW1_4/GlobalSurfaceWater").select('seasonality').gte(10).clip(aoi_geom)
+        px_area    = ee.Image.pixelArea()
+
+        phases = [
+            ('Peak (T₀)',  0,  12),
+            ('+12 days',  12,  24),
+            ('+24 days',  24,  36),
+            ('+36 days',  36,  48),
+        ]
+        results = []
+        for label, offset_start, offset_end in phases:
+            t0 = (f_end_dt + datetime.timedelta(days=offset_start)).isoformat()
+            t1 = (f_end_dt + datetime.timedelta(days=offset_end)).isoformat()
+            post_col = s1.filterDate(t0, t1)
+            # Skip if no imagery in window
+            if post_col.size().getInfo() == 0:
+                results.append({'Phase': label, 'Flood Area (ha)': None})
+                continue
+            post = post_col.median().clip(aoi_geom)
+            if speckle:
+                post = post.focal_mean(radius=1, kernelType='square', units='pixels')
+            diff    = pre.subtract(post)
+            flooded = diff.gt(threshold).updateMask(slope_mask).where(water, 0)
+            flood   = flooded.focal_mode(40, 'circle', 'meters').updateMask(flooded)
+            area_ha = (flood.multiply(px_area).reduceRegion(
+                reducer=ee.Reducer.sum(), geometry=aoi_geom, scale=30, maxPixels=1e9
+            ).getInfo().get(polarization, 0) or 0) / 10000
+            results.append({'Phase': label, 'Flood Area (ha)': round(area_ha, 1)})
+        return results
+    except Exception:
+        return None
+
+
 # ==========================================
 # 7. SIDEBAR
 # ==========================================
@@ -1341,12 +1477,14 @@ if st.session_state.aoi:
             m2.get_root().html.add_child(folium.Element(get_sar_legend(m2.get_name())))
             folium_static(m2, height=560)
 
-            # Show depth metrics + histogram when Flood Depth layer is active
+            # Show depth metrics + volume + histogram when Flood Depth layer is active
             if sar_view == "Flood Depth" and depth_data:
-                dm1, dm2_col, dm3 = st.columns(3)
+                volume_Mm3 = round(sar['area_ha'] * 10000 * depth_data['mean_depth'] / 1e6, 3)
+                dm1, dm2_col, dm3, dm4 = st.columns(4)
                 dm1.metric("Mean Flood Depth", f"{depth_data['mean_depth']} m")
                 dm2_col.metric("Max Flood Depth", f"{depth_data['max_depth']} m")
-                dm3.metric("Depth Scale", "0 – 4 m")
+                dm3.metric("Flood Volume",      f"{volume_Mm3} M m³")
+                dm4.metric("Depth Scale", "0 – 4 m")
                 if depth_data.get('histogram'):
                     hist = depth_data['histogram']
                     st.markdown('<div style="font-family:JetBrains Mono,monospace;font-size:0.65rem;color:rgba(0,255,255,0.4);letter-spacing:2px;margin:10px 0 4px;">FLOOD DEPTH DISTRIBUTION · PIXEL COUNT PER DEPTH BAND</div>', unsafe_allow_html=True)
@@ -1447,6 +1585,109 @@ if st.session_state.aoi:
                 st.markdown('<div style="font-size:0.7rem;color:#3a5060;font-family:JetBrains Mono,monospace;margin-top:8px;">Source: JRC/GSW1_4/MonthlyHistory · Water class = 2 · 30 m resolution · Pekel et al. (2016)</div>', unsafe_allow_html=True)
             else:
                 st.warning("JRC flood history unavailable for this AOI.")
+
+        # ── ROAD NETWORK IMPACT ───────────────────────────
+        with st.expander("ROAD NETWORK IMPACT  [OSM · Evacuation Routes]", expanded=False):
+            with st.spinner("Fetching road network from OSM..."):
+                road_data = get_osm_roads(_aoi_json)
+            if road_data and road_data['roads']:
+                hw_colors = {
+                    'motorway': '#e74c3c', 'trunk': '#e67e22', 'primary': '#f1c40f',
+                    'secondary': '#2ecc71', 'tertiary': '#3498db', 'road': '#95a5a6',
+                }
+                evac_count = sum(1 for r in road_data['roads'] if r['evacuation'])
+                rn1, rn2, rn3 = st.columns(3)
+                total_km = sum(road_data['km_by_type'].values())
+                rn1.metric("Total Road Length", f"{total_km:.1f} km")
+                rn2.metric("Road Types",        f"{len(road_data['km_by_type'])}")
+                rn3.metric("Evacuation Routes", f"{evac_count} segments")
+
+                road_map = folium.Map(location=st.session_state.map_center, zoom_start=11, tiles="CartoDB dark_matter")
+                folium.TileLayer(tiles=sar['flood_url'], attr='GEE', name='Flood Mask', opacity=0.55).add_to(road_map)
+                for road in road_data['roads']:
+                    color = '#00FF88' if road['evacuation'] else hw_colors.get(road['highway'], '#95a5a6')
+                    weight = 4 if road['evacuation'] else 2
+                    folium.PolyLine(
+                        locations=[[c[1], c[0]] for c in road['coords']],
+                        color=color, weight=weight, opacity=0.85,
+                        tooltip=f"{road['highway'].title()} · {road['name'] or 'unnamed'} · {road['length_km']} km"
+                    ).add_to(road_map)
+                folium.GeoJson(
+                    st.session_state.aoi.getInfo(),
+                    style_function=lambda _: {'fillColor': 'none', 'color': '#00FFFF', 'weight': 2, 'dashArray': '6 4'}
+                ).add_to(road_map)
+                folium_static(road_map, height=420)
+
+                st.markdown('<div style="font-family:JetBrains Mono,monospace;font-size:0.65rem;color:rgba(0,255,255,0.4);letter-spacing:2px;margin:12px 0 4px;">ROAD LENGTH BY TYPE · GREEN = EVACUATION CORRIDOR</div>', unsafe_allow_html=True)
+                km_df = pd.DataFrame(list(road_data['km_by_type'].items()), columns=['Highway Type', 'Length (km)']).sort_values('Length (km)', ascending=False).set_index('Highway Type')
+                st.dataframe(km_df, use_container_width=True)
+                st.markdown('<div style="font-size:0.7rem;color:#3a5060;font-family:JetBrains Mono,monospace;margin-top:6px;">Evacuation routes = primary/secondary roads exiting AOI boundary · Red overlay = flooded area · Source: OSM Overpass</div>', unsafe_allow_html=True)
+            else:
+                st.warning("No road data available for this AOI.")
+
+        # ── DAM / RESERVOIR OVERLAY ───────────────────────
+        with st.expander("DAMS & RESERVOIRS UPSTREAM  [GRanD v1.3 · 150 km radius]", expanded=False):
+            with st.spinner("Querying GRanD dam database..."):
+                dam_list = get_dam_data(_aoi_json)
+            if dam_list:
+                dam_map = folium.Map(location=st.session_state.map_center, zoom_start=8, tiles="CartoDB dark_matter")
+                folium.TileLayer(tiles=sar['flood_url'], attr='GEE', name='Flood Mask', opacity=0.5).add_to(dam_map)
+                folium.GeoJson(
+                    st.session_state.aoi.getInfo(),
+                    style_function=lambda _: {'fillColor': 'none', 'color': '#00FFFF', 'weight': 2, 'dashArray': '6 4'}
+                ).add_to(dam_map)
+                for dam in dam_list:
+                    cap = dam['capacity_mcm']
+                    radius = max(6, min(22, int(cap ** 0.35))) if cap > 0 else 7
+                    folium.CircleMarker(
+                        location=[dam['lat'], dam['lon']],
+                        radius=radius, color='#00BFFF', fill=True, fill_color='#00BFFF', fill_opacity=0.6,
+                        tooltip=(f"🏞 {dam['name']} · {dam['river']}<br>"
+                                 f"Capacity: {int(cap):,} MCM · Use: {dam['main_use']} · Built: {dam['year']}")
+                    ).add_to(dam_map)
+                folium_static(dam_map, height=420)
+
+                da1, da2, da3 = st.columns(3)
+                da1.metric("Dams Found", f"{len(dam_list)}")
+                total_cap = sum(d['capacity_mcm'] for d in dam_list)
+                da2.metric("Total Capacity", f"{total_cap:,.0f} MCM")
+                da3.metric("Largest Dam", dam_list[0]['name'] if dam_list else "—")
+
+                st.markdown('<div style="font-family:JetBrains Mono,monospace;font-size:0.65rem;color:rgba(0,255,255,0.4);letter-spacing:2px;margin:12px 0 4px;">DAM REGISTRY · WITHIN 150 km · CIRCLE SIZE ∝ CAPACITY</div>', unsafe_allow_html=True)
+                dam_df = pd.DataFrame([{
+                    'Name': d['name'], 'River': d['river'],
+                    'Capacity (MCM)': int(d['capacity_mcm']), 'Use': d['main_use'], 'Built': d['year']
+                } for d in dam_list])
+                st.dataframe(dam_df, use_container_width=True, hide_index=True)
+                st.markdown('<div style="font-size:0.7rem;color:#3a5060;font-family:JetBrains Mono,monospace;margin-top:6px;">Source: GRanD v1.3 · Lehner et al. · MCM = million cubic metres</div>', unsafe_allow_html=True)
+            else:
+                st.info("No dams found within 150 km of this AOI.")
+
+        # ── FLOOD RECESSION TRACKER ───────────────────────
+        with st.expander("FLOOD RECESSION TRACKER  [SAR · +12 / +24 / +36 days]", expanded=False):
+            with st.spinner("Computing post-event SAR flood extent (4 × 12-day windows)..."):
+                recession = get_recession_data(
+                    _aoi_json, str(f_end), str(p_start), str(p_end),
+                    polarization, f_threshold, apply_speckle
+                )
+            if recession:
+                valid = [r for r in recession if r['Flood Area (ha)'] is not None]
+                if valid:
+                    rec_df = pd.DataFrame(valid).set_index('Phase')
+                    peak   = rec_df['Flood Area (ha)'].max()
+                    final  = rec_df['Flood Area (ha)'].iloc[-1]
+                    receded_pct = round(100 * (peak - final) / peak, 1) if peak > 0 else 0
+                    rv1, rv2, rv3 = st.columns(3)
+                    rv1.metric("Peak Flood Area", f"{peak:,.0f} ha")
+                    rv2.metric("Latest Extent",   f"{final:,.0f} ha")
+                    rv3.metric("Area Receded",     f"{receded_pct} %")
+                    st.markdown('<div style="font-family:JetBrains Mono,monospace;font-size:0.65rem;color:rgba(0,255,255,0.4);letter-spacing:2px;margin:12px 0 4px;">FLOOD AREA (ha) OVER TIME · SENTINEL-1 SAR CHANGE DETECTION</div>', unsafe_allow_html=True)
+                    st.line_chart(rec_df, color="#FF6B6B", height=200)
+                    st.markdown('<div style="font-size:0.7rem;color:#3a5060;font-family:JetBrains Mono,monospace;margin-top:6px;">Each phase = 12-day SAR median composite · Pre-flood reference: dry-season baseline · Sentinel-1 GRD</div>', unsafe_allow_html=True)
+                else:
+                    st.info("No SAR imagery found in post-event windows. Try extending the date range.")
+            else:
+                st.warning("Recession analysis failed. Check GEE connectivity.")
 
     # ════════════════════════════════════════
     # TAB 3 — DUAL-VIEW (FEATURE 18)
