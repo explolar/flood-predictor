@@ -548,17 +548,22 @@ def get_all_sar_data(aoi_json, f_start, f_end, p_start, p_end, threshold, polari
 
 @st.cache_data(show_spinner=False, ttl=3600)
 def get_ndvi_tile(aoi_json, p_start, p_end, f_start, f_end):
-    aoi_geom = ee.Geometry(json.loads(aoi_json))
-    s2_pre  = (ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")
-               .filterBounds(aoi_geom).filterDate(str(p_start), str(p_end))
-               .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 30)).median())
-    s2_post = (ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")
-               .filterBounds(aoi_geom).filterDate(str(f_start), str(f_end))
-               .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 30)).median())
-    ndvi_pre  = s2_pre.normalizedDifference(['B8','B4']).clip(aoi_geom)
-    ndvi_post = s2_post.normalizedDifference(['B8','B4']).clip(aoi_geom)
-    ndvi_diff = ndvi_pre.subtract(ndvi_post)
-    return ndvi_diff.getMapId({'min':-0.3,'max':0.5,'palette':['1a9850','ffffbf','d73027']})['tile_fetcher'].url_format
+    try:
+        aoi_geom = ee.Geometry(json.loads(aoi_json))
+        col_pre  = (ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")
+                    .filterBounds(aoi_geom).filterDate(str(p_start), str(p_end))
+                    .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 30)))
+        col_post = (ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")
+                    .filterBounds(aoi_geom).filterDate(str(f_start), str(f_end))
+                    .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 30)))
+        if col_pre.size().getInfo() == 0 or col_post.size().getInfo() == 0:
+            return None
+        ndvi_pre  = col_pre.median().normalizedDifference(['B8','B4']).clip(aoi_geom)
+        ndvi_post = col_post.median().normalizedDifference(['B8','B4']).clip(aoi_geom)
+        ndvi_diff = ndvi_pre.subtract(ndvi_post)
+        return ndvi_diff.getMapId({'min':-0.3,'max':0.5,'palette':['1a9850','ffffbf','d73027']})['tile_fetcher'].url_format
+    except Exception:
+        return None
 
 @st.cache_data(show_spinner=False, ttl=3600)
 def get_jrc_freq_tile(aoi_json):
@@ -568,11 +573,17 @@ def get_jrc_freq_tile(aoi_json):
 
 @st.cache_data(show_spinner=False, ttl=3600)
 def get_s2_rgb_tile(aoi_json):
-    aoi_geom = ee.Geometry(json.loads(aoi_json))
-    s2 = (ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")
-          .filterBounds(aoi_geom).filterDate('2024-01-01','2024-12-31')
-          .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 20)).median().clip(aoi_geom))
-    return s2.getMapId({'bands':['B4','B3','B2'],'min':0,'max':3000})['tile_fetcher'].url_format
+    try:
+        aoi_geom = ee.Geometry(json.loads(aoi_json))
+        col = (ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")
+               .filterBounds(aoi_geom).filterDate('2024-01-01','2024-12-31')
+               .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 20)))
+        if col.size().getInfo() == 0:
+            return None
+        s2 = col.median().clip(aoi_geom)
+        return s2.getMapId({'bands':['B4','B3','B2'],'min':0,'max':3000})['tile_fetcher'].url_format
+    except Exception:
+        return None
 
 @st.cache_data(show_spinner=False, ttl=3600)
 def get_aoi_stats(aoi_json):
@@ -796,15 +807,17 @@ def get_crop_loss_data(aoi_json, p_start, p_end, f_start, f_end, crop_price_per_
     Damage = pixels where NDVI drops > ndvi_threshold AND land cover = Cropland (ESA class 40).
     """
     try:
-        aoi_geom = ee.Geometry(json.loads(aoi_json))
-        s2_pre  = (ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")
-                   .filterBounds(aoi_geom).filterDate(str(p_start), str(p_end))
-                   .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 30)).median())
-        s2_post = (ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")
-                   .filterBounds(aoi_geom).filterDate(str(f_start), str(f_end))
-                   .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 30)).median())
-        ndvi_pre  = s2_pre.normalizedDifference(['B8','B4']).clip(aoi_geom)
-        ndvi_post = s2_post.normalizedDifference(['B8','B4']).clip(aoi_geom)
+        aoi_geom  = ee.Geometry(json.loads(aoi_json))
+        col_pre   = (ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")
+                     .filterBounds(aoi_geom).filterDate(str(p_start), str(p_end))
+                     .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 30)))
+        col_post  = (ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")
+                     .filterBounds(aoi_geom).filterDate(str(f_start), str(f_end))
+                     .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 30)))
+        if col_pre.size().getInfo() == 0 or col_post.size().getInfo() == 0:
+            return None
+        ndvi_pre  = col_pre.median().normalizedDifference(['B8','B4']).clip(aoi_geom)
+        ndvi_post = col_post.median().normalizedDifference(['B8','B4']).clip(aoi_geom)
         ndvi_diff = ndvi_pre.subtract(ndvi_post)   # positive = vegetation loss
 
         # Agricultural mask — ESA WorldCover class 40 (Cropland)
@@ -887,14 +900,16 @@ def get_s2_rgb_tiles(aoi_json, pre_start, pre_end, post_start, post_end):
     try:
         aoi_geom = ee.Geometry(json.loads(aoi_json))
         viz = {'bands': ['B4', 'B3', 'B2'], 'min': 0, 'max': 3000, 'gamma': 1.3}
-        s2_pre = (ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")
-                  .filterBounds(aoi_geom).filterDate(str(pre_start), str(pre_end))
-                  .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 30))
-                  .median().clip(aoi_geom))
-        s2_post = (ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")
-                   .filterBounds(aoi_geom).filterDate(str(post_start), str(post_end))
-                   .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 30))
-                   .median().clip(aoi_geom))
+        col_pre  = (ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")
+                    .filterBounds(aoi_geom).filterDate(str(pre_start), str(pre_end))
+                    .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 30)))
+        col_post = (ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")
+                    .filterBounds(aoi_geom).filterDate(str(post_start), str(post_end))
+                    .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 30)))
+        if col_pre.size().getInfo() == 0 or col_post.size().getInfo() == 0:
+            return None
+        s2_pre  = col_pre.median().clip(aoi_geom)
+        s2_post = col_post.median().clip(aoi_geom)
         return {
             'pre_url':  s2_pre.getMapId(viz)['tile_fetcher'].url_format,
             'post_url': s2_post.getMapId(viz)['tile_fetcher'].url_format,
@@ -1331,7 +1346,10 @@ if st.session_state.aoi:
             if "Sentinel-2 True Color" in extra_layers:
                 with st.spinner("Loading Sentinel-2 RGB..."):
                     s2_tile = get_s2_rgb_tile(_aoi_json)
-                folium.TileLayer(tiles=s2_tile, attr='GEE·ESA', name='Sentinel-2 RGB', opacity=0.8).add_to(m1)
+                if s2_tile:
+                    folium.TileLayer(tiles=s2_tile, attr='GEE·ESA', name='Sentinel-2 RGB', opacity=0.8).add_to(m1)
+                else:
+                    st.warning("Sentinel-2 true color unavailable — no cloud-free scenes for 2024.")
 
             # ── FEATURE 15: WATERSHED ───────────────────────
             if "Watershed (HydroSHEDS)" in extra_layers:
@@ -1440,7 +1458,10 @@ if st.session_state.aoi:
             elif sar_view == "NDVI Damage":
                 with st.spinner("Computing NDVI damage..."):
                     ndvi_tile = get_ndvi_tile(_aoi_json, str(p_start), str(p_end), str(f_start), str(f_end))
-                folium.TileLayer(tiles=ndvi_tile, attr='GEE·ESA', name='NDVI Damage (pre−post)').add_to(m2)
+                if ndvi_tile:
+                    folium.TileLayer(tiles=ndvi_tile, attr='GEE·ESA', name='NDVI Damage (pre−post)').add_to(m2)
+                else:
+                    st.warning("NDVI Damage unavailable — no cloud-free Sentinel-2 scenes for the selected dates.")
             else:
                 folium.TileLayer(tiles=sar['flood_url'], attr='GEE', name='Active Flood').add_to(m2)
 
