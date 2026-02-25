@@ -474,6 +474,46 @@ def initialize_ee():
 # ==========================================
 # 6. ANALYTICAL FUNCTIONS
 # ==========================================
+def _make_flood_mask(pre, post, threshold, aoi_geom, dem=None, elev_p40=None):
+    """Calibrated flood mask with 4-layer quality filters applied in sequence:
+      1. Terrain slope < 8°  — eliminates radar shadow false positives
+      2. Permanent water exclusion  — JRC seasonality ≥ 10 months
+      3. JRC flood frequency gate  — historical occurrence ≥ 5% (filters cropland FP)
+      4. Elevation ≤ 40th percentile  — restricts to AOI lowlands
+      5. Minimum patch ≥ 56 pixels (~5 ha at 30 m)  — removes noise speckle
+      6. Morphological cleanup  — focal_mode 40 m circle
+    Returns (flood_mask, dem) so callers can reuse the DEM without re-loading it.
+    Pass pre-computed dem / elev_p40 to avoid redundant GEE calls inside loops.
+    """
+    if dem is None:
+        dem = ee.Image('USGS/SRTMGL1_003').select('elevation').clip(aoi_geom)
+    slope_mask = ee.Terrain.slope(dem).lt(8)
+    jrc        = ee.Image("JRC/GSW1_4/GlobalSurfaceWater")
+    perm_water = jrc.select('seasonality').gte(10).clip(aoi_geom)
+    jrc_gate   = jrc.select('occurrence').gte(5).clip(aoi_geom)   # ≥5% historical occurrence
+
+    if elev_p40 is None:
+        elev_p40 = (dem.reduceRegion(
+            reducer=ee.Reducer.percentile([40]),
+            geometry=aoi_geom, scale=100, maxPixels=1e9
+        ).getInfo().get('elevation_p40') or 9999)
+    elev_mask = dem.lte(ee.Number(float(elev_p40)))
+
+    diff    = pre.subtract(post)
+    flooded = (diff.gt(threshold)
+               .updateMask(slope_mask)      # 1. steep terrain guard
+               .where(perm_water, 0)        # 2. zero-out permanent water
+               .selfMask()                  # keep only candidate flood pixels
+               .updateMask(jrc_gate)        # 3. historically flood-prone zones only
+               .updateMask(elev_mask))      # 4. lowland restriction
+
+    # 5. Minimum patch: ≥56 connected pixels ≈ 5 ha at 30 m resolution
+    flooded = flooded.updateMask(flooded.connectedPixelCount(200, False).gte(56))
+    # 6. Morphological cleanup
+    flood = flooded.focal_mode(40, 'circle', 'meters').updateMask(flooded)
+    return flood, dem
+
+
 def calculate_flood_risk(aoi_geom, w_lulc=0.40, w_slope=0.30, w_rain=0.30):
     dem    = ee.Image('USGS/SRTMGL1_003').select('elevation').clip(aoi_geom)
     slope  = ee.Terrain.slope(dem).clip(aoi_geom)
@@ -504,15 +544,11 @@ def get_all_sar_data(aoi_json, f_start, f_end, p_start, p_end, threshold, polari
     if speckle:
         pre  = pre.focal_mean(radius=1, kernelType='square', units='pixels')
         post = post.focal_mean(radius=1, kernelType='square', units='pixels')
-    diff = pre.subtract(post)
-    slope_mask = ee.Terrain.slope(ee.Image('USGS/SRTMGL1_003').clip(aoi_geom)).lt(8)
-    water = ee.Image("JRC/GSW1_4/GlobalSurfaceWater").select('seasonality').gte(10).clip(aoi_geom)
-    flooded = diff.gt(threshold).updateMask(slope_mask).where(water, 0)
-    flood   = flooded.focal_mode(40, 'circle', 'meters').updateMask(flooded)
-    water_m = water.updateMask(water)
+    diff = pre.subtract(post)   # kept for Change Intensity tile visualisation
+    flood, dem = _make_flood_mask(pre, post, threshold, aoi_geom)
+    water_m = ee.Image("JRC/GSW1_4/GlobalSurfaceWater").select('seasonality').gte(10).clip(aoi_geom).selfMask()
 
-    # Severity zones
-    dem = ee.Image('USGS/SRTMGL1_003').select('elevation').clip(aoi_geom)
+    # Severity zones — reuse dem returned by helper
     ep = dem.reduceRegion(reducer=ee.Reducer.percentile([10,50]), geometry=aoi_geom, scale=100, maxPixels=1e9).getInfo()
     p10 = ep.get('elevation_p10', 50)
     p50 = ep.get('elevation_p50', 100)
@@ -732,11 +768,7 @@ def get_month_sar_tile(aoi_json, year, month_num, polarization, threshold, speck
         if speckle:
             pre  = pre.focal_mean(radius=1, kernelType='square', units='pixels')
             post = post.focal_mean(radius=1, kernelType='square', units='pixels')
-        diff = pre.subtract(post)
-        slope_mask = ee.Terrain.slope(ee.Image('USGS/SRTMGL1_003').clip(aoi_geom)).lt(8)
-        water = ee.Image("JRC/GSW1_4/GlobalSurfaceWater").select('seasonality').gte(10).clip(aoi_geom)
-        flooded = diff.gt(threshold).updateMask(slope_mask).where(water, 0)
-        flood   = flooded.focal_mode(40,'circle','meters').updateMask(flooded)
+        flood, _ = _make_flood_mask(pre, post, threshold, aoi_geom)
         return flood.getMapId({'palette': ['FF6B6B']})['tile_fetcher'].url_format
     except Exception:
         return None
@@ -759,14 +791,8 @@ def get_flood_depth_tile(aoi_json, f_start, f_end, p_start, p_end, threshold, po
         if speckle:
             pre  = pre.focal_mean(radius=1, kernelType='square', units='pixels')
             post = post.focal_mean(radius=1, kernelType='square', units='pixels')
-        diff        = pre.subtract(post)
-        slope_mask  = ee.Terrain.slope(ee.Image('USGS/SRTMGL1_003').clip(aoi_geom)).lt(8)
-        water       = ee.Image("JRC/GSW1_4/GlobalSurfaceWater").select('seasonality').gte(10).clip(aoi_geom)
-        flooded     = diff.gt(threshold).updateMask(slope_mask).where(water, 0)
-        flood       = flooded.focal_mode(40, 'circle', 'meters').updateMask(flooded)
-
-        dem = ee.Image('USGS/SRTMGL1_003').select('elevation').clip(aoi_geom)
-        flood_dem   = dem.updateMask(flood)
+        flood, dem = _make_flood_mask(pre, post, threshold, aoi_geom)
+        flood_dem  = dem.updateMask(flood)
 
         # Water surface = 95th-percentile elevation of flooded pixels
         ep = flood_dem.reduceRegion(
@@ -1020,9 +1046,14 @@ def get_recession_data(aoi_json, f_end_str, p_start_str, p_end_str, polarization
         pre = s1.filterDate(p_start_str, p_end_str).median().clip(aoi_geom)
         if speckle:
             pre = pre.focal_mean(radius=1, kernelType='square', units='pixels')
-        slope_mask = ee.Terrain.slope(ee.Image('USGS/SRTMGL1_003').clip(aoi_geom)).lt(8)
-        water      = ee.Image("JRC/GSW1_4/GlobalSurfaceWater").select('seasonality').gte(10).clip(aoi_geom)
-        px_area    = ee.Image.pixelArea()
+        px_area = ee.Image.pixelArea()
+
+        # Pre-compute DEM and elevation 40th-percentile once for all phases
+        dem_r    = ee.Image('USGS/SRTMGL1_003').select('elevation').clip(aoi_geom)
+        elev_p40 = (dem_r.reduceRegion(
+            reducer=ee.Reducer.percentile([40]),
+            geometry=aoi_geom, scale=100, maxPixels=1e9
+        ).getInfo().get('elevation_p40') or 9999)
 
         phases = [
             ('Peak (T₀)',  0,  12),
@@ -1035,16 +1066,14 @@ def get_recession_data(aoi_json, f_end_str, p_start_str, p_end_str, polarization
             t0 = (f_end_dt + datetime.timedelta(days=offset_start)).isoformat()
             t1 = (f_end_dt + datetime.timedelta(days=offset_end)).isoformat()
             post_col = s1.filterDate(t0, t1)
-            # Skip if no imagery in window
             if post_col.size().getInfo() == 0:
                 results.append({'Phase': label, 'Flood Area (ha)': None})
                 continue
             post = post_col.median().clip(aoi_geom)
             if speckle:
                 post = post.focal_mean(radius=1, kernelType='square', units='pixels')
-            diff    = pre.subtract(post)
-            flooded = diff.gt(threshold).updateMask(slope_mask).where(water, 0)
-            flood   = flooded.focal_mode(40, 'circle', 'meters').updateMask(flooded)
+            flood, _ = _make_flood_mask(pre, post, threshold, aoi_geom,
+                                        dem=dem_r, elev_p40=elev_p40)
             area_ha = (flood.multiply(px_area).reduceRegion(
                 reducer=ee.Reducer.sum(), geometry=aoi_geom, scale=30, maxPixels=1e9
             ).getInfo().get(polarization, 0) or 0) / 10000
@@ -1165,7 +1194,7 @@ with st.sidebar:
     # ── BACKSCATTER THRESHOLD ──────────────────────────
     st.markdown('<hr class="sidebar-hr">', unsafe_allow_html=True)
     st.markdown('<div class="section-tag">Backscatter Threshold</div>', unsafe_allow_html=True)
-    f_threshold = st.slider("Sensitivity (dB)", 0.5, 6.0, 1.25, step=0.25, label_visibility="collapsed")
+    f_threshold = st.slider("Sensitivity (dB)", 0.5, 6.0, 3.0, step=0.25, label_visibility="collapsed")
     st.markdown(f'<div style="text-align:center;font-family:JetBrains Mono,monospace;font-size:0.78rem;color:#00FFFF;margin-top:-8px;">{f_threshold} dB · {polarization}</div>', unsafe_allow_html=True)
 
     # ── FEATURE 19: SPECKLE FILTER ─────────────────────
