@@ -291,9 +291,20 @@ st.markdown("""
 # ==========================================
 # 2. VIZ CONSTANTS (module-level)
 # ==========================================
-SAR_VIZ  = {'min': -25, 'max': 0,   'palette': ['000005','0d1b2a','1b4f72','2e86c1','7fb3d3','d6eaf8','ffffff']}
-DIFF_VIZ = {'min': -2,  'max': 8,   'palette': ['1a1a2e','16213e','0f3460','00FFFF','ffffff']}
-SEV_VIZ  = {'min': 1,   'max': 3,   'palette': ['ffffbf','fc8d59','d73027']}
+SAR_VIZ   = {'min': -25, 'max': 0,   'palette': ['000005','0d1b2a','1b4f72','2e86c1','7fb3d3','d6eaf8','ffffff']}
+DIFF_VIZ  = {'min': -2,  'max': 8,   'palette': ['1a1a2e','16213e','0f3460','00FFFF','ffffff']}
+SEV_VIZ   = {'min': 1,   'max': 3,   'palette': ['ffffbf','fc8d59','d73027']}
+DEPTH_VIZ = {'min': 0,   'max': 3,   'palette': ['ffffcc','fed976','fd8d3c','f03b20','bd0026']}
+
+CROP_PRICES = {
+    'Rice':       40000,
+    'Wheat':      35000,
+    'Sugarcane': 120000,
+    'Cotton':     60000,
+    'Maize':      30000,
+    'Soybean':    45000,
+    'Custom':          0,
+}
 
 # ==========================================
 # 3. LEGENDS
@@ -725,9 +736,189 @@ def get_month_sar_tile(aoi_json, year, month_num, polarization, threshold, speck
     except Exception:
         return None
 
+# ── FLOOD DEPTH ESTIMATION ─────────────────────────────
+@st.cache_data(show_spinner=False, ttl=3600)
+def get_flood_depth_tile(aoi_json, f_start, f_end, p_start, p_end, threshold, polarization, speckle):
+    """Estimate water depth per pixel using DEM + flood mask.
+    Water surface ≈ 95th-percentile elevation of flooded pixels.
+    Depth = water_surface_elev − pixel_elev  (clamped ≥ 0).
+    """
+    try:
+        aoi_geom = ee.Geometry(json.loads(aoi_json))
+        s1 = (ee.ImageCollection('COPERNICUS/S1_GRD')
+              .filterBounds(aoi_geom)
+              .filter(ee.Filter.listContains('transmitterReceiverPolarisation', polarization))
+              .select(polarization))
+        pre  = s1.filterDate(str(p_start), str(p_end)).median().clip(aoi_geom)
+        post = s1.filterDate(str(f_start), str(f_end)).median().clip(aoi_geom)
+        if speckle:
+            pre  = pre.focal_mean(radius=1, kernelType='square', units='pixels')
+            post = post.focal_mean(radius=1, kernelType='square', units='pixels')
+        diff        = pre.subtract(post)
+        slope_mask  = ee.Terrain.slope(ee.Image('USGS/SRTMGL1_003').clip(aoi_geom)).lt(8)
+        water       = ee.Image("JRC/GSW1_4/GlobalSurfaceWater").select('seasonality').gte(10).clip(aoi_geom)
+        flooded     = diff.gt(threshold).updateMask(slope_mask).where(water, 0)
+        flood       = flooded.focal_mode(40, 'circle', 'meters').updateMask(flooded)
+
+        dem = ee.Image('USGS/SRTMGL1_003').select('elevation').clip(aoi_geom)
+        flood_dem   = dem.updateMask(flood)
+
+        # Water surface = 95th-percentile elevation of flooded pixels
+        ep = flood_dem.reduceRegion(
+            reducer=ee.Reducer.percentile([95]),
+            geometry=aoi_geom, scale=30, maxPixels=1e9
+        ).getInfo()
+        water_surface = ep.get('elevation_p95', 0) or 0
+
+        depth = ee.Image(float(water_surface)).subtract(dem).updateMask(flood).max(ee.Image(0))
+
+        # Stats: mean and max depth
+        depth_stats = depth.reduceRegion(
+            reducer=ee.Reducer.mean().combine(ee.Reducer.max(), '', True),
+            geometry=aoi_geom, scale=30, maxPixels=1e9
+        ).getInfo()
+
+        # Histogram: 8 bins from 0–4 m (0.5 m each) in a single reduceRegion call
+        hist_raw = depth.reduceRegion(
+            reducer=ee.Reducer.fixedHistogram(0, 4, 8),
+            geometry=aoi_geom, scale=30, maxPixels=1e9
+        ).getInfo().get('constant', [])
+        hist_labels = ['0–0.5', '0.5–1', '1–1.5', '1.5–2', '2–2.5', '2.5–3', '3–3.5', '3.5–4']
+        hist = {hist_labels[i]: int(row[1]) for i, row in enumerate(hist_raw) if i < len(hist_labels)}
+
+        return {
+            'tile_url':   depth.getMapId(DEPTH_VIZ)['tile_fetcher'].url_format,
+            'mean_depth': round(depth_stats.get('constant_mean', 0) or 0, 2),
+            'max_depth':  round(depth_stats.get('constant_max',  0) or 0, 2),
+            'histogram':  hist,
+        }
+    except Exception:
+        return None
+
+# ── CROP LOSS ASSESSMENT ───────────────────────────────
+@st.cache_data(show_spinner=False, ttl=3600)
+def get_crop_loss_data(aoi_json, p_start, p_end, f_start, f_end, crop_price_per_ha, ndvi_threshold=0.10):
+    """Quantify crop damage within flooded agricultural pixels.
+    Damage = pixels where NDVI drops > ndvi_threshold AND land cover = Cropland (ESA class 40).
+    """
+    try:
+        aoi_geom = ee.Geometry(json.loads(aoi_json))
+        s2_pre  = (ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")
+                   .filterBounds(aoi_geom).filterDate(str(p_start), str(p_end))
+                   .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 30)).median())
+        s2_post = (ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")
+                   .filterBounds(aoi_geom).filterDate(str(f_start), str(f_end))
+                   .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 30)).median())
+        ndvi_pre  = s2_pre.normalizedDifference(['B8','B4']).clip(aoi_geom)
+        ndvi_post = s2_post.normalizedDifference(['B8','B4']).clip(aoi_geom)
+        ndvi_diff = ndvi_pre.subtract(ndvi_post)   # positive = vegetation loss
+
+        # Agricultural mask — ESA WorldCover class 40 (Cropland)
+        crop_mask = ee.ImageCollection("ESA/WorldCover/v200").mosaic().select('Map').clip(aoi_geom).eq(40)
+
+        # Damaged cropland: NDVI drop exceeds threshold on cropland pixels
+        damaged   = ndvi_diff.gt(ndvi_threshold).And(crop_mask)
+
+        # Pixel areas
+        px_area = ee.Image.pixelArea()
+        total_crop_ha = (crop_mask.multiply(px_area).reduceRegion(
+            reducer=ee.Reducer.sum(), geometry=aoi_geom, scale=10, maxPixels=1e10
+        ).get('Map').getInfo() or 0) / 10000
+
+        damaged_ha = (damaged.multiply(px_area).reduceRegion(
+            reducer=ee.Reducer.sum(), geometry=aoi_geom, scale=10, maxPixels=1e10
+        ).get('nd').getInfo() or 0) / 10000
+
+        loss = damaged_ha * crop_price_per_ha
+        pct  = round(100 * damaged_ha / total_crop_ha, 1) if total_crop_ha > 0 else 0
+
+        # Tile: show NDVI diff clipped to cropland only
+        ndvi_crop_tile = ndvi_diff.updateMask(crop_mask).getMapId(
+            {'min': 0, 'max': 0.5, 'palette': ['1a9850','ffffbf','d73027']}
+        )['tile_fetcher'].url_format
+
+        return {
+            'tile_url':      ndvi_crop_tile,
+            'total_crop_ha': round(total_crop_ha, 1),
+            'damaged_ha':    round(damaged_ha, 1),
+            'damage_pct':    pct,
+            'loss_estimate': int(round(loss)),
+        }
+    except Exception:
+        return None
+
+# ── JRC HISTORICAL FLOOD FREQUENCY ────────────────────
+@st.cache_data(show_spinner=False, ttl=7200)
+def get_jrc_flood_history(aoi_json):
+    """Return dict {year: flood_months} for 1984–2021 using JRC Monthly Water History.
+    flood_months = count of calendar months where any AOI pixel showed water (class=2).
+    Uses a single server-side map() + getInfo() batch call.
+    """
+    try:
+        aoi_geom = ee.Geometry(json.loads(aoi_json))
+        jrc = ee.ImageCollection("JRC/GSW1_4/MonthlyHistory").filterBounds(aoi_geom)
+        years = ee.List.sequence(1984, 2021)
+
+        def year_flood_months(y):
+            y = ee.Number(y).int()
+            start = ee.Date.fromYMD(y, 1, 1)
+            end   = start.advance(1, 'year')
+            monthly = jrc.filterDate(start, end)
+            # For each monthly image check if any pixel = 2 (water detected)
+            has_water = monthly.map(
+                lambda img: ee.Feature(None, {
+                    'w': img.eq(2).reduceRegion(
+                        reducer=ee.Reducer.max(),
+                        geometry=aoi_geom, scale=300, maxPixels=1e8
+                    ).get('waterClass')
+                })
+            )
+            flood_months = has_water.aggregate_sum('w')
+            return ee.Feature(None, {'year': y, 'flood_months': flood_months})
+
+        fc = ee.FeatureCollection(years.map(year_flood_months)).getInfo()
+        result = {}
+        for feat in fc['features']:
+            p = feat['properties']
+            result[int(p['year'])] = int(p.get('flood_months') or 0)
+        return result
+    except Exception:
+        return None
+
+
+# ── SENTINEL-2 TRUE-COLOR TILE URLS ───────────────────
+@st.cache_data(show_spinner=False, ttl=3600)
+def get_s2_rgb_tiles(aoi_json, pre_start, pre_end, post_start, post_end):
+    """Return pre- and post-flood Sentinel-2 true-color tile URLs."""
+    try:
+        aoi_geom = ee.Geometry(json.loads(aoi_json))
+        viz = {'bands': ['B4', 'B3', 'B2'], 'min': 0, 'max': 3000, 'gamma': 1.3}
+        s2_pre = (ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")
+                  .filterBounds(aoi_geom).filterDate(str(pre_start), str(pre_end))
+                  .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 30))
+                  .median().clip(aoi_geom))
+        s2_post = (ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")
+                   .filterBounds(aoi_geom).filterDate(str(post_start), str(post_end))
+                   .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 30))
+                   .median().clip(aoi_geom))
+        return {
+            'pre_url':  s2_pre.getMapId(viz)['tile_fetcher'].url_format,
+            'post_url': s2_post.getMapId(viz)['tile_fetcher'].url_format,
+        }
+    except Exception:
+        return None
+
+
 # ==========================================
 # 7. SIDEBAR
 # ==========================================
+# Initialize EE before the sidebar so that ee.Geometry calls
+# inside the search button handler work on the first click.
+try:
+    _init_ee_core()
+except Exception:
+    pass
+
 with st.sidebar:
     st.markdown("""
         <div class="sidebar-brand">
@@ -747,21 +938,24 @@ with st.sidebar:
     st.markdown('<div class="section-tag">Location Search</div>', unsafe_allow_html=True)
     place_query = st.text_input("Place", placeholder="e.g. Patna, Bihar", label_visibility="collapsed")
     if st.button("SEARCH & SET AOI", use_container_width=True):
-        if _GEOPY and place_query.strip():
+        if not place_query.strip():
+            st.warning("Type a place name first.")
+        elif not _GEOPY:
+            st.error("geopy not installed. Run: pip install geopy")
+        else:
             try:
-                geo = Nominatim(user_agent="hydroriskatlas_v3")
-                loc = geo.geocode(place_query.strip(), timeout=10)
+                with st.spinner("Searching..."):
+                    geo = Nominatim(user_agent="hydroriskatlas_v3")
+                    loc = geo.geocode(place_query.strip(), timeout=10)
                 if loc:
                     lat, lon, d = loc.latitude, loc.longitude, 0.25
                     st.session_state.aoi = ee.Geometry.BBox(lon-d, lat-d, lon+d, lat+d)
                     st.session_state.map_center = [lat, lon]
-                    st.success(f"AOI set: {loc.address[:50]}")
+                    st.success(f"✓ {loc.address[:55]}")
                 else:
-                    st.warning("Location not found.")
+                    st.warning(f'"{place_query}" not found. Try a more specific name.')
             except Exception as ex:
-                st.error(f"Geocoder error: {ex}")
-        elif not _GEOPY:
-            st.warning("Install geopy: pip install geopy")
+                st.error(f"Search failed: {ex}")
 
     # ── AOI BOUNDARY ───────────────────────────────────
     st.markdown('<hr class="sidebar-hr">', unsafe_allow_html=True)
@@ -833,6 +1027,16 @@ with st.sidebar:
     st.markdown('<hr class="sidebar-hr">', unsafe_allow_html=True)
     st.markdown('<div class="section-tag">Flood Progression</div>', unsafe_allow_html=True)
     prog_year = st.selectbox("Year", [2019, 2020, 2021, 2022, 2023, 2024], index=5, label_visibility="collapsed")
+
+    # ── CROP LOSS SETTINGS ─────────────────────────────
+    st.markdown('<hr class="sidebar-hr">', unsafe_allow_html=True)
+    st.markdown('<div class="section-tag">Crop Loss Assessment</div>', unsafe_allow_html=True)
+    crop_type = st.selectbox("Crop Type", list(CROP_PRICES.keys()), label_visibility="collapsed")
+    default_price = CROP_PRICES[crop_type]
+    crop_price = st.number_input(
+        "Price (₹/ha)", min_value=0, value=default_price, step=5000,
+        label_visibility="visible"
+    )
 
     # ── EXPORT ─────────────────────────────────────────
     st.markdown('<hr class="sidebar-hr">', unsafe_allow_html=True)
@@ -1057,8 +1261,8 @@ if st.session_state.aoi:
             st.markdown("<br>", unsafe_allow_html=True)
 
             sar_view = st.radio("Map Layer",
-                ("Flood Mask", "Severity Zones", "Pre-flood SAR", "Post-flood SAR",
-                 "Change Intensity", "NDVI Damage"),
+                ("Flood Mask", "Severity Zones", "Flood Depth", "Pre-flood SAR",
+                 "Post-flood SAR", "Change Intensity", "NDVI Damage"),
                 label_visibility="collapsed"
             )
             st.markdown("<br>", unsafe_allow_html=True)
@@ -1080,6 +1284,7 @@ if st.session_state.aoi:
                 style_function=lambda _: {'fillColor':'none','color':'#00FFFF','weight':2,'dashArray':'6 4'}
             ).add_to(m2)
             folium.TileLayer(tiles=sar['water_url'], attr='GEE', name='Permanent Water').add_to(m2)
+            depth_data = None
 
             if sar_view == "Severity Zones":
                 folium.TileLayer(tiles=sar['severity_url'], attr='GEE', name='Flood Severity').add_to(m2)
@@ -1089,6 +1294,14 @@ if st.session_state.aoi:
                 folium.TileLayer(tiles=sar['post_url'], attr='GEE', name=f'Post-flood {polarization} (dB)').add_to(m2)
             elif sar_view == "Change Intensity":
                 folium.TileLayer(tiles=sar['diff_url'], attr='GEE', name='Backscatter Δ (dB)').add_to(m2)
+            elif sar_view == "Flood Depth":
+                with st.spinner("Estimating flood depth..."):
+                    depth_data = get_flood_depth_tile(
+                        _aoi_json, str(f_start), str(f_end),
+                        str(p_start), str(p_end), f_threshold, polarization, apply_speckle
+                    )
+                if depth_data:
+                    folium.TileLayer(tiles=depth_data['tile_url'], attr='GEE·SRTM', name='Flood Depth (m)').add_to(m2)
             elif sar_view == "NDVI Damage":
                 with st.spinner("Computing NDVI damage..."):
                     ndvi_tile = get_ndvi_tile(_aoi_json, str(p_start), str(p_end), str(f_start), str(f_end))
@@ -1128,6 +1341,18 @@ if st.session_state.aoi:
             folium.LayerControl(position='topright', collapsed=False).add_to(m2)
             m2.get_root().html.add_child(folium.Element(get_sar_legend(m2.get_name())))
             folium_static(m2, height=560)
+
+            # Show depth metrics + histogram when Flood Depth layer is active
+            if sar_view == "Flood Depth" and depth_data:
+                dm1, dm2_col, dm3 = st.columns(3)
+                dm1.metric("Mean Flood Depth", f"{depth_data['mean_depth']} m")
+                dm2_col.metric("Max Flood Depth", f"{depth_data['max_depth']} m")
+                dm3.metric("Depth Scale", "0 – 4 m")
+                if depth_data.get('histogram'):
+                    hist = depth_data['histogram']
+                    st.markdown('<div style="font-family:JetBrains Mono,monospace;font-size:0.65rem;color:rgba(0,255,255,0.4);letter-spacing:2px;margin:10px 0 4px;">FLOOD DEPTH DISTRIBUTION · PIXEL COUNT PER DEPTH BAND</div>', unsafe_allow_html=True)
+                    hist_df = pd.DataFrame({'Depth Band (m)': list(hist.keys()), 'Pixels': list(hist.values())}).set_index('Depth Band (m)')
+                    st.bar_chart(hist_df, color="#fd8d3c", height=180)
 
         # ── FEATURE 5: CHIRPS RAINFALL CHART ────────────
         with st.expander("CHIRPS RAINFALL TIME SERIES", expanded=False):
@@ -1172,6 +1397,57 @@ if st.session_state.aoi:
                 st.markdown(f'<div style="font-size:0.7rem;color:#3a5060;font-family:JetBrains Mono,monospace;margin-top:10px;">Based on {rp_data["n_years"]} years CHIRPS · Gumbel extreme value distribution</div>', unsafe_allow_html=True)
             else:
                 st.warning("Return period calculation failed. Check GEE connectivity.")
+
+        # ── CROP LOSS ASSESSMENT ─────────────────────────
+        with st.expander("CROP LOSS ASSESSMENT  [NDVI × WorldCover Cropland]", expanded=False):
+            with st.spinner("Analysing cropland damage..."):
+                crop_data = get_crop_loss_data(
+                    _aoi_json, str(p_start), str(p_end), str(f_start), str(f_end),
+                    crop_price
+                )
+            if crop_data:
+                cl1, cl2, cl3, cl4 = st.columns(4)
+                cl1.metric("Total Cropland",  f"{crop_data['total_crop_ha']:,.0f} ha")
+                cl2.metric("Damaged Area",    f"{crop_data['damaged_ha']:,.0f} ha")
+                cl3.metric("Damage %",        f"{crop_data['damage_pct']:.1f} %")
+                cl4.metric("Est. Crop Loss",  f"₹ {crop_data['loss_estimate']:,}")
+                st.markdown('<div style="font-family:JetBrains Mono,monospace;font-size:0.65rem;color:rgba(0,255,255,0.4);letter-spacing:2px;margin:10px 0 4px;">NDVI DAMAGE ON CROPLAND · GREEN = HEALTHY · RED = DAMAGED</div>', unsafe_allow_html=True)
+                crop_map = folium.Map(location=st.session_state.map_center, zoom_start=11, tiles="CartoDB dark_matter")
+                folium.TileLayer(tiles=crop_data['tile_url'], attr='GEE·S2·ESA', name='Crop NDVI Damage').add_to(crop_map)
+                folium.GeoJson(
+                    st.session_state.aoi.getInfo(),
+                    style_function=lambda _: {'fillColor':'none','color':'#00FFFF','weight':2,'dashArray':'6 4'}
+                ).add_to(crop_map)
+                folium_static(crop_map, height=400)
+                st.markdown(
+                    f'<div style="font-size:0.7rem;color:#3a5060;font-family:JetBrains Mono,monospace;margin-top:8px;">'
+                    f'Crop: {crop_type} · Price: ₹{crop_price:,}/ha · NDVI drop threshold: 0.10 · Source: Sentinel-2 SR + ESA WorldCover</div>',
+                    unsafe_allow_html=True
+                )
+            else:
+                st.warning("Crop loss analysis unavailable. No Sentinel-2 data or no cropland in AOI.")
+
+        # ── JRC HISTORICAL FLOOD FREQUENCY ───────────────
+        with st.expander("JRC HISTORICAL FLOOD FREQUENCY  [1984 – 2021]", expanded=False):
+            with st.spinner("Fetching 38-year JRC Monthly Water History..."):
+                jrc_hist = get_jrc_flood_history(_aoi_json)
+            if jrc_hist:
+                jrc_df = pd.DataFrame({
+                    'Year':         list(jrc_hist.keys()),
+                    'Flood Months': list(jrc_hist.values()),
+                }).set_index('Year')
+                total_flood_months = sum(jrc_hist.values())
+                peak_yr = max(jrc_hist, key=jrc_hist.get)
+                avg_months = round(total_flood_months / len(jrc_hist), 1)
+                jh1, jh2, jh3 = st.columns(3)
+                jh1.metric("Peak Flood Year",   str(peak_yr))
+                jh2.metric("Avg Flood Months/yr", f"{avg_months} mo")
+                jh3.metric("Total Flood Months", f"{total_flood_months}")
+                st.markdown('<div style="font-family:JetBrains Mono,monospace;font-size:0.65rem;color:rgba(0,255,255,0.4);letter-spacing:2px;margin:10px 0 4px;">MONTHS WITH SURFACE WATER DETECTED · AOI · JRC MONTHLY HISTORY</div>', unsafe_allow_html=True)
+                st.bar_chart(jrc_df, color="#2E86C1", height=220)
+                st.markdown('<div style="font-size:0.7rem;color:#3a5060;font-family:JetBrains Mono,monospace;margin-top:8px;">Source: JRC/GSW1_4/MonthlyHistory · Water class = 2 · 30 m resolution · Pekel et al. (2016)</div>', unsafe_allow_html=True)
+            else:
+                st.warning("JRC flood history unavailable for this AOI.")
 
     # ════════════════════════════════════════
     # TAB 3 — DUAL-VIEW (FEATURE 18)
@@ -1222,6 +1498,49 @@ if st.session_state.aoi:
         d3c1.metric("Pre-flood Period",  f"{p_start} → {p_end}")
         d3c2.metric("Post-flood Period", f"{f_start} → {f_end}")
         d3c3.metric("Detected Flood",    f"{sar_d['area_ha']} Ha")
+
+        st.markdown('<hr style="border-color:rgba(0,255,255,0.1);margin:28px 0 20px;">', unsafe_allow_html=True)
+        st.markdown("""
+            <div style="font-family:'Rajdhani',sans-serif;font-size:0.78rem;letter-spacing:2px;color:rgba(0,255,255,0.4);margin-bottom:8px;">
+                SENTINEL-2 TRUE COLOR · PRE vs POST · OPTICAL VERIFICATION
+            </div>
+        """, unsafe_allow_html=True)
+
+        with st.spinner("Loading Sentinel-2 true-color imagery..."):
+            s2_rgb = get_s2_rgb_tiles(
+                _aoi_json, str(p_start), str(p_end), str(f_start), str(f_end)
+            )
+
+        if s2_rgb:
+            st.markdown("""
+                <div class="dual-label-row">
+                    <div class="dual-label">◀ PRE-FLOOD TRUE COLOR</div>
+                    <div class="dual-label">POST-FLOOD TRUE COLOR ▶</div>
+                </div>
+            """, unsafe_allow_html=True)
+
+            dmap_s2 = DualMap(location=st.session_state.map_center, zoom_start=11,
+                              tiles=None, layout='horizontal')
+            folium.TileLayer(tiles="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+                             attr='CartoDB', name='Basemap').add_to(dmap_s2.m1)
+            folium.TileLayer(tiles="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+                             attr='CartoDB', name='Basemap').add_to(dmap_s2.m2)
+            folium.TileLayer(tiles=s2_rgb['pre_url'],  attr='GEE·S2', name='Pre-flood S2').add_to(dmap_s2.m1)
+            folium.TileLayer(tiles=s2_rgb['post_url'], attr='GEE·S2', name='Post-flood S2').add_to(dmap_s2.m2)
+            # Overlay flood mask on post panel for context
+            folium.TileLayer(tiles=sar_d['flood_url'], attr='GEE', name='Flood Mask', opacity=0.5).add_to(dmap_s2.m2)
+            folium.GeoJson(
+                st.session_state.aoi.getInfo(),
+                style_function=lambda _: {'fillColor':'none','color':'#00FFFF','weight':2,'dashArray':'6 4'}
+            ).add_to(dmap_s2.m1)
+            folium.GeoJson(
+                st.session_state.aoi.getInfo(),
+                style_function=lambda _: {'fillColor':'none','color':'#00FFFF','weight':2,'dashArray':'6 4'}
+            ).add_to(dmap_s2.m2)
+            components.html(dmap_s2._repr_html_(), height=520, scrolling=False)
+            st.markdown('<div style="font-size:0.7rem;color:#3a5060;font-family:JetBrains Mono,monospace;margin-top:6px;">Sentinel-2 SR Harmonized · B4/B3/B2 · Cloud filter < 30% · Median composite · Red overlay = SAR flood mask</div>', unsafe_allow_html=True)
+        else:
+            st.info("Sentinel-2 true-color unavailable — insufficient cloud-free scenes for the selected date windows.")
 
     # ════════════════════════════════════════
     # TAB 4 — FLOOD PROGRESSION (FEATURE 13)
