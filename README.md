@@ -52,7 +52,7 @@ HydroRisk Atlas is a modular geospatial flood intelligence platform that combine
 - **Isolation Forest** — Anomaly detection on monthly SAR backscatter time series.
 
 **Advanced Modules**
-- SHAP explainability, Optuna hyperparameter tuning, population displacement estimation, building damage assessment, soil moisture integration, urban flood vulnerability index, water quality assessment, multi-year comparison, drought monitoring (SPI + NDVI), 3D terrain visualization, timelapse animation, real-time rainfall alerts, multi-language UI, FastAPI REST wrapper, SQLite/PostgreSQL backend.
+- SHAP explainability, Optuna hyperparameter tuning, population displacement estimation, building damage assessment, soil moisture integration, urban flood vulnerability index, water quality assessment, multi-year comparison, drought monitoring (SPI + NDVI), spectral indices download (NDVI/NDWI/MNDWI/NDBI/SAVI/EVI/BSI with GeoTIFF & cartographic PDF export), 3D terrain visualization, timelapse animation, real-time rainfall alerts, multi-language UI, FastAPI REST wrapper, SQLite/PostgreSQL backend.
 
 ---
 
@@ -61,7 +61,7 @@ HydroRisk Atlas is a modular geospatial flood intelligence platform that combine
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                        Streamlit Frontend                       │
-│  Sidebar controls  →  Session state  →  7-tab render engine    │
+│  Sidebar controls  →  Session state  →  8-tab render engine    │
 └────────────────────┬──────────────────────┬─────────────────────┘
                      │                      │
     @st.cache_data   │                      │  Tab 5: ML Intelligence
@@ -96,7 +96,7 @@ HydroRisk Atlas is a modular geospatial flood intelligence platform that combine
 
 ```
 flood-predictor/
-├── app.py                            # Streamlit entrypoint — sidebar + 7-tab dispatch
+├── app.py                            # Streamlit entrypoint — sidebar + 8-tab dispatch
 ├── requirements.txt
 ├── Dockerfile                        # Dual-mode: MODE=api (FastAPI) or Streamlit
 ├── pyproject.toml                    # Ruff linting config
@@ -109,7 +109,8 @@ flood-predictor/
 │   ├── tab_progression.py            # Flood progression + Timelapse animation
 │   ├── tab_ml.py                     # ML Intelligence (sub-tabs: Classifiers / Analytics / Tools)
 │   ├── tab_multiyear.py              # Multi-year flood comparison
-│   └── tab_drought.py                # SPI + NDVI anomaly drought monitoring
+│   ├── tab_drought.py                # SPI + NDVI anomaly drought monitoring
+│   └── tab_indices.py                # Spectral indices download (NDVI, NDWI, MNDWI, NDBI, SAVI, EVI, BSI)
 │
 ├── gee_functions/                    # Google Earth Engine computation modules
 │   ├── core.py                       # EE init, AOI terrain stats
@@ -127,7 +128,8 @@ flood-predictor/
 │   ├── drought.py                    # SPI + NDVI anomaly
 │   ├── water_quality.py              # Sentinel-2 turbidity / chlorophyll-a
 │   ├── multiyear.py                  # Multi-year flood comparison
-│   └── sar_timeseries.py             # Monthly SAR stats for anomaly detection
+│   ├── sar_timeseries.py             # Monthly SAR stats for anomaly detection
+│   └── indices.py                    # Sentinel-2 spectral indices (NDVI, NDWI, MNDWI, NDBI, SAVI, EVI, BSI)
 │
 ├── ml_models/                        # Machine learning models
 │   ├── flood_risk_model.py           # Random Forest (5-class risk)
@@ -286,7 +288,7 @@ Bayesian hyperparameter optimization for GB and XGBoost with cross-validated F1 
 | WorldPop | `WorldPop/GP/100m/pop_age_sex_cons_unadj` | 100 m | Population displacement |
 | Google Open Buildings | `GOOGLE/Research/open-buildings/v3/polygons` | vector | Building damage assessment |
 | NASA SMAP | `NASA/SMAP/SPL3SMP_E/005` | 9 km | Soil moisture |
-| Sentinel-2 SR | `COPERNICUS/S2_SR_HARMONIZED` | 10 m | NDVI, true color, water quality |
+| Sentinel-2 SR | `COPERNICUS/S2_SR_HARMONIZED` | 10 m | NDVI, NDWI, MNDWI, NDBI, SAVI, EVI, BSI, true color, water quality |
 | MODIS NDVI | `MODIS/061/MOD13A2` | 1 km | Drought NDVI anomaly |
 | HydroSHEDS Basins | `WWF/HydroSHEDS/v1/Basins/hybas_8` | vector | Watershed delineation |
 | GRanD Dams | `projects/sat-io/open-datasets/GRanD/GRAND_Dams_v1_3` | vector | Dam context (150 km) |
@@ -328,6 +330,14 @@ Bayesian hyperparameter optimization for GB and XGBoost with cross-validated F1 
 
 ### Tab 7 — Drought Monitoring
 - Standardized Precipitation Index (SPI), MODIS NDVI anomaly vs 20-year climatology
+
+### Tab 8 — Spectral Indices Download
+- 7 indices from Sentinel-2 SR at 10 m: **NDVI**, **NDWI**, **MNDWI**, **NDBI**, **SAVI**, **EVI**, **BSI**
+- Classified maps with per-index thresholds and color ramps
+- Interactive folium map with index tile overlay and dynamic legend
+- GeoTIFF download for each index
+- Cartographic PDF export with north arrow, coordinate labels, classified legend, statistics, and methodology
+- Info/methodology panel with classification basis and threshold table for each index
 
 ### Sidebar
 - Place name geocoding → auto AOI
@@ -410,7 +420,10 @@ When running with `MODE=api`, a FastAPI server provides programmatic access:
 streamlit, earthengine-api, folium, streamlit-folium, pandas, numpy, requests
 
 # ML
-scikit-learn>=1.3, joblib, xgboost, lightgbm, optuna, shap, matplotlib, fpdf2
+scikit-learn>=1.3, joblib, xgboost, lightgbm, optuna, shap, matplotlib
+
+# Reports
+fpdf2
 
 # Visualization
 pydeck
