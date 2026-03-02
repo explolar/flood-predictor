@@ -152,6 +152,16 @@ with st.sidebar:
     crop_price = st.number_input("Price (₹/ha)", min_value=0, value=default_price, step=5000, label_visibility="visible")
 
     st.markdown('<hr class="sidebar-hr">', unsafe_allow_html=True)
+    st.markdown('<div class="section-tag">Imagery Date Range</div>', unsafe_allow_html=True)
+    colI1, colI2 = st.columns(2)
+    with colI1:
+        img_start = st.date_input("Start", datetime.date(2024, 1, 1), key="img_start")
+    with colI2:
+        img_end = st.date_input("End", datetime.date(2024, 12, 31), key="img_end")
+    cloud_thresh = st.slider("Max Cloud Cover %", 10, 100, 60, step=5, key="cloud_thresh")
+    st.markdown(f'<div style="text-align:center;font-family:JetBrains Mono,monospace;font-size:0.72rem;color:#00FFFF;margin-top:-8px;">Scenes ≤ {cloud_thresh}% cloud</div>', unsafe_allow_html=True)
+
+    st.markdown('<hr class="sidebar-hr">', unsafe_allow_html=True)
     if st.session_state.aoi:
         report = generate_report(
             [min_lon, min_lat, max_lon, max_lat] if input_method == "Bounding Box" else "GeoJSON Uploaded",
@@ -242,6 +252,7 @@ if st.session_state.aoi:
         'f_threshold': f_threshold, 'polarization': polarization,
         'apply_speckle': apply_speckle, 'prog_year': prog_year,
         'crop_type': crop_type, 'crop_price': crop_price,
+        'img_start': img_start, 'img_end': img_end, 'cloud_thresh': cloud_thresh,
         'aoi': st.session_state.aoi, 'map_center': st.session_state.map_center,
     }
 

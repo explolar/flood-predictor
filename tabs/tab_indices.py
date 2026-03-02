@@ -6,7 +6,7 @@ import pandas as pd
 from folium.plugins import Fullscreen, MiniMap
 from streamlit_folium import folium_static
 
-from gee_functions.indices import INDEX_REGISTRY, get_index_tile
+from gee_functions.indices import INDEX_REGISTRY, get_all_index_tiles
 from ui_components.legends import get_index_legend
 from ui_components.reports import generate_index_pdf_bytes
 
@@ -15,25 +15,36 @@ def render_indices_tab(aoi_json, params):
     """Render the Spectral Indices Download tab."""
     aoi = params['aoi']
     map_center = params['map_center']
-    p_start = params['p_start']
-    f_end = params['f_end']
+    img_start = params['img_start']
+    img_end = params['img_end']
+    cloud_thresh = params.get('cloud_thresh', 60)
+
+    date_start = str(img_start)
+    date_end = str(img_end)
 
     st.markdown(
         '<div style="font-family:\'Rajdhani\',sans-serif;font-size:0.78rem;'
         'letter-spacing:2px;color:rgba(0,255,255,0.4);margin-bottom:8px;">'
-        'SENTINEL-2 SR  ·  SPECTRAL INDICES  ·  10 m  ·  GEOTIFF &amp; PDF EXPORT</div>',
+        f'SENTINEL-2 SR  ·  SPECTRAL INDICES  ·  10 m  ·  {date_start} to {date_end}  ·  '
+        f'CLOUD ≤ {cloud_thresh}%</div>',
         unsafe_allow_html=True,
     )
 
-    # ── Date range selector ───────────────────────────
-    hdr1, hdr2 = st.columns(2)
-    with hdr1:
-        idx_start = st.date_input('Imagery Start Date', value=p_start, key='idx_start')
-    with hdr2:
-        idx_end = st.date_input('Imagery End Date', value=f_end, key='idx_end')
-
-    date_start = str(idx_start)
-    date_end = str(idx_end)
+    # ── Compute All button ─────────────────────────────
+    if st.button('COMPUTE ALL INDICES', use_container_width=True, type='primary'):
+        with st.spinner('Building Sentinel-2 composite & computing 7 indices...'):
+            all_results = get_all_index_tiles(aoi_json, date_start, date_end, cloud_thresh)
+        if not all_results:
+            st.error(
+                f'No Sentinel-2 scenes found with ≤ {cloud_thresh}% cloud for '
+                f'{date_start} to {date_end}. Try increasing the cloud cover slider '
+                f'or expanding the date range in the sidebar.'
+            )
+        else:
+            st.session_state['all_indices'] = all_results
+            for k in all_results:
+                st.session_state[f'{k}_computed'] = True
+            st.success(f'Computed {len(all_results)} / 7 indices from composite ({all_results[list(all_results.keys())[0]]["n_scenes"]} scenes)')
 
     st.markdown('<br>', unsafe_allow_html=True)
 
@@ -43,10 +54,12 @@ def render_indices_tab(aoi_json, params):
 
     for tab_widget, index_key in zip(sub_tabs, index_keys):
         with tab_widget:
-            _render_single_index(index_key, aoi_json, aoi, map_center, date_start, date_end)
+            _render_single_index(index_key, aoi_json, aoi, map_center,
+                                 date_start, date_end, cloud_thresh)
 
 
-def _render_single_index(index_key, aoi_json, aoi, map_center, date_start, date_end):
+def _render_single_index(index_key, aoi_json, aoi, map_center,
+                          date_start, date_end, cloud_thresh):
     """Render a single index panel: map + downloads + info."""
     meta = INDEX_REGISTRY[index_key]
 
@@ -57,20 +70,22 @@ def _render_single_index(index_key, aoi_json, aoi, map_center, date_start, date_
         unsafe_allow_html=True,
     )
 
-    if st.button(f'COMPUTE {index_key}', key=f'compute_{index_key}', use_container_width=True):
-        st.session_state[f'{index_key}_computed'] = True
-
-    if not st.session_state.get(f'{index_key}_computed'):
-        st.info(f'Click **COMPUTE {index_key}** to load the {meta["label"]} from Sentinel-2 imagery ({date_start} to {date_end}).')
-        _render_info_expander(index_key, meta)
-        return
-
-    with st.spinner(f'Computing {index_key} from Sentinel-2...'):
-        result = get_index_tile(aoi_json, index_key, date_start, date_end)
+    # Check if already computed via batch
+    all_indices = st.session_state.get('all_indices', {})
+    result = all_indices.get(index_key)
 
     if result is None:
-        st.error(f'No cloud-free Sentinel-2 scenes found for {date_start} to {date_end}. Try expanding the date range.')
-        return
+        if not st.session_state.get(f'{index_key}_computed'):
+            st.info(
+                f'Click **COMPUTE ALL INDICES** above, or results will appear here '
+                f'once computed ({date_start} to {date_end}, cloud ≤ {cloud_thresh}%).'
+            )
+            _render_info_expander(index_key, meta)
+            return
+        else:
+            st.warning(f'{index_key} computation failed — no data returned for this index.')
+            _render_info_expander(index_key, meta)
+            return
 
     # ── Metrics ───────────────────────────────────────
     m1, m2, m3 = st.columns(3)

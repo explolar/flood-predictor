@@ -194,7 +194,7 @@ def _compute_index(s2, index_key):
 
 
 @st.cache_data(show_spinner=False, ttl=3600)
-def get_index_tile(aoi_json, index_key, date_start, date_end):
+def get_index_tile(aoi_json, index_key, date_start, date_end, cloud_thresh=60):
     """
     Compute a spectral index and return tile URL, download URL, thumb URL, stats.
 
@@ -207,7 +207,7 @@ def get_index_tile(aoi_json, index_key, date_start, date_end):
         col = (ee.ImageCollection('COPERNICUS/S2_SR_HARMONIZED')
                .filterBounds(aoi_geom)
                .filterDate(date_start, date_end)
-               .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 30))
+               .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', cloud_thresh))
                .select(['B2', 'B3', 'B4', 'B8', 'B11', 'SCL']))
 
         n_scenes = col.size().getInfo()
@@ -252,3 +252,69 @@ def get_index_tile(aoi_json, index_key, date_start, date_end):
         }
     except Exception:
         return None
+
+
+@st.cache_data(show_spinner=False, ttl=3600)
+def get_all_index_tiles(aoi_json, date_start, date_end, cloud_thresh=60):
+    """
+    Compute ALL 7 indices from a single S2 composite (one GEE collection fetch).
+    Returns {index_key: result_dict} or empty dict on failure.
+    """
+    try:
+        aoi_geom = ee.Geometry(json.loads(aoi_json))
+
+        col = (ee.ImageCollection('COPERNICUS/S2_SR_HARMONIZED')
+               .filterBounds(aoi_geom)
+               .filterDate(date_start, date_end)
+               .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', cloud_thresh))
+               .select(['B2', 'B3', 'B4', 'B8', 'B11', 'SCL']))
+
+        n_scenes = col.size().getInfo()
+        if not n_scenes:
+            return {}
+
+        def mask_clouds(img):
+            scl = img.select('SCL')
+            mask = scl.neq(3).And(scl.neq(8)).And(scl.neq(9)).And(scl.neq(10))
+            return img.updateMask(mask)
+
+        s2 = col.map(mask_clouds).median().clip(aoi_geom)
+
+        results = {}
+        for index_key, meta in INDEX_REGISTRY.items():
+            try:
+                index_img = _compute_index(s2, index_key)
+                viz = {'min': meta['min'], 'max': meta['max'], 'palette': meta['palette']}
+
+                tile_url = index_img.getMapId(viz)['tile_fetcher'].url_format
+
+                download_url = index_img.getDownloadUrl({
+                    'scale': 10, 'crs': 'EPSG:4326',
+                    'format': 'GeoTIFF', 'region': aoi_geom,
+                })
+
+                thumb_url = index_img.getThumbUrl({
+                    'min': meta['min'], 'max': meta['max'],
+                    'palette': meta['palette'], 'dimensions': 512,
+                    'region': aoi_geom, 'format': 'png',
+                })
+
+                stats = index_img.reduceRegion(
+                    reducer=ee.Reducer.mean(),
+                    geometry=aoi_geom, scale=30, maxPixels=1e9,
+                ).getInfo() or {}
+                mean_val = round(stats.get(index_key.lower(), 0) or 0, 4)
+
+                results[index_key] = {
+                    'tile_url': tile_url,
+                    'download_url': download_url,
+                    'thumb_url': thumb_url,
+                    'mean_value': mean_val,
+                    'n_scenes': n_scenes,
+                }
+            except Exception:
+                continue
+
+        return results
+    except Exception:
+        return {}
