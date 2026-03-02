@@ -22,6 +22,7 @@ from tabs import (
     render_ml_tab,
     render_multiyear_tab,
     render_drought_tab,
+    render_indices_tab,
 )
 
 # ==========================================
@@ -181,8 +182,20 @@ with st.sidebar:
 # ==========================================
 st.markdown("""
     <div class="page-header">
-        <h1>HYDRO-CLIMATIC RISK ATLAS</h1>
-        <div class="subtitle">SENTINEL-1 SAR · ESA WORLDCOVER · CHIRPS RAINFALL · SRTM DEM · 30 m RESOLUTION</div>
+        <div style="display:flex; align-items:center; justify-content:space-between;">
+            <div>
+                <h1>HYDRO-CLIMATIC RISK ATLAS</h1>
+                <div class="subtitle">SENTINEL-1 SAR · ESA WORLDCOVER · CHIRPS RAINFALL · SRTM DEM · 30 m RESOLUTION</div>
+            </div>
+            <div class="system-status">
+                <div class="orbit-icon">
+                    <div class="ring"></div>
+                    <div class="ring2"></div>
+                    <div class="core"></div>
+                </div>
+                <div class="status-text">SYSTEM<br><span class="active">ONLINE</span></div>
+            </div>
+        </div>
     </div>
 """, unsafe_allow_html=True)
 
@@ -214,9 +227,10 @@ with st.expander("ANALYTICAL METHODOLOGY", expanded=False):
         </div>""", unsafe_allow_html=True)
 
 st.markdown("<br>", unsafe_allow_html=True)
-tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
+tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
     "  PHASE 1 · MCA  ", "  PHASE 2 · SAR  ", "  DUAL-VIEW  ",
-    "  PROGRESSION  ", "  ML INTELLIGENCE  ", "  MULTI-YEAR  ", "  DROUGHT  "
+    "  PROGRESSION  ", "  ML INTELLIGENCE  ", "  MULTI-YEAR  ", "  DROUGHT  ",
+    "  INDICES  "
 ])
 
 if st.session_state.aoi:
@@ -246,6 +260,8 @@ if st.session_state.aoi:
         render_multiyear_tab(_aoi_json, params)
     with tab7:
         render_drought_tab(_aoi_json, params)
+    with tab8:
+        render_indices_tab(_aoi_json, params)
 
 else:
     st.markdown("""

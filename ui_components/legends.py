@@ -45,3 +45,35 @@ def get_sar_legend(map_name):
     }})();
     </script>
     '''
+
+
+def get_index_legend(map_name, index_key):
+    """Generate a Leaflet JS legend for a spectral index from INDEX_REGISTRY."""
+    from gee_functions.indices import INDEX_REGISTRY
+    meta = INDEX_REGISTRY[index_key]
+
+    rows = ''
+    for (lo, hi, color, label) in meta['classes']:
+        rows += (
+            f"'<span style=\"display:inline-block;width:12px;height:12px;"
+            f"background:{color};border-radius:2px;margin-right:7px;"
+            f"vertical-align:middle;\"></span>{label}<br>' + "
+        )
+    rows = rows.rstrip(' + ')
+
+    return f'''
+    <script>
+    (function() {{
+        var legend = L.control({{position: 'bottomleft'}});
+        legend.onAdd = function() {{
+            var div = document.createElement('div');
+            div.style.cssText = 'background:rgba(13,27,42,0.93);border:1.5px solid #00FFFF;color:#e0e1dd;font-size:11px;padding:12px 15px;border-radius:10px;backdrop-filter:blur(8px);box-shadow:0 0 20px rgba(0,255,255,0.2);line-height:2.0;min-width:220px;pointer-events:none;';
+            div.innerHTML =
+                '<div style="color:#00FFFF;font-weight:bold;font-size:12px;letter-spacing:1px;border-bottom:1px solid rgba(0,255,255,0.3);padding-bottom:6px;margin-bottom:8px;">&#9672; {index_key}</div>' +
+                {rows};
+            return div;
+        }};
+        legend.addTo({map_name});
+    }})();
+    </script>
+    '''

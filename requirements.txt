@@ -15,10 +15,12 @@ lightgbm
 optuna
 shap
 matplotlib
-onnxruntime
 
 # Visualization
 pydeck
+
+# Reports
+fpdf2
 
 # Backend
 fastapi

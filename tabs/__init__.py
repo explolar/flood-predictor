@@ -5,3 +5,4 @@ from .tab_progression import render_progression_tab
 from .tab_ml import render_ml_tab
 from .tab_multiyear import render_multiyear_tab
 from .tab_drought import render_drought_tab
+from .tab_indices import render_indices_tab

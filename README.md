@@ -49,7 +49,6 @@ HydroRisk Atlas is a modular geospatial flood intelligence platform that combine
 - **Random Forest** — 5-class flood risk from terrain, climate, land cover, and historical water features.
 - **Gradient Boosting / XGBoost / LightGBM** — Pixel-wise SAR flood classification with 8 multi-source features.
 - **Ensemble Stacking** — LogisticRegression meta-learner combining GB + XGB base classifiers.
-- **U-Net Deep Learning** — MobileNetV2-encoder semantic segmentation via ONNX Runtime.
 - **Isolation Forest** — Anomaly detection on monthly SAR backscatter time series.
 
 **Advanced Modules**
@@ -71,7 +70,7 @@ HydroRisk Atlas is a modular geospatial flood intelligence platform that combine
 ┌────────────────────────────┐  ┌───────────┴────────────────────────┐
 │   GEE Python Client        │  │   ML Models (Python)               │
 │   ee.ImageCollection       │  │   RF · GB · XGB · LGBM · Ensemble  │
-│   ee.Image · ee.Reducer    │──│   U-Net ONNX · Isolation Forest    │
+│   ee.Image · ee.Reducer    │──│   Isolation Forest · SHAP          │
 │   ee.Geometry              │  │   SHAP · Optuna AutoML             │
 └────────────────────┬───────┘  └────────────┬───────────────────────┘
                      │                       │
@@ -136,8 +135,6 @@ flood-predictor/
 │   ├── xgb_classifier.py             # XGBoost classifier
 │   ├── lgbm_classifier.py            # LightGBM classifier
 │   ├── ensemble_stacker.py           # Ensemble meta-learner (GB + XGB + LR)
-│   ├── unet_model.py                 # U-Net ONNX inference engine
-│   ├── unet_segmentation.py          # End-to-end U-Net pipeline
 │   ├── anomaly_detector.py           # Isolation Forest anomaly detection
 │   ├── explainability.py             # SHAP TreeExplainer
 │   ├── automl_tuner.py               # Optuna hyperparameter optimization
@@ -191,7 +188,7 @@ flood-predictor/
 │   ├── ci.yml                        # Lint + test + Docker build
 │   └── deploy.yml                    # Cloud Run deploy
 │
-└── models/                           # Serialized trained models (.joblib, .onnx)
+└── models/                           # Serialized trained models (.joblib)
 ```
 
 ---
@@ -262,10 +259,6 @@ depth = water_surface − pixel_elevation  (clamped ≥ 0 m)
 
 LogisticRegression meta-learner trained on out-of-fold predictions from GB + XGB base classifiers.
 
-### U-Net Deep Learning Segmentation
-
-MobileNetV2 encoder, ONNX Runtime inference (~50 ms/patch). Requires pre-trained `models/unet_flood_mobilenet.onnx`.
-
 ### Isolation Forest — Anomaly Detection
 
 Detects anomalous months in SAR backscatter time series (2018–2024). No training labels needed — unsupervised.
@@ -326,7 +319,7 @@ Bayesian hyperparameter optimization for GB and XGBoost with cross-validated F1 
 - Timelapse animation with play/pause controls
 
 ### Tab 5 — ML Intelligence
-- **Classifiers** — Random Forest risk, SAR multi-model (GB/XGB/LGBM/Ensemble), U-Net segmentation
+- **Classifiers** — Random Forest risk, SAR multi-model (GB/XGB/LGBM/Ensemble)
 - **Analytics** — SHAP explainability, Isolation Forest anomaly detection
 - **Tools** — Optuna hyperparameter tuning, model diagnostics
 
@@ -373,7 +366,7 @@ python training/train_lgbm_classifier.py     # LightGBM
 python training/tune_hyperparams.py          # Optuna tuning
 ```
 
-Without pre-trained files, models train on-the-fly using the current AOI. U-Net requires a pre-trained ONNX model.
+Without pre-trained files, models train on-the-fly using the current AOI.
 
 ---
 
@@ -417,7 +410,7 @@ When running with `MODE=api`, a FastAPI server provides programmatic access:
 streamlit, earthengine-api, folium, streamlit-folium, pandas, numpy, requests
 
 # ML
-scikit-learn>=1.3, joblib, xgboost, lightgbm, optuna, shap, matplotlib, onnxruntime
+scikit-learn>=1.3, joblib, xgboost, lightgbm, optuna, shap, matplotlib, fpdf2
 
 # Visualization
 pydeck
@@ -431,6 +424,8 @@ fastapi, uvicorn, pydantic, sqlalchemy, bcrypt
 ## Author
 
 **Ankit Kumar**
+(email-Ankituday123@gmail.com)
+M.Tech
 Land and Water Resource Engineering,
 Department of Agricultural and Food Engineering,
 Indian Institute of Technology Kharagpur

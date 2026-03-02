@@ -27,6 +27,8 @@ def inject_styles():
     @keyframes fadeUp   { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
     @keyframes pulse    { 0%,100%{opacity:1} 50%{opacity:0.4} }
     @keyframes borderGlow { 0%,100%{box-shadow:0 0 6px rgba(0,255,255,0.3)} 50%{box-shadow:0 0 18px rgba(0,255,255,0.7)} }
+    @keyframes orbitSpin  { 0%{transform:rotate(0deg)} 100%{transform:rotate(360deg)} }
+    @keyframes ringPulse  { 0%,100%{opacity:0.7;transform:scale(1)} 50%{opacity:1;transform:scale(1.08)} }
 
     /* ── TYPOGRAPHY ───────────────────────────────────── */
     h1 {
@@ -259,5 +261,41 @@ def inject_styles():
     .coord-pill { display:inline-flex; align-items:center; gap:7px; background:rgba(255,200,0,0.07);
         border:1px solid rgba(255,200,0,0.25); border-radius:20px; padding:4px 12px;
         font-family:'JetBrains Mono',monospace; font-size:0.72rem; color:#ffc800; margin-top:6px; }
+
+    /* ── SYSTEM STATUS INDICATOR ─────────────────────── */
+    .system-status {
+        display:inline-flex; align-items:center; gap:10px;
+        margin-top:8px;
+    }
+    .orbit-icon {
+        position:relative; width:32px; height:32px;
+    }
+    .orbit-icon .core {
+        position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+        width:10px; height:10px; background:#00FFFF; border-radius:50%;
+        box-shadow:0 0 8px #00FFFF, 0 0 20px rgba(0,255,255,0.4);
+    }
+    .orbit-icon .ring {
+        position:absolute; top:0; left:0; width:100%; height:100%;
+        border:2px solid transparent; border-top-color:rgba(0,255,255,0.7);
+        border-right-color:rgba(0,255,255,0.3);
+        border-radius:50%;
+        animation:orbitSpin 1.8s linear infinite;
+    }
+    .orbit-icon .ring2 {
+        position:absolute; top:2px; left:2px; right:2px; bottom:2px;
+        border:1.5px solid transparent; border-bottom-color:rgba(0,200,255,0.5);
+        border-left-color:rgba(0,200,255,0.2);
+        border-radius:50%;
+        animation:orbitSpin 2.8s linear infinite reverse;
+    }
+    .system-status .status-text {
+        font-family:'JetBrains Mono',monospace; font-size:0.62rem;
+        letter-spacing:2.5px; color:rgba(0,255,255,0.55); text-transform:uppercase;
+    }
+    .system-status .status-text .active {
+        color:#00FFFF; font-weight:700;
+        text-shadow:0 0 8px rgba(0,255,255,0.5);
+    }
     </style>
     """, unsafe_allow_html=True)
