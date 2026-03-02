@@ -1,0 +1,23 @@
+{
+  "app_title": "நீர்-காலநிலை ஆபத்து அட்லஸ்",
+  "app_subtitle": "செண்டினல்-1 SAR · ESA உலக அட்டை · CHIRPS மழைப்பொழிவு · SRTM DEM · 30m தெளிவுத்திறன்",
+  "no_aoi": "ஆய்வு பகுதி வரையறுக்கப்படவில்லை",
+  "no_aoi_hint": "பக்கப்பட்டியில் இருந்து இடத்தைத் தேடவும் அல்லது எல்லைப் பெட்டியை வரையறுக்கவும்",
+  "tab_mca": "கட்டம் 1 · MCA",
+  "tab_sar": "கட்டம் 2 · SAR",
+  "tab_dual": "இரட்டை காட்சி",
+  "tab_progression": "முன்னேற்றம்",
+  "tab_ml": "ML நுண்ணறிவு",
+  "tab_multiyear": "பல ஆண்டு",
+  "tab_drought": "வறட்சி",
+  "sidebar_search": "இடம் தேடல்",
+  "sidebar_aoi": "AOI எல்லை",
+  "sidebar_weights": "MCA எடைகள்",
+  "sidebar_sar": "SAR இயந்திர சாளரம்",
+  "btn_search": "தேடி AOI அமைக்கவும்",
+  "btn_init_aoi": "AOI துவக்கவும்",
+  "btn_run": "இயக்கவும்",
+  "flood_area": "வெள்ளப் பகுதி",
+  "population": "பாதிக்கப்பட்ட மக்கள்",
+  "loading": "ஏற்றுகிறது..."
+}

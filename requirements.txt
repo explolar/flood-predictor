@@ -1,9 +1,37 @@
+# Core
 streamlit
 earthengine-api
 folium
 streamlit-folium
-scikit-learn>=1.3
-joblib
-prophet>=1.1
 pandas
 numpy
+requests
+
+# ML Models
+scikit-learn>=1.3
+joblib
+xgboost
+lightgbm
+optuna
+shap
+matplotlib
+onnxruntime
+
+# Visualization
+pydeck
+
+# Backend
+fastapi
+uvicorn
+pydantic
+sqlalchemy
+bcrypt
+
+# Optional (uncomment as needed)
+# psycopg2-binary    # PostgreSQL
+# geoalchemy2        # PostGIS
+# alembic            # DB migrations
+# sentry-sdk         # Error tracking
+# streamlit-authenticator
+# imageio[ffmpeg]    # Timelapse GIF export
+# pillow

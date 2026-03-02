@@ -1,0 +1,23 @@
+{
+  "app_title": "জল-জলবায়ু ঝুঁকি অ্যাটলাস",
+  "app_subtitle": "সেন্টিনেল-1 SAR · ESA ওয়ার্ল্ডকভার · CHIRPS বৃষ্টিপাত · SRTM DEM · 30m রেজোলিউশন",
+  "no_aoi": "কোনো অধ্যয়ন এলাকা নির্ধারিত হয়নি",
+  "no_aoi_hint": "সাইডবার থেকে স্থান খুঁজুন বা বাউন্ডিং বক্স নির্ধারণ করুন",
+  "tab_mca": "পর্ব 1 · MCA",
+  "tab_sar": "পর্ব 2 · SAR",
+  "tab_dual": "দ্বৈত দৃশ্য",
+  "tab_progression": "অগ্রগতি",
+  "tab_ml": "ML বুদ্ধিমত্তা",
+  "tab_multiyear": "বহু-বছর",
+  "tab_drought": "খরা",
+  "sidebar_search": "স্থান অনুসন্ধান",
+  "sidebar_aoi": "AOI সীমানা",
+  "sidebar_weights": "MCA ওজন",
+  "sidebar_sar": "SAR ইঞ্জিন উইন্ডো",
+  "btn_search": "অনুসন্ধান করুন এবং AOI সেট করুন",
+  "btn_init_aoi": "AOI শুরু করুন",
+  "btn_run": "চালান",
+  "flood_area": "প্লাবিত এলাকা",
+  "population": "উন্মুক্ত জনসংখ্যা",
+  "loading": "লোড হচ্ছে..."
+}

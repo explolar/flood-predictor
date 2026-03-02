@@ -1,0 +1,23 @@
+{
+  "app_title": "जल-जलवायु जोखिम एटलस",
+  "app_subtitle": "सेंटिनल-1 SAR · ESA वर्ल्डकवर · CHIRPS वर्षा · SRTM DEM · 30m रिज़ॉल्यूशन",
+  "no_aoi": "कोई अध्ययन क्षेत्र परिभाषित नहीं",
+  "no_aoi_hint": "साइडबार में स्थान खोजें या बाउंडिंग बॉक्स निर्धारित करें",
+  "tab_mca": "चरण 1 · MCA",
+  "tab_sar": "चरण 2 · SAR",
+  "tab_dual": "दोहरा दृश्य",
+  "tab_progression": "प्रगति",
+  "tab_ml": "ML बुद्धिमत्ता",
+  "tab_multiyear": "बहु-वर्ष",
+  "tab_drought": "सूखा",
+  "sidebar_search": "स्थान खोज",
+  "sidebar_aoi": "AOI सीमा",
+  "sidebar_weights": "MCA भार",
+  "sidebar_sar": "SAR इंजन विंडो",
+  "btn_search": "खोजें और AOI सेट करें",
+  "btn_init_aoi": "AOI प्रारंभ करें",
+  "btn_run": "चलाएं",
+  "flood_area": "जलमग्न क्षेत्र",
+  "population": "प्रभावित जनसंख्या",
+  "loading": "लोड हो रहा है..."
+}

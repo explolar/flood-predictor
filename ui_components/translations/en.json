@@ -1,0 +1,23 @@
+{
+  "app_title": "HYDRO-CLIMATIC RISK ATLAS",
+  "app_subtitle": "SENTINEL-1 SAR · ESA WORLDCOVER · CHIRPS RAINFALL · SRTM DEM · 30m RESOLUTION",
+  "no_aoi": "NO STUDY AREA DEFINED",
+  "no_aoi_hint": "Use the sidebar to search a location or define a bounding box, then click INITIALIZE AOI",
+  "tab_mca": "PHASE 1 · MCA",
+  "tab_sar": "PHASE 2 · SAR",
+  "tab_dual": "DUAL-VIEW",
+  "tab_progression": "PROGRESSION",
+  "tab_ml": "ML INTELLIGENCE",
+  "tab_multiyear": "MULTI-YEAR",
+  "tab_drought": "DROUGHT",
+  "sidebar_search": "Location Search",
+  "sidebar_aoi": "AOI Boundary",
+  "sidebar_weights": "MCA Weights",
+  "sidebar_sar": "SAR Engine Windows",
+  "btn_search": "SEARCH & SET AOI",
+  "btn_init_aoi": "INITIALIZE AOI",
+  "btn_run": "RUN",
+  "flood_area": "Inundated Area",
+  "population": "Population Exposed",
+  "loading": "Loading..."
+}
