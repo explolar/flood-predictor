@@ -2,3 +2,8 @@ streamlit
 earthengine-api
 folium
 streamlit-folium
+scikit-learn>=1.3
+joblib
+prophet>=1.1
+pandas
+numpy

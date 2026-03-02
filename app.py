@@ -5,1089 +5,40 @@ from folium.plugins import Fullscreen, MiniMap, DualMap
 import json
 import streamlit.components.v1 as components
 import datetime
-import math
 import pandas as pd
 from streamlit_folium import folium_static, st_folium
 import requests
 
-try:
-    from fpdf import FPDF
-    _FPDF = True
-except ImportError:
-    _FPDF = False
+# ── Module imports ─────────────────────────────────────
+from ui_components.styles import inject_styles
+from ui_components.legends import get_mca_legend, get_sar_legend
+from ui_components.reports import generate_report, generate_pdf_bytes
+from ui_components.constants import CROP_PRICES
+
+from gee_functions.core import _init_ee_core, initialize_ee, get_aoi_stats
+from gee_functions.mca import calculate_flood_risk, get_mca_tile
+from gee_functions.sar import (
+    get_all_sar_data, get_flood_depth_tile,
+    get_month_sar_tile, get_recession_data,
+)
+from gee_functions.chirps import get_chirps_series, get_return_period, get_progression_stats
+from gee_functions.layers import (
+    get_ndvi_tile, get_jrc_freq_tile, get_s2_rgb_tile,
+    get_s2_rgb_tiles, get_jrc_flood_history,
+)
+from gee_functions.infrastructure import get_osm_infrastructure, get_osm_roads, get_dam_data
+from gee_functions.crop import get_crop_loss_data
+from gee_functions.watershed import get_watershed_geojson
 
 # ==========================================
 # 1. PAGE CONFIG & STYLING
 # ==========================================
 st.set_page_config(page_title="HydroRisk Atlas | IIT Kgp", layout="wide", page_icon="🛰️")
-
-st.markdown("""
-    <style>
-    @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Rajdhani:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap');
-
-    /* ── BASE ─────────────────────────────────────────── */
-    html, body, [class*="css"] { font-family: 'Space Grotesk', sans-serif !important; }
-    #MainMenu, footer, header { visibility: hidden; }
-    .stDeployButton { display: none !important; }
-    ::-webkit-scrollbar { width: 4px; }
-    ::-webkit-scrollbar-track { background: #020c1b; }
-    ::-webkit-scrollbar-thumb { background: rgba(0,255,255,0.25); border-radius: 2px; }
-
-    .stApp {
-        background: #020c1b;
-        background-image:
-            radial-gradient(ellipse at 15% 40%, rgba(0,255,255,0.04) 0%, transparent 55%),
-            radial-gradient(ellipse at 85% 15%, rgba(0,100,255,0.06) 0%, transparent 50%),
-            radial-gradient(ellipse at 50% 100%, rgba(0,30,80,0.5) 0%, transparent 60%);
-        color: #c9d5e0;
-    }
-
-    /* ── ANIMATIONS ───────────────────────────────────── */
-    @keyframes shimmer  { 0%{background-position:0% center} 100%{background-position:200% center} }
-    @keyframes fadeUp   { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
-    @keyframes pulse    { 0%,100%{opacity:1} 50%{opacity:0.4} }
-    @keyframes borderGlow { 0%,100%{box-shadow:0 0 6px rgba(0,255,255,0.3)} 50%{box-shadow:0 0 18px rgba(0,255,255,0.7)} }
-
-    /* ── TYPOGRAPHY ───────────────────────────────────── */
-    h1 {
-        font-family: 'Rajdhani', sans-serif !important;
-        font-size: 2.2rem !important; font-weight: 700 !important;
-        letter-spacing: 4px !important; line-height: 1.1 !important;
-        background: linear-gradient(120deg, #00FFFF 0%, #4dc8ff 40%, #00FFFF 80%) !important;
-        background-size: 200% auto !important;
-        -webkit-background-clip: text !important; -webkit-text-fill-color: transparent !important;
-        animation: shimmer 4s linear infinite !important;
-    }
-    h2, h3 { font-family: 'Rajdhani', sans-serif !important; color: #00FFFF !important; letter-spacing: 1.5px !important; }
-    h4 { font-family: 'Space Grotesk', sans-serif !important; color: #7eb8cc !important; font-weight: 600 !important; }
-    p, li { color: #8ca0b0 !important; line-height: 1.7 !important; }
-    code {
-        background: rgba(0,255,255,0.08) !important; color: #00FFFF !important;
-        padding: 2px 7px !important; border-radius: 4px !important;
-        font-family: 'JetBrains Mono', monospace !important; font-size: 0.82em !important;
-    }
-
-    /* ── SIDEBAR ──────────────────────────────────────── */
-    [data-testid="stSidebar"] {
-        background: linear-gradient(175deg, #020e1f 0%, #030b18 100%) !important;
-        border-right: 1px solid rgba(0,255,255,0.12) !important;
-        box-shadow: 6px 0 40px rgba(0,0,0,0.5) !important;
-    }
-    [data-testid="stSidebar"] > div:first-child { padding-top: 1rem !important; }
-    .sidebar-brand {
-        text-align: center; padding: 4px 0 18px 0;
-        border-bottom: 1px solid rgba(0,255,255,0.1); margin-bottom: 18px;
-    }
-    .sidebar-brand .brand-title {
-        font-family: 'Rajdhani', sans-serif; font-size: 1.15rem; font-weight: 700;
-        letter-spacing: 3px; color: #00FFFF;
-        text-shadow: 0 0 20px rgba(0,255,255,0.5); margin: 8px 0 2px 0;
-    }
-    .sidebar-brand .brand-sub {
-        font-size: 0.6rem; letter-spacing: 2.5px; color: rgba(0,255,255,0.35);
-        text-transform: uppercase; font-family: 'JetBrains Mono', monospace;
-    }
-    .section-tag {
-        font-family: 'JetBrains Mono', monospace; font-size: 0.62rem; font-weight: 700;
-        letter-spacing: 3px; color: rgba(0,255,255,0.4); text-transform: uppercase;
-        margin: 20px 0 8px 2px; display: flex; align-items: center; gap: 8px;
-    }
-    .section-tag::after {
-        content: ''; flex: 1; height: 1px;
-        background: linear-gradient(90deg, rgba(0,255,255,0.2), transparent);
-    }
-    .sidebar-hr {
-        border: none; height: 1px; margin: 16px 0;
-        background: linear-gradient(90deg, transparent, rgba(0,255,255,0.15), transparent);
-    }
-    .weight-row {
-        display:flex; justify-content:space-between; align-items:center;
-        background:rgba(0,255,255,0.04); border:1px solid rgba(0,255,255,0.12);
-        border-radius:6px; padding:6px 10px; margin:4px 0;
-        font-family:'JetBrains Mono',monospace; font-size:0.75rem; color:#c9d5e0;
-    }
-    .weight-row span { color:#00FFFF; font-weight:700; }
-
-    /* ── INPUTS ───────────────────────────────────────── */
-    .stNumberInput input, .stTextInput input {
-        background: rgba(0,255,255,0.03) !important; color: #c9d5e0 !important;
-        border: 1px solid rgba(0,255,255,0.18) !important; border-radius: 6px !important;
-        font-family: 'JetBrains Mono', monospace !important; font-size: 0.84rem !important;
-        transition: border-color 0.3s, box-shadow 0.3s !important;
-    }
-    .stNumberInput input:focus, .stTextInput input:focus {
-        border-color: #00FFFF !important;
-        box-shadow: 0 0 0 1px rgba(0,255,255,0.25), 0 0 12px rgba(0,255,255,0.08) !important;
-    }
-    .stNumberInput label, .stTextInput label, .stDateInput label,
-    .stSlider label, .stFileUploader label, .stRadio label span {
-        font-size: 0.78rem !important; color: #5a7a8a !important; letter-spacing: 0.8px !important;
-        font-family: 'Space Grotesk', sans-serif !important;
-    }
-    [data-baseweb="input"] { border-radius: 6px !important; }
-    [data-testid="stDateInput"] input {
-        background: rgba(0,255,255,0.03) !important; border: 1px solid rgba(0,255,255,0.18) !important;
-        color: #c9d5e0 !important; border-radius: 6px !important; font-family: 'JetBrains Mono', monospace !important;
-    }
-
-    /* ── SLIDER ───────────────────────────────────────── */
-    [data-baseweb="slider"] [role="slider"] {
-        background: #00FFFF !important; border: 2px solid #020c1b !important;
-        box-shadow: 0 0 0 2px #00FFFF, 0 0 12px rgba(0,255,255,0.6) !important;
-        width: 14px !important; height: 14px !important;
-    }
-    [data-baseweb="slider"] [data-testid="stSliderTrackFill"] { background: #00FFFF !important; }
-
-    /* ── RADIO ────────────────────────────────────────── */
-    [data-baseweb="radio"] [data-checked="true"] div {
-        background: #00FFFF !important; border-color: #00FFFF !important;
-        box-shadow: 0 0 8px rgba(0,255,255,0.5) !important;
-    }
-
-    /* ── FILE UPLOADER ────────────────────────────────── */
-    [data-testid="stFileUploader"] section {
-        background: rgba(0,255,255,0.02) !important;
-        border: 1px dashed rgba(0,255,255,0.25) !important; border-radius: 8px !important;
-        transition: border-color 0.3s !important;
-    }
-    [data-testid="stFileUploader"] section:hover { border-color: rgba(0,255,255,0.5) !important; }
-
-    /* ── BUTTONS ──────────────────────────────────────── */
-    .stButton > button {
-        background: transparent !important; color: #00FFFF !important;
-        border: 1px solid rgba(0,255,255,0.5) !important;
-        font-family: 'Rajdhani', sans-serif !important; font-weight: 600 !important;
-        font-size: 0.88rem !important; letter-spacing: 2px !important;
-        border-radius: 6px !important; padding: 0.45rem 1.2rem !important;
-        transition: all 0.25s ease !important; position: relative !important; overflow: hidden !important;
-    }
-    .stButton > button:hover {
-        background: rgba(0,255,255,0.07) !important; border-color: #00FFFF !important;
-        box-shadow: 0 0 20px rgba(0,255,255,0.2), inset 0 0 20px rgba(0,255,255,0.03) !important;
-        transform: translateY(-1px) !important;
-    }
-    .stButton > button:active { transform: translateY(0) !important; }
-    [data-testid="stDownloadButton"] button, [data-testid="stLinkButton"] a {
-        background: rgba(0,255,255,0.05) !important; color: #00FFFF !important;
-        border: 1px solid rgba(0,255,255,0.35) !important;
-        font-family: 'Rajdhani', sans-serif !important; font-weight: 600 !important;
-        letter-spacing: 1.5px !important; border-radius: 6px !important; font-size: 0.85rem !important;
-        text-decoration: none !important; transition: all 0.25s !important;
-    }
-    [data-testid="stDownloadButton"] button:hover, [data-testid="stLinkButton"] a:hover {
-        background: rgba(0,255,255,0.1) !important; border-color: #00FFFF !important;
-        box-shadow: 0 0 16px rgba(0,255,255,0.2) !important;
-    }
-
-    /* ── TABS ─────────────────────────────────────────── */
-    [data-testid="stTabs"] [role="tablist"] {
-        background: transparent !important; gap: 0 !important;
-        border-bottom: 1px solid rgba(0,255,255,0.1) !important; padding-bottom: 0 !important;
-    }
-    [data-testid="stTabs"] button[role="tab"] {
-        font-family: 'Rajdhani', sans-serif !important; font-weight: 600 !important;
-        font-size: 0.92rem !important; letter-spacing: 2px !important;
-        color: rgba(0,255,255,0.35) !important; border: none !important;
-        background: transparent !important; padding: 0.55rem 1.6rem !important;
-        border-bottom: 2px solid transparent !important; transition: all 0.3s !important;
-        margin-bottom: -1px !important;
-    }
-    [data-testid="stTabs"] button[role="tab"]:hover { color: rgba(0,255,255,0.7) !important; background: rgba(0,255,255,0.03) !important; }
-    [data-testid="stTabs"] button[role="tab"][aria-selected="true"] {
-        color: #00FFFF !important; border-bottom: 2px solid #00FFFF !important;
-        text-shadow: 0 0 12px rgba(0,255,255,0.6) !important;
-    }
-    [data-testid="stTabs"] [role="tabpanel"] { padding-top: 1.2rem !important; }
-
-    /* ── EXPANDER ─────────────────────────────────────── */
-    [data-testid="stExpander"] {
-        background: rgba(0,20,40,0.4) !important;
-        border: 1px solid rgba(0,255,255,0.1) !important; border-radius: 10px !important;
-        overflow: hidden !important;
-    }
-    [data-testid="stExpander"] summary {
-        font-family: 'Rajdhani', sans-serif !important; font-weight: 600 !important;
-        font-size: 0.88rem !important; letter-spacing: 2px !important;
-        color: rgba(0,255,255,0.6) !important; padding: 12px 16px !important;
-    }
-    [data-testid="stExpander"] summary:hover { color: #00FFFF !important; background: rgba(0,255,255,0.03) !important; }
-
-    /* ── ALERTS ───────────────────────────────────────── */
-    [data-testid="stAlert"] {
-        border-radius: 8px !important; backdrop-filter: blur(8px) !important;
-        font-family: 'Space Grotesk', sans-serif !important; font-size: 0.84rem !important;
-    }
-    .stSuccess { background: rgba(0,200,80,0.07) !important; border: 1px solid rgba(0,200,80,0.3) !important; }
-    .stError   { background: rgba(220,50,50,0.07) !important; border: 1px solid rgba(220,50,50,0.3) !important; }
-    .stInfo    { background: rgba(0,120,220,0.07) !important; border: 1px solid rgba(0,120,220,0.3) !important; }
-    .stWarning { background: rgba(220,160,0,0.07) !important; border: 1px solid rgba(220,160,0,0.3) !important; }
-
-    /* ── SPINNER ──────────────────────────────────────── */
-    [data-testid="stSpinner"] p { color: #00FFFF !important; font-family: 'JetBrains Mono', monospace !important; font-size: 0.8rem !important; }
-
-    /* ── CUSTOM COMPONENTS ────────────────────────────── */
-    .page-header { padding: 6px 0 20px 0; animation: fadeUp 0.6s ease; border-bottom: 1px solid rgba(0,255,255,0.08); margin-bottom: 20px; }
-    .page-header .subtitle { font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; letter-spacing: 3px; color: rgba(0,255,255,0.4); margin-top: 4px; }
-    .status-pill { display: inline-flex; align-items: center; gap: 7px; background: rgba(0,200,80,0.07); border: 1px solid rgba(0,200,80,0.3); border-radius: 20px; padding: 4px 14px 4px 10px; font-size: 0.72rem; font-family: 'JetBrains Mono', monospace; color: #00c850; }
-    .status-dot { width:7px; height:7px; background:#00c850; border-radius:50%; box-shadow:0 0 8px #00c850; animation:pulse 2s ease infinite; }
-    .status-pill-err { display: inline-flex; align-items: center; gap: 7px; background: rgba(220,50,50,0.07); border: 1px solid rgba(220,50,50,0.3); border-radius: 20px; padding: 4px 14px 4px 10px; font-size: 0.72rem; font-family: 'JetBrains Mono', monospace; color: #ff4444; }
-    .metric-card {
-        background: linear-gradient(145deg, rgba(0,255,255,0.04) 0%, rgba(0,40,80,0.3) 100%);
-        border: 1px solid rgba(0,255,255,0.18); border-radius: 12px;
-        padding: 22px 18px; text-align: center; position: relative; overflow: hidden;
-        animation: fadeUp 0.5s ease; transition: border-color 0.3s, box-shadow 0.3s;
-    }
-    .metric-card:hover { border-color: rgba(0,255,255,0.4); box-shadow: 0 0 30px rgba(0,255,255,0.08); }
-    .metric-card::before { content:''; position:absolute; top:0; left:0; right:0; height:1px; background: linear-gradient(90deg, transparent, rgba(0,255,255,0.6), transparent); }
-    .metric-card::after  { content:''; position:absolute; bottom:0; left:0; right:0; height:1px; background: linear-gradient(90deg, transparent, rgba(0,100,255,0.3), transparent); }
-    .metric-card .metric-value { font-family: 'Rajdhani', sans-serif; font-size: 2.6rem; font-weight: 700; background: linear-gradient(135deg, #00FFFF, #4dc8ff); -webkit-background-clip: text; -webkit-text-fill-color: transparent; line-height: 1.1; margin: 0; }
-    .metric-card .metric-label { font-size: 0.68rem; letter-spacing: 3px; color: rgba(0,255,255,0.5); font-family: 'JetBrains Mono', monospace; text-transform: uppercase; margin-top: 6px; }
-    .metric-card .metric-sub   { font-size: 0.72rem; color: #4a6070; margin-top: 4px; font-family: 'Space Grotesk', sans-serif; }
-    .tech-panel { background: rgba(0,255,255,0.02); border: 1px solid rgba(0,255,255,0.1); border-left: 3px solid rgba(0,255,255,0.6); border-radius: 0 8px 8px 0; padding: 16px 18px; margin-bottom: 12px; animation: fadeUp 0.4s ease; }
-    .tech-panel h4 { font-family: 'Rajdhani', sans-serif !important; color: #00FFFF !important; font-size: 0.92rem !important; letter-spacing: 2px !important; margin: 0 0 6px 0 !important; font-weight: 600 !important; }
-    .tech-panel p  { color: #5a7a8a !important; margin: 0 !important; font-size: 0.85rem !important; }
-    .tech-panel .weight-badge { display: inline-block; background: rgba(0,255,255,0.08); border: 1px solid rgba(0,255,255,0.2); color: #00FFFF; border-radius: 4px; padding: 1px 8px; font-size: 0.75rem; font-family: 'JetBrains Mono', monospace; margin: 0 2px; }
-    .stats-row { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px; }
-    .stat-chip { background:rgba(0,255,255,0.05); border:1px solid rgba(0,255,255,0.15); border-radius:6px; padding:8px 12px; font-family:'JetBrains Mono',monospace; font-size:0.75rem; color:#c9d5e0; }
-    .stat-chip b { color:#00FFFF; display:block; font-size:1.1rem; margin-bottom:2px; }
-    .grid-line { height: 1px; margin: 14px 0; background: linear-gradient(90deg, transparent, rgba(0,255,255,0.12), transparent); border: none; }
-
-    /* ── RETURN PERIOD TABLE ──────────────────────────── */
-    .rp-table { width:100%; border-collapse:collapse; font-family:'JetBrains Mono',monospace; font-size:0.78rem; margin-top:10px; }
-    .rp-table th { color:rgba(0,255,255,0.5); letter-spacing:2px; font-size:0.65rem; padding:6px 10px; border-bottom:1px solid rgba(0,255,255,0.15); text-align:left; }
-    .rp-table td { color:#c9d5e0; padding:7px 10px; border-bottom:1px solid rgba(0,255,255,0.06); }
-    .rp-table tr:hover td { background:rgba(0,255,255,0.03); }
-    .rp-table .rp-val { color:#00FFFF; font-weight:700; }
-    .rp-bar { height:5px; background:linear-gradient(90deg,#00FFFF,#4dc8ff); border-radius:3px; display:inline-block; vertical-align:middle; margin-left:6px; }
-
-    /* ── DUAL MAP PANEL LABELS ────────────────────────── */
-    .dual-label-row { display:flex; gap:0; margin-bottom:4px; }
-    .dual-label { flex:1; text-align:center; font-family:'Rajdhani',sans-serif; font-weight:600;
-        font-size:0.85rem; letter-spacing:3px; color:rgba(0,255,255,0.6);
-        background:rgba(0,255,255,0.04); border:1px solid rgba(0,255,255,0.12); padding:6px; }
-    .dual-label:first-child { border-radius:6px 0 0 6px; }
-    .dual-label:last-child  { border-radius:0 6px 6px 0; border-left:none; }
-
-    /* ── PROGRESSION ──────────────────────────────────── */
-    .prog-month-chip { display:inline-block; background:rgba(255,107,107,0.08); border:1px solid rgba(255,107,107,0.25);
-        border-radius:6px; padding:4px 10px; font-family:'JetBrains Mono',monospace;
-        font-size:0.72rem; color:#FF6B6B; margin:2px; }
-    .infra-legend { display:flex; flex-wrap:wrap; gap:8px; margin:8px 0; font-family:'JetBrains Mono',monospace; font-size:0.72rem; }
-    .infra-chip { background:rgba(0,255,255,0.04); border:1px solid rgba(0,255,255,0.12);
-        border-radius:4px; padding:3px 8px; color:#c9d5e0; }
-    .infra-chip span { margin-right:5px; }
-    .coord-pill { display:inline-flex; align-items:center; gap:7px; background:rgba(255,200,0,0.07);
-        border:1px solid rgba(255,200,0,0.25); border-radius:20px; padding:4px 12px;
-        font-family:'JetBrains Mono',monospace; font-size:0.72rem; color:#ffc800; margin-top:6px; }
-    </style>
-    """, unsafe_allow_html=True)
+inject_styles()
 
 # ==========================================
-# 2. VIZ CONSTANTS (module-level)
+# 2. SIDEBAR
 # ==========================================
-SAR_VIZ   = {'min': -25, 'max': 0,   'palette': ['000005','0d1b2a','1b4f72','2e86c1','7fb3d3','d6eaf8','ffffff']}
-DIFF_VIZ  = {'min': -2,  'max': 8,   'palette': ['1a1a2e','16213e','0f3460','00FFFF','ffffff']}
-SEV_VIZ   = {'min': 1,   'max': 3,   'palette': ['ffffbf','fc8d59','d73027']}
-DEPTH_VIZ = {'min': 0,   'max': 3,   'palette': ['ffffcc','fed976','fd8d3c','f03b20','bd0026']}
-
-CROP_PRICES = {
-    'Rice':       40000,
-    'Wheat':      35000,
-    'Sugarcane': 120000,
-    'Cotton':     60000,
-    'Maize':      30000,
-    'Soybean':    45000,
-    'Custom':          0,
-}
-
-# ==========================================
-# 3. LEGENDS
-# ==========================================
-def get_mca_legend(map_name):
-    return f'''
-    <script>
-    (function() {{
-        var legend = L.control({{position: 'bottomleft'}});
-        legend.onAdd = function() {{
-            var div = document.createElement('div');
-            div.style.cssText = 'background:rgba(13,27,42,0.93);border:1.5px solid #00FFFF;color:#e0e1dd;font-size:11.5px;padding:12px 15px;border-radius:10px;backdrop-filter:blur(8px);box-shadow:0 0 20px rgba(0,255,255,0.2);line-height:1.95;min-width:155px;pointer-events:none;';
-            div.innerHTML =
-                '<div style="color:#00FFFF;font-weight:bold;font-size:12.5px;letter-spacing:1px;border-bottom:1px solid rgba(0,255,255,0.3);padding-bottom:6px;margin-bottom:8px;">&#9672; RISK INDEX</div>' +
-                '<span style="display:inline-block;width:12px;height:12px;background:#d73027;border-radius:2px;margin-right:7px;vertical-align:middle;"></span>Very High (5)<br>' +
-                '<span style="display:inline-block;width:12px;height:12px;background:#fc8d59;border-radius:2px;margin-right:7px;vertical-align:middle;"></span>High (4)<br>' +
-                '<span style="display:inline-block;width:12px;height:12px;background:#ffffbf;border-radius:2px;margin-right:7px;vertical-align:middle;"></span>Moderate (3)<br>' +
-                '<span style="display:inline-block;width:12px;height:12px;background:#91cf60;border-radius:2px;margin-right:7px;vertical-align:middle;"></span>Low (2)<br>' +
-                '<span style="display:inline-block;width:12px;height:12px;background:#1a9850;border-radius:2px;margin-right:7px;vertical-align:middle;"></span>Very Low (1)';
-            return div;
-        }};
-        legend.addTo({map_name});
-    }})();
-    </script>
-    '''
-
-def get_sar_legend(map_name):
-    return f'''
-    <script>
-    (function() {{
-        var legend = L.control({{position: 'bottomleft'}});
-        legend.onAdd = function() {{
-            var div = document.createElement('div');
-            div.style.cssText = 'background:rgba(13,27,42,0.93);border:1.5px solid #00FFFF;color:#e0e1dd;font-size:11.5px;padding:12px 15px;border-radius:10px;backdrop-filter:blur(8px);box-shadow:0 0 20px rgba(0,255,255,0.2);line-height:1.95;min-width:185px;pointer-events:none;';
-            div.innerHTML =
-                '<div style="color:#00FFFF;font-weight:bold;font-size:12.5px;letter-spacing:1px;border-bottom:1px solid rgba(0,255,255,0.3);padding-bottom:6px;margin-bottom:8px;">&#9672; SAR INDICATORS</div>' +
-                '<span style="display:inline-block;width:12px;height:12px;background:#00FFFF;border-radius:2px;margin-right:7px;vertical-align:middle;"></span>Active Flood Mask<br>' +
-                '<span style="display:inline-block;width:12px;height:12px;background:#00008B;border-radius:2px;margin-right:7px;vertical-align:middle;"></span>Permanent Water<br>' +
-                '<hr style="margin:8px 0;border:0;border-top:1px solid rgba(0,255,255,0.2);">' +
-                '<div style="color:rgba(0,255,255,0.6);font-size:10.5px;margin-bottom:5px;letter-spacing:1px;">BACKSCATTER SCALE</div>' +
-                '<span style="display:inline-block;width:12px;height:12px;background:#000005;border-radius:2px;margin-right:7px;vertical-align:middle;"></span>Low &minus;25 dB<br>' +
-                '<span style="display:inline-block;width:12px;height:12px;background:#2e86c1;border-radius:2px;margin-right:7px;vertical-align:middle;"></span>Medium<br>' +
-                '<span style="display:inline-block;width:12px;height:12px;background:#ffffff;border-radius:2px;margin-right:7px;vertical-align:middle;"></span>High 0 dB<br>' +
-                '<hr style="margin:8px 0;border:0;border-top:1px solid rgba(0,255,255,0.2);">' +
-                '<span style="color:#888;font-style:italic;font-size:10px;">&#9889; Terrain Guard: slope &lt; 8&#176;</span>';
-            return div;
-        }};
-        legend.addTo({map_name});
-    }})();
-    </script>
-    '''
-
-# ==========================================
-# 4. REPORT & PDF
-# ==========================================
-def generate_report(aoi_coords, mca_weights, sar_params, results):
-    now = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    return f"""
-==================================================
-HYDRO-CLIMATIC RISK ATLAS — TECHNICAL REPORT
-Generated : {now}
-==================================================
-INVESTIGATOR : Ankit Kumar
-INSTITUTION  : IIT Kharagpur
---------------------------------------------------
-1. STUDY AREA (AOI)    : {aoi_coords}
-2. MCA WEIGHTS         : LULC={mca_weights['lulc']}%  Slope={mca_weights['slope']}%  Rain={mca_weights['rain']}%
-3. SAR POLARISATION    : {sar_params.get('polarization','VH')}
-4. SAR WINDOWS (Pre)   : {sar_params['pre_start']} → {sar_params['pre_end']}
-5. SAR WINDOWS (Post)  : {sar_params['f_start']} → {sar_params['f_end']}
-6. THRESHOLD           : {sar_params['threshold']} dB
-7. SPECKLE FILTER      : {'Lee (focal_mean 3×3)' if sar_params.get('speckle') else 'None'}
-8. INUNDATED AREA      : {results['area_ha']} Ha
-9. POPULATION EXPOSED  : {results.get('pop_exposed', 'N/A')}
-==================================================
-"""
-
-def generate_pdf_bytes(aoi_coords, mca_weights, sar_params, results, rp_data=None):
-    if not _FPDF:
-        return None
-    try:
-        pdf = FPDF()
-        pdf.set_auto_page_break(auto=True, margin=20)
-        pdf.add_page()
-        pdf.set_margins(20, 20, 20)
-
-        pdf.set_font('Helvetica', 'B', 18)
-        pdf.cell(0, 14, 'HYDRO-CLIMATIC RISK ATLAS', ln=True)
-        pdf.set_font('Helvetica', '', 9)
-        pdf.set_text_color(100, 100, 100)
-        pdf.cell(0, 6, f'IIT Kharagpur  |  {datetime.datetime.now().strftime("%Y-%m-%d %H:%M")}', ln=True)
-        pdf.ln(4)
-        pdf.set_draw_color(0, 200, 200)
-        pdf.line(20, pdf.get_y(), 190, pdf.get_y())
-        pdf.ln(5)
-
-        def section(title):
-            pdf.set_text_color(0, 0, 0)
-            pdf.set_font('Helvetica', 'B', 11)
-            pdf.cell(0, 8, title, ln=True)
-            pdf.set_font('Helvetica', '', 10)
-
-        section('1. STUDY AREA')
-        pdf.multi_cell(0, 6, f'AOI Coordinates: {aoi_coords}')
-        pdf.ln(3)
-
-        section('2. MCA ANALYSIS WEIGHTS')
-        pdf.cell(57, 6, f'LULC: {mca_weights["lulc"]}%')
-        pdf.cell(57, 6, f'Slope: {mca_weights["slope"]}%')
-        pdf.cell(57, 6, f'Rainfall: {mca_weights["rain"]}%', ln=True)
-        pdf.ln(3)
-
-        section('3. SAR INUNDATION ANALYSIS')
-        rows = [
-            ('Polarisation', sar_params.get('polarization','VH')),
-            ('Pre-flood window', f'{sar_params["pre_start"]} → {sar_params["pre_end"]}'),
-            ('Post-flood window', f'{sar_params["f_start"]} → {sar_params["f_end"]}'),
-            ('Change threshold', f'{sar_params["threshold"]} dB'),
-            ('Speckle filter', 'Lee focal_mean 3x3' if sar_params.get('speckle') else 'None'),
-        ]
-        for k, v in rows:
-            pdf.cell(65, 6, k + ':')
-            pdf.cell(0, 6, str(v), ln=True)
-        pdf.ln(3)
-
-        section('4. RESULTS')
-        pdf.cell(65, 6, 'Inundated Area:')
-        pdf.cell(0, 6, f'{results["area_ha"]} Ha', ln=True)
-        pdf.cell(65, 6, 'Population Exposed:')
-        pdf.cell(0, 6, str(results.get('pop_exposed', 'N/A')), ln=True)
-        pdf.ln(3)
-
-        if rp_data and rp_data.get('return_periods'):
-            section('5. FLOOD RETURN PERIODS  [Gumbel Distribution]')
-            pdf.cell(65, 6, f'Analysis period: {rp_data.get("n_years",24)} years (2000-2023)', ln=True)
-            pdf.cell(65, 6, f'Mean monsoon rain: {rp_data.get("mean",0)} mm')
-            pdf.cell(0, 6, f'Std dev: {rp_data.get("std",0)} mm', ln=True)
-            pdf.ln(2)
-            for T, val in rp_data['return_periods'].items():
-                pdf.cell(65, 6, f'  {T}-year return period:')
-                pdf.cell(0, 6, f'{val:.0f} mm (monsoon total)', ln=True)
-            pdf.ln(3)
-
-        pdf.set_font('Helvetica', 'I', 8)
-        pdf.set_text_color(150, 150, 150)
-        pdf.cell(0, 6, 'Generated by HydroRisk Atlas | IIT Kharagpur | Powered by Google Earth Engine', ln=True)
-        return bytes(pdf.output())
-    except Exception:
-        return None
-
-# ==========================================
-# 5. EE INITIALIZATION (cached)
-# ==========================================
-project_id = 'xward-481405'
-
-@st.cache_resource
-def _init_ee_core():
-    try:
-        from ee import compute_engine
-        creds = compute_engine.ComputeEngineCredentials()
-        ee.Initialize(creds, project=project_id)
-    except Exception:
-        ee.Initialize(project=project_id)
-    ee.Image('USGS/SRTMGL1_003').getInfo()
-
-def initialize_ee():
-    try:
-        _init_ee_core()
-        st.markdown('<div class="status-pill"><span class="status-dot"></span>GEE SATELLITE LINK · STABLE</div>', unsafe_allow_html=True)
-    except Exception as e:
-        st.markdown(f'<div class="status-pill-err"><span style="width:7px;height:7px;background:#ff4444;border-radius:50%;box-shadow:0 0 8px #ff4444;display:inline-block;"></span>LINK FAILED · {str(e)[:60]}</div>', unsafe_allow_html=True)
-
-# ==========================================
-# 6. ANALYTICAL FUNCTIONS
-# ==========================================
-def _make_flood_mask(pre, post, threshold, aoi_geom, dem=None, elev_p40=None):
-    """Calibrated flood mask with 4-layer quality filters applied in sequence:
-      1. Terrain slope < 8°  — eliminates radar shadow false positives
-      2. Permanent water exclusion  — JRC seasonality ≥ 10 months
-      3. JRC flood frequency gate  — historical occurrence ≥ 5% (filters cropland FP)
-      4. Elevation ≤ 40th percentile  — restricts to AOI lowlands
-      5. Minimum patch ≥ 56 pixels (~5 ha at 30 m)  — removes noise speckle
-      6. Morphological cleanup  — focal_mode 40 m circle
-    Returns (flood_mask, dem) so callers can reuse the DEM without re-loading it.
-    Pass pre-computed dem / elev_p40 to avoid redundant GEE calls inside loops.
-    """
-    if dem is None:
-        dem = ee.Image('USGS/SRTMGL1_003').select('elevation').clip(aoi_geom)
-    slope_mask = ee.Terrain.slope(dem).lt(8)
-    jrc        = ee.Image("JRC/GSW1_4/GlobalSurfaceWater")
-    perm_water = jrc.select('seasonality').gte(10).clip(aoi_geom)
-    jrc_gate   = jrc.select('occurrence').gte(5).clip(aoi_geom)   # ≥5% historical occurrence
-
-    if elev_p40 is None:
-        elev_p40 = (dem.reduceRegion(
-            reducer=ee.Reducer.percentile([40]),
-            geometry=aoi_geom, scale=100, maxPixels=1e9
-        ).getInfo().get('elevation_p40') or 9999)
-    elev_mask = dem.lte(ee.Number(float(elev_p40)))
-
-    diff    = pre.subtract(post)
-    flooded = (diff.gt(threshold)
-               .updateMask(slope_mask)      # 1. steep terrain guard
-               .where(perm_water, 0)        # 2. zero-out permanent water
-               .selfMask()                  # keep only candidate flood pixels
-               .updateMask(jrc_gate)        # 3. historically flood-prone zones only
-               .updateMask(elev_mask))      # 4. lowland restriction
-
-    # 5. Minimum patch: ≥56 connected pixels ≈ 5 ha at 30 m resolution
-    flooded = flooded.updateMask(flooded.connectedPixelCount(200, False).gte(56))
-    # 6. Morphological cleanup
-    flood = flooded.focal_mode(40, 'circle', 'meters').updateMask(flooded)
-    return flood, dem
-
-
-def calculate_flood_risk(aoi_geom, w_lulc=0.40, w_slope=0.30, w_rain=0.30):
-    dem    = ee.Image('USGS/SRTMGL1_003').select('elevation').clip(aoi_geom)
-    slope  = ee.Terrain.slope(dem).clip(aoi_geom)
-    slope_r = slope.where(slope.lte(2), 5).where(slope.gt(20), 1)
-    lulc   = ee.ImageCollection("ESA/WorldCover/v200").mosaic().select('Map').clip(aoi_geom)
-    lulc_r = lulc.remap([10,20,30,40,50,60,80,90], [1,2,2,3,5,4,5,5])
-    rain   = ee.ImageCollection("UCSB-CHG/CHIRPS/DAILY").filterDate('2023-01-01','2024-01-01').sum().clip(aoi_geom)
-    rain_r = rain.where(rain.lt(1860), 1).where(rain.gte(1950), 5)
-    return lulc_r.multiply(w_lulc/100).add(slope_r.multiply(w_slope/100)).add(rain_r.multiply(w_rain/100)).clip(aoi_geom).round()
-
-# ── CACHED TILE GETTERS ────────────────────────────────
-@st.cache_data(show_spinner=False, ttl=3600)
-def get_mca_tile(aoi_json, w_lulc, w_slope, w_rain):
-    aoi_geom = ee.Geometry(json.loads(aoi_json))
-    risk = calculate_flood_risk(aoi_geom, w_lulc, w_slope, w_rain)
-    return risk.getMapId({'min':1,'max':5,'palette':['1a9850','91cf60','ffffbf','fc8d59','d73027']})['tile_fetcher'].url_format
-
-@st.cache_data(show_spinner=False, ttl=3600)
-def get_all_sar_data(aoi_json, f_start, f_end, p_start, p_end, threshold, polarization, speckle):
-    """Compute all SAR layers and stats; return serializable dict for caching."""
-    aoi_geom = ee.Geometry(json.loads(aoi_json))
-    s1 = (ee.ImageCollection('COPERNICUS/S1_GRD')
-          .filterBounds(aoi_geom)
-          .filter(ee.Filter.listContains('transmitterReceiverPolarisation', polarization))
-          .select(polarization))
-    pre  = s1.filterDate(str(p_start), str(p_end)).median().clip(aoi_geom)
-    post = s1.filterDate(str(f_start), str(f_end)).median().clip(aoi_geom)
-    if speckle:
-        pre  = pre.focal_mean(radius=1, kernelType='square', units='pixels')
-        post = post.focal_mean(radius=1, kernelType='square', units='pixels')
-    diff = pre.subtract(post)   # kept for Change Intensity tile visualisation
-    flood, dem = _make_flood_mask(pre, post, threshold, aoi_geom)
-    water_m = ee.Image("JRC/GSW1_4/GlobalSurfaceWater").select('seasonality').gte(10).clip(aoi_geom).selfMask()
-
-    # Severity zones — reuse dem returned by helper
-    ep = dem.reduceRegion(reducer=ee.Reducer.percentile([10,50]), geometry=aoi_geom, scale=100, maxPixels=1e9).getInfo()
-    p10 = ep.get('elevation_p10', 50)
-    p50 = ep.get('elevation_p50', 100)
-    sev = flood.where(flood.And(dem.lte(p10)), 3)
-    sev = sev.where(flood.And(dem.gt(p10).And(dem.lte(p50))), 2)
-    sev = sev.where(flood.And(dem.gt(p50)), 1)
-    severity = sev.updateMask(flood)
-
-    # Stats
-    area_val = flood.multiply(ee.Image.pixelArea()).reduceRegion(
-        reducer=ee.Reducer.sum(), geometry=aoi_geom, scale=50, maxPixels=1e9
-    ).get(polarization).getInfo()
-    area_ha = round(area_val / 10000, 2) if area_val else 0
-
-    # Population
-    try:
-        pop_img = ee.ImageCollection("WorldPop/GP/100m/pop").filter(ee.Filter.eq('year', 2020)).mosaic().clip(aoi_geom)
-        pop_val = pop_img.updateMask(flood).reduceRegion(reducer=ee.Reducer.sum(), geometry=aoi_geom, scale=100, maxPixels=1e9).get('population').getInfo()
-        pop_exposed = int(round(pop_val)) if pop_val else 0
-    except Exception:
-        pop_exposed = 0
-
-    return {
-        'flood_url':    flood.getMapId({'palette': ['00FFFF']})['tile_fetcher'].url_format,
-        'water_url':    water_m.getMapId({'palette': ['00008B']})['tile_fetcher'].url_format,
-        'pre_url':      pre.getMapId(SAR_VIZ)['tile_fetcher'].url_format,
-        'post_url':     post.getMapId(SAR_VIZ)['tile_fetcher'].url_format,
-        'diff_url':     diff.getMapId(DIFF_VIZ)['tile_fetcher'].url_format,
-        'severity_url': severity.getMapId(SEV_VIZ)['tile_fetcher'].url_format,
-        'area_ha':      area_ha,
-        'pop_exposed':  pop_exposed,
-    }
-
-@st.cache_data(show_spinner=False, ttl=3600)
-def get_ndvi_tile(aoi_json, p_start, p_end, f_start, f_end):
-    try:
-        aoi_geom = ee.Geometry(json.loads(aoi_json))
-        col_pre  = (ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")
-                    .filterBounds(aoi_geom).filterDate(str(p_start), str(p_end))
-                    .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 30)))
-        col_post = (ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")
-                    .filterBounds(aoi_geom).filterDate(str(f_start), str(f_end))
-                    .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 30)))
-        if col_pre.size().getInfo() == 0 or col_post.size().getInfo() == 0:
-            return None
-        ndvi_pre  = col_pre.median().normalizedDifference(['B8','B4']).clip(aoi_geom)
-        ndvi_post = col_post.median().normalizedDifference(['B8','B4']).clip(aoi_geom)
-        ndvi_diff = ndvi_pre.subtract(ndvi_post)
-        return ndvi_diff.getMapId({'min':-0.3,'max':0.5,'palette':['1a9850','ffffbf','d73027']})['tile_fetcher'].url_format
-    except Exception:
-        return None
-
-@st.cache_data(show_spinner=False, ttl=3600)
-def get_jrc_freq_tile(aoi_json):
-    aoi_geom = ee.Geometry(json.loads(aoi_json))
-    freq = ee.Image("JRC/GSW1_4/GlobalSurfaceWater").select('occurrence').clip(aoi_geom)
-    return freq.getMapId({'min':0,'max':100,'palette':['ffffff','0000ff']})['tile_fetcher'].url_format
-
-@st.cache_data(show_spinner=False, ttl=3600)
-def get_s2_rgb_tile(aoi_json):
-    try:
-        aoi_geom = ee.Geometry(json.loads(aoi_json))
-        col = (ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")
-               .filterBounds(aoi_geom).filterDate('2024-01-01','2024-12-31')
-               .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 20)))
-        if col.size().getInfo() == 0:
-            return None
-        s2 = col.median().clip(aoi_geom)
-        return s2.getMapId({'bands':['B4','B3','B2'],'min':0,'max':3000})['tile_fetcher'].url_format
-    except Exception:
-        return None
-
-@st.cache_data(show_spinner=False, ttl=3600)
-def get_aoi_stats(aoi_json):
-    aoi_geom = ee.Geometry(json.loads(aoi_json))
-    dem   = ee.Image('USGS/SRTMGL1_003').select('elevation').clip(aoi_geom)
-    slope = ee.Terrain.slope(dem).clip(aoi_geom)
-    combined = dem.rename('elev').addBands(slope.rename('slope'))
-    stats = combined.reduceRegion(
-        reducer=ee.Reducer.minMax().combine(ee.Reducer.mean(), '', True),
-        geometry=aoi_geom, scale=100, maxPixels=1e9
-    ).getInfo()
-    area_m2 = aoi_geom.area(maxError=1).getInfo()
-    return {
-        'elev_min':   round(stats.get('elev_min', 0)),
-        'elev_max':   round(stats.get('elev_max', 0)),
-        'elev_mean':  round(stats.get('elev_mean', 0)),
-        'slope_mean': round(stats.get('slope_mean', 0), 1),
-        'area_km2':   round(area_m2 / 1e6, 2)
-    }
-
-@st.cache_data(show_spinner=False, ttl=3600)
-def get_chirps_series(aoi_json, start_str, end_str):
-    aoi_geom = ee.Geometry(json.loads(aoi_json))
-    chirps = ee.ImageCollection("UCSB-CHG/CHIRPS/DAILY").filterDate(start_str, end_str).filterBounds(aoi_geom)
-    def extract(img):
-        mean = img.reduceRegion(reducer=ee.Reducer.mean(), geometry=aoi_geom, scale=5000, maxPixels=1e8)
-        return ee.Feature(None, {'date': img.date().format('YYYY-MM-dd'), 'rain': mean.get('precipitation')})
-    fc = chirps.map(extract).getInfo()
-    records = [{'date': f['properties']['date'], 'rainfall_mm': float(f['properties']['rain'])}
-               for f in fc['features'] if f['properties'].get('rain') is not None]
-    if not records:
-        return None
-    df = pd.DataFrame(records)
-    df['date'] = pd.to_datetime(df['date'])
-    return df.sort_values('date').set_index('date')
-
-# ── FEATURE 15: WATERSHED (HydroSHEDS) ────────────────
-@st.cache_data(show_spinner=False, ttl=7200)
-def get_watershed_geojson(aoi_json):
-    try:
-        aoi_geom = ee.Geometry(json.loads(aoi_json))
-        hydrobasins = ee.FeatureCollection("WWF/HydroSHEDS/v1/Basins/hybas_8")
-        ws = hydrobasins.filterBounds(aoi_geom)
-        return ws.geometry().getInfo()
-    except Exception:
-        return None
-
-# ── FEATURE 14: OSM INFRASTRUCTURE ────────────────────
-@st.cache_data(show_spinner=False, ttl=3600)
-def get_osm_infrastructure(aoi_json):
-    try:
-        aoi_geom = ee.Geometry(json.loads(aoi_json))
-        bb = aoi_geom.bounds().getInfo()['coordinates'][0]
-        lats = [c[1] for c in bb];  lons = [c[0] for c in bb]
-        s, n, w, e = min(lats), max(lats), min(lons), max(lons)
-        query = f"""[out:json][timeout:20];
-(node["amenity"~"hospital|school|fire_station|police"]({s},{w},{n},{e});
- way["amenity"~"hospital|school|fire_station|police"]({s},{w},{n},{e}););
-out center 100;"""
-        r = requests.post("https://overpass-api.de/api/interpreter", data=query, timeout=25)
-        r.raise_for_status()
-        elements = r.json().get('elements', [])
-        infra = []
-        for el in elements:
-            lat = el.get('lat') or (el.get('center') or {}).get('lat')
-            lon = el.get('lon') or (el.get('center') or {}).get('lon')
-            if lat and lon:
-                amenity = el.get('tags', {}).get('amenity', 'unknown')
-                name    = el.get('tags', {}).get('name', amenity.replace('_',' ').title())
-                infra.append({'lat': lat, 'lon': lon, 'type': amenity, 'name': name})
-        return infra
-    except Exception:
-        return []
-
-# ── FEATURE 17: FLOOD RETURN PERIOD (Gumbel) ──────────
-@st.cache_data(show_spinner=False, ttl=7200)
-def get_return_period(aoi_json):
-    try:
-        aoi_geom = ee.Geometry(json.loads(aoi_json))
-        years_ee = ee.List.sequence(2000, 2023)
-        def annual_monsoon(yr):
-            yr = ee.Number(yr).int()
-            start = ee.Date.fromYMD(yr, 6, 1)
-            end   = ee.Date.fromYMD(yr, 11, 1)
-            total = (ee.ImageCollection("UCSB-CHG/CHIRPS/DAILY")
-                     .filterDate(start, end).filterBounds(aoi_geom).sum()
-                     .reduceRegion(reducer=ee.Reducer.mean(), geometry=aoi_geom, scale=10000, maxPixels=1e9))
-            return ee.Feature(None, {'year': yr, 'rain': total.get('precipitation')})
-        data = ee.FeatureCollection(years_ee.map(annual_monsoon)).getInfo()
-        rains = [float(f['properties']['rain']) for f in data['features']
-                 if f['properties'].get('rain') is not None]
-        if len(rains) < 10:
-            return None
-        n  = len(rains)
-        mu = sum(rains) / n
-        std = (sum((x - mu)**2 for x in rains) / n) ** 0.5
-        beta = std * (6 ** 0.5) / math.pi
-        u    = mu - 0.5772 * beta
-        rp   = {}
-        max_val = max(rains)
-        for T in [2, 5, 10, 25, 50, 100]:
-            rp[T] = round(u - beta * math.log(-math.log(1 - 1/T)), 0)
-        return {'mean': round(mu, 0), 'std': round(std, 0),
-                'return_periods': rp, 'n_years': n,
-                'max_obs': round(max_val, 0), 'rains': sorted(rains)}
-    except Exception:
-        return None
-
-# ── FEATURE 13: FLOOD PROGRESSION STATS ───────────────
-@st.cache_data(show_spinner=False, ttl=7200)
-def get_progression_stats(aoi_json, year):
-    try:
-        aoi_geom = ee.Geometry(json.loads(aoi_json))
-        months_ee = ee.List([6, 7, 8, 9, 10])
-        def monthly_rain(m):
-            m = ee.Number(m).int()
-            start = ee.Date.fromYMD(ee.Number(year), m, 1)
-            end   = start.advance(1, 'month')
-            total = (ee.ImageCollection("UCSB-CHG/CHIRPS/DAILY")
-                     .filterDate(start, end).filterBounds(aoi_geom).sum()
-                     .reduceRegion(reducer=ee.Reducer.mean(), geometry=aoi_geom, scale=5000))
-            return ee.Feature(None, {'month': m, 'rain': total.get('precipitation')})
-        data = ee.FeatureCollection(months_ee.map(monthly_rain)).getInfo()
-        names = {6:'Jun',7:'Jul',8:'Aug',9:'Sep',10:'Oct'}
-        records = [{'Month': names[int(f['properties']['month'])],
-                    'month_num': int(f['properties']['month']),
-                    'Rain (mm)': round(float(f['properties'].get('rain') or 0), 1)}
-                   for f in data['features']]
-        records.sort(key=lambda x: x['month_num'])
-        return pd.DataFrame(records)
-    except Exception:
-        return None
-
-# ── FEATURE 13: MONTHLY SAR FLOOD TILE ────────────────
-@st.cache_data(show_spinner=False, ttl=3600)
-def get_month_sar_tile(aoi_json, year, month_num, polarization, threshold, speckle):
-    try:
-        aoi_geom = ee.Geometry(json.loads(aoi_json))
-        s1 = (ee.ImageCollection('COPERNICUS/S1_GRD')
-              .filterBounds(aoi_geom)
-              .filter(ee.Filter.listContains('transmitterReceiverPolarisation', polarization))
-              .select(polarization))
-        pre = s1.filterDate(f'{year}-01-01', f'{year}-03-31').median().clip(aoi_geom)
-        days_in = [31,28,31,30,31,30,31,31,30,31,30,31][month_num-1]
-        post = s1.filterDate(f'{year}-{month_num:02d}-01', f'{year}-{month_num:02d}-{days_in}').median().clip(aoi_geom)
-        if speckle:
-            pre  = pre.focal_mean(radius=1, kernelType='square', units='pixels')
-            post = post.focal_mean(radius=1, kernelType='square', units='pixels')
-        flood, _ = _make_flood_mask(pre, post, threshold, aoi_geom)
-        return flood.getMapId({'palette': ['FF6B6B']})['tile_fetcher'].url_format
-    except Exception:
-        return None
-
-# ── FLOOD DEPTH ESTIMATION ─────────────────────────────
-@st.cache_data(show_spinner=False, ttl=3600)
-def get_flood_depth_tile(aoi_json, f_start, f_end, p_start, p_end, threshold, polarization, speckle):
-    """Estimate water depth per pixel using DEM + flood mask.
-    Water surface ≈ 95th-percentile elevation of flooded pixels.
-    Depth = water_surface_elev − pixel_elev  (clamped ≥ 0).
-    """
-    try:
-        aoi_geom = ee.Geometry(json.loads(aoi_json))
-        s1 = (ee.ImageCollection('COPERNICUS/S1_GRD')
-              .filterBounds(aoi_geom)
-              .filter(ee.Filter.listContains('transmitterReceiverPolarisation', polarization))
-              .select(polarization))
-        pre  = s1.filterDate(str(p_start), str(p_end)).median().clip(aoi_geom)
-        post = s1.filterDate(str(f_start), str(f_end)).median().clip(aoi_geom)
-        if speckle:
-            pre  = pre.focal_mean(radius=1, kernelType='square', units='pixels')
-            post = post.focal_mean(radius=1, kernelType='square', units='pixels')
-        flood, dem = _make_flood_mask(pre, post, threshold, aoi_geom)
-        flood_dem  = dem.updateMask(flood)
-
-        # Water surface = 95th-percentile elevation of flooded pixels
-        ep = flood_dem.reduceRegion(
-            reducer=ee.Reducer.percentile([95]),
-            geometry=aoi_geom, scale=30, maxPixels=1e9
-        ).getInfo()
-        water_surface = ep.get('elevation_p95', 0) or 0
-
-        depth = ee.Image(float(water_surface)).subtract(dem).updateMask(flood).max(ee.Image(0))
-
-        # Stats: mean and max depth
-        depth_stats = depth.reduceRegion(
-            reducer=ee.Reducer.mean().combine(ee.Reducer.max(), '', True),
-            geometry=aoi_geom, scale=30, maxPixels=1e9
-        ).getInfo()
-
-        # Histogram: 8 bins from 0–4 m (0.5 m each) in a single reduceRegion call
-        hist_raw = depth.reduceRegion(
-            reducer=ee.Reducer.fixedHistogram(0, 4, 8),
-            geometry=aoi_geom, scale=30, maxPixels=1e9
-        ).getInfo().get('constant', [])
-        hist_labels = ['0–0.5', '0.5–1', '1–1.5', '1.5–2', '2–2.5', '2.5–3', '3–3.5', '3.5–4']
-        hist = {hist_labels[i]: int(row[1]) for i, row in enumerate(hist_raw) if i < len(hist_labels)}
-
-        return {
-            'tile_url':   depth.getMapId(DEPTH_VIZ)['tile_fetcher'].url_format,
-            'mean_depth': round(depth_stats.get('constant_mean', 0) or 0, 2),
-            'max_depth':  round(depth_stats.get('constant_max',  0) or 0, 2),
-            'histogram':  hist,
-        }
-    except Exception:
-        return None
-
-# ── CROP LOSS ASSESSMENT ───────────────────────────────
-@st.cache_data(show_spinner=False, ttl=3600)
-def get_crop_loss_data(aoi_json, p_start, p_end, f_start, f_end, crop_price_per_ha, ndvi_threshold=0.10):
-    """Quantify crop damage within flooded agricultural pixels.
-    Damage = pixels where NDVI drops > ndvi_threshold AND land cover = Cropland (ESA class 40).
-    """
-    try:
-        aoi_geom  = ee.Geometry(json.loads(aoi_json))
-        col_pre   = (ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")
-                     .filterBounds(aoi_geom).filterDate(str(p_start), str(p_end))
-                     .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 30)))
-        col_post  = (ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")
-                     .filterBounds(aoi_geom).filterDate(str(f_start), str(f_end))
-                     .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 30)))
-        if col_pre.size().getInfo() == 0 or col_post.size().getInfo() == 0:
-            return None
-        ndvi_pre  = col_pre.median().normalizedDifference(['B8','B4']).clip(aoi_geom)
-        ndvi_post = col_post.median().normalizedDifference(['B8','B4']).clip(aoi_geom)
-        ndvi_diff = ndvi_pre.subtract(ndvi_post)   # positive = vegetation loss
-
-        # Agricultural mask — ESA WorldCover class 40 (Cropland)
-        crop_mask = ee.ImageCollection("ESA/WorldCover/v200").mosaic().select('Map').clip(aoi_geom).eq(40)
-
-        # Damaged cropland: NDVI drop exceeds threshold on cropland pixels
-        damaged   = ndvi_diff.gt(ndvi_threshold).And(crop_mask)
-
-        # Pixel areas
-        px_area = ee.Image.pixelArea()
-        total_crop_ha = (crop_mask.multiply(px_area).reduceRegion(
-            reducer=ee.Reducer.sum(), geometry=aoi_geom, scale=10, maxPixels=1e10
-        ).get('Map').getInfo() or 0) / 10000
-
-        damaged_ha = (damaged.multiply(px_area).reduceRegion(
-            reducer=ee.Reducer.sum(), geometry=aoi_geom, scale=10, maxPixels=1e10
-        ).get('nd').getInfo() or 0) / 10000
-
-        loss = damaged_ha * crop_price_per_ha
-        pct  = round(100 * damaged_ha / total_crop_ha, 1) if total_crop_ha > 0 else 0
-
-        # Tile: show NDVI diff clipped to cropland only
-        ndvi_crop_tile = ndvi_diff.updateMask(crop_mask).getMapId(
-            {'min': 0, 'max': 0.5, 'palette': ['1a9850','ffffbf','d73027']}
-        )['tile_fetcher'].url_format
-
-        return {
-            'tile_url':      ndvi_crop_tile,
-            'total_crop_ha': round(total_crop_ha, 1),
-            'damaged_ha':    round(damaged_ha, 1),
-            'damage_pct':    pct,
-            'loss_estimate': int(round(loss)),
-        }
-    except Exception:
-        return None
-
-# ── JRC HISTORICAL FLOOD FREQUENCY ────────────────────
-@st.cache_data(show_spinner=False, ttl=7200)
-def get_jrc_flood_history(aoi_json):
-    """Return dict {year: flood_months} for 1984–2021 using JRC Monthly Water History.
-    flood_months = count of calendar months where any AOI pixel showed water (class=2).
-    Uses a single server-side map() + getInfo() batch call.
-    """
-    try:
-        aoi_geom = ee.Geometry(json.loads(aoi_json))
-        jrc = ee.ImageCollection("JRC/GSW1_4/MonthlyHistory").filterBounds(aoi_geom)
-        years = ee.List.sequence(1984, 2021)
-
-        def year_flood_months(y):
-            y = ee.Number(y).int()
-            start = ee.Date.fromYMD(y, 1, 1)
-            end   = start.advance(1, 'year')
-            monthly = jrc.filterDate(start, end)
-            # For each monthly image check if any pixel = 2 (water detected)
-            has_water = monthly.map(
-                lambda img: ee.Feature(None, {
-                    'w': img.eq(2).reduceRegion(
-                        reducer=ee.Reducer.max(),
-                        geometry=aoi_geom, scale=300, maxPixels=1e8
-                    ).get('waterClass')
-                })
-            )
-            flood_months = has_water.aggregate_sum('w')
-            return ee.Feature(None, {'year': y, 'flood_months': flood_months})
-
-        fc = ee.FeatureCollection(years.map(year_flood_months)).getInfo()
-        result = {}
-        for feat in fc['features']:
-            p = feat['properties']
-            result[int(p['year'])] = int(p.get('flood_months') or 0)
-        return result
-    except Exception:
-        return None
-
-
-# ── SENTINEL-2 TRUE-COLOR TILE URLS ───────────────────
-@st.cache_data(show_spinner=False, ttl=3600)
-def get_s2_rgb_tiles(aoi_json, pre_start, pre_end, post_start, post_end):
-    """Return pre- and post-flood Sentinel-2 true-color tile URLs."""
-    try:
-        aoi_geom = ee.Geometry(json.loads(aoi_json))
-        viz = {'bands': ['B4', 'B3', 'B2'], 'min': 0, 'max': 3000, 'gamma': 1.3}
-        col_pre  = (ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")
-                    .filterBounds(aoi_geom).filterDate(str(pre_start), str(pre_end))
-                    .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 30)))
-        col_post = (ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")
-                    .filterBounds(aoi_geom).filterDate(str(post_start), str(post_end))
-                    .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 30)))
-        if col_pre.size().getInfo() == 0 or col_post.size().getInfo() == 0:
-            return None
-        s2_pre  = col_pre.median().clip(aoi_geom)
-        s2_post = col_post.median().clip(aoi_geom)
-        return {
-            'pre_url':  s2_pre.getMapId(viz)['tile_fetcher'].url_format,
-            'post_url': s2_post.getMapId(viz)['tile_fetcher'].url_format,
-        }
-    except Exception:
-        return None
-
-
-# ── HELPER: Haversine distance ─────────────────────────
-def _haversine_km(lat1, lon1, lat2, lon2):
-    R = 6371.0
-    dlat = math.radians(lat2 - lat1)
-    dlon = math.radians(lon2 - lon1)
-    a = math.sin(dlat / 2) ** 2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon / 2) ** 2
-    return R * 2 * math.asin(math.sqrt(a))
-
-
-# ── OSM ROAD NETWORK ───────────────────────────────────
-@st.cache_data(show_spinner=False, ttl=3600)
-def get_osm_roads(aoi_json):
-    """Fetch road network from OSM Overpass. Returns roads list + km-by-type dict.
-    Evacuation candidates = major roads (primary+) that cross within margin of AOI edge.
-    """
-    try:
-        aoi_geom = ee.Geometry(json.loads(aoi_json))
-        bb   = aoi_geom.bounds().getInfo()['coordinates'][0]
-        lats = [c[1] for c in bb]; lons = [c[0] for c in bb]
-        s, n, w, e = min(lats), max(lats), min(lons), max(lons)
-        query = f"""[out:json][timeout:30];
-way["highway"~"motorway|trunk|primary|secondary|tertiary"]({s},{w},{n},{e});
-out geom 500;"""
-        r = requests.post("https://overpass-api.de/api/interpreter", data=query, timeout=35)
-        r.raise_for_status()
-        elements = r.json().get('elements', [])
-        roads, km_by_type = [], {}
-        margin = max((n - s), (e - w)) * 0.15   # 15% of span = boundary zone
-        for el in elements:
-            geom = el.get('geometry', [])
-            if len(geom) < 2:
-                continue
-            hw   = el.get('tags', {}).get('highway', 'road')
-            name = el.get('tags', {}).get('name', '')
-            coords = [[p['lon'], p['lat']] for p in geom]
-            length_km = sum(
-                _haversine_km(geom[i]['lat'], geom[i]['lon'], geom[i+1]['lat'], geom[i+1]['lon'])
-                for i in range(len(geom) - 1)
-            )
-            km_by_type[hw] = km_by_type.get(hw, 0) + length_km
-            # Evacuation candidate: major road with at least one node near AOI edge
-            near_edge = any(
-                p['lat'] < s + margin or p['lat'] > n - margin or
-                p['lon'] < w + margin or p['lon'] > e - margin
-                for p in geom
-            )
-            evacuation = near_edge and hw in ('motorway', 'trunk', 'primary', 'secondary')
-            roads.append({'coords': coords, 'highway': hw, 'name': name,
-                          'length_km': round(length_km, 2), 'evacuation': evacuation})
-        return {'roads': roads, 'km_by_type': {k: round(v, 1) for k, v in km_by_type.items()}}
-    except Exception:
-        return None
-
-
-# ── DAM / RESERVOIR OVERLAY (GRanD) ───────────────────
-@st.cache_data(show_spinner=False, ttl=7200)
-def get_dam_data(aoi_json):
-    """Return dams/reservoirs within 150 km of AOI from GRanD v1.3 (GEE asset)."""
-    try:
-        aoi_geom    = ee.Geometry(json.loads(aoi_json))
-        aoi_buf     = aoi_geom.buffer(150000)      # 150 km radius
-        dams_fc     = ee.FeatureCollection('projects/sat-io/open-datasets/GRanD/GRAND_Dams_v1_3').filterBounds(aoi_buf)
-        dam_info    = dams_fc.getInfo()
-        result = []
-        for feat in dam_info.get('features', []):
-            p    = feat.get('properties', {})
-            geom = feat.get('geometry', {})
-            if geom.get('type') == 'Point':
-                lon, lat = geom['coordinates']
-                result.append({
-                    'lat':          lat,
-                    'lon':          lon,
-                    'name':         p.get('DAM_NAME', 'Unknown'),
-                    'river':        p.get('RIVER', '—'),
-                    'capacity_mcm': round(float(p.get('CAP_MCM') or 0), 0),
-                    'main_use':     p.get('MAIN_USE', '—'),
-                    'year':         int(p.get('YEAR') or 0) or '—',
-                })
-        # Sort by capacity descending
-        result.sort(key=lambda x: x['capacity_mcm'], reverse=True)
-        return result
-    except Exception:
-        return []
-
-
-# ── FLOOD RECESSION TRACKER ────────────────────────────
-@st.cache_data(show_spinner=False, ttl=3600)
-def get_recession_data(aoi_json, f_end_str, p_start_str, p_end_str, polarization, threshold, speckle):
-    """Compute flood extent (ha) at T=0, +12d, +24d, +36d after flood end using SAR.
-    Pre-flood reference = p_start → p_end (same as main analysis).
-    Each recession window is 12 days wide (matches S-1 ~12-day revisit).
-    """
-    try:
-        aoi_geom   = ee.Geometry(json.loads(aoi_json))
-        f_end_dt   = datetime.date.fromisoformat(f_end_str)
-        s1 = (ee.ImageCollection('COPERNICUS/S1_GRD')
-              .filterBounds(aoi_geom)
-              .filter(ee.Filter.listContains('transmitterReceiverPolarisation', polarization))
-              .select(polarization))
-        pre = s1.filterDate(p_start_str, p_end_str).median().clip(aoi_geom)
-        if speckle:
-            pre = pre.focal_mean(radius=1, kernelType='square', units='pixels')
-        px_area = ee.Image.pixelArea()
-
-        # Pre-compute DEM and elevation 40th-percentile once for all phases
-        dem_r    = ee.Image('USGS/SRTMGL1_003').select('elevation').clip(aoi_geom)
-        elev_p40 = (dem_r.reduceRegion(
-            reducer=ee.Reducer.percentile([40]),
-            geometry=aoi_geom, scale=100, maxPixels=1e9
-        ).getInfo().get('elevation_p40') or 9999)
-
-        phases = [
-            ('Peak (T₀)',  0,  12),
-            ('+12 days',  12,  24),
-            ('+24 days',  24,  36),
-            ('+36 days',  36,  48),
-        ]
-        results = []
-        for label, offset_start, offset_end in phases:
-            t0 = (f_end_dt + datetime.timedelta(days=offset_start)).isoformat()
-            t1 = (f_end_dt + datetime.timedelta(days=offset_end)).isoformat()
-            post_col = s1.filterDate(t0, t1)
-            if post_col.size().getInfo() == 0:
-                results.append({'Phase': label, 'Flood Area (ha)': None})
-                continue
-            post = post_col.median().clip(aoi_geom)
-            if speckle:
-                post = post.focal_mean(radius=1, kernelType='square', units='pixels')
-            flood, _ = _make_flood_mask(pre, post, threshold, aoi_geom,
-                                        dem=dem_r, elev_p40=elev_p40)
-            area_ha = (flood.multiply(px_area).reduceRegion(
-                reducer=ee.Reducer.sum(), geometry=aoi_geom, scale=30, maxPixels=1e9
-            ).getInfo().get(polarization, 0) or 0) / 10000
-            results.append({'Phase': label, 'Flood Area (ha)': round(area_ha, 1)})
-        return results
-    except Exception:
-        return None
-
-
-# ==========================================
-# 7. SIDEBAR
-# ==========================================
-# Initialize EE before the sidebar so that ee.Geometry calls
-# inside the search button handler work on the first click.
 try:
     _init_ee_core()
 except Exception:
@@ -1108,7 +59,6 @@ with st.sidebar:
     if 'clicked_coord' not in st.session_state: st.session_state.clicked_coord = None
     if 'rp_data' not in st.session_state:      st.session_state.rp_data = None
 
-    # ── FEATURE 4: PLACE NAME SEARCH ───────────────────
     st.markdown('<div class="section-tag">Location Search</div>', unsafe_allow_html=True)
     place_query = st.text_input("Place", placeholder="e.g. Patna, Bihar", label_visibility="collapsed")
     if st.button("SEARCH & SET AOI", use_container_width=True):
@@ -1136,7 +86,6 @@ with st.sidebar:
             except Exception as ex:
                 st.error(f"Search failed: {ex}")
 
-    # ── AOI BOUNDARY ───────────────────────────────────
     st.markdown('<hr class="sidebar-hr">', unsafe_allow_html=True)
     st.markdown('<div class="section-tag">AOI Boundary</div>', unsafe_allow_html=True)
     input_method = st.radio("Boundary Mode", ("Bounding Box", "Upload GeoJSON"), label_visibility="collapsed")
@@ -1163,7 +112,6 @@ with st.sidebar:
     if st.session_state.aoi:
         st.markdown('<div class="status-pill" style="margin-top:8px;font-size:0.65rem;"><span class="status-dot"></span>AOI ACTIVE</div>', unsafe_allow_html=True)
 
-    # ── FEATURE 2: MCA WEIGHT SLIDERS ──────────────────
     st.markdown('<hr class="sidebar-hr">', unsafe_allow_html=True)
     st.markdown('<div class="section-tag">MCA Weights</div>', unsafe_allow_html=True)
     w_lulc  = st.slider("LULC %",  10, 80, 40, step=5)
@@ -1175,7 +123,6 @@ with st.sidebar:
         <div class="weight-row">Rainfall <span>{w_rain}%</span></div>
     """, unsafe_allow_html=True)
 
-    # ── SAR ENGINE WINDOWS ─────────────────────────────
     st.markdown('<hr class="sidebar-hr">', unsafe_allow_html=True)
     st.markdown('<div class="section-tag">SAR Engine Windows</div>', unsafe_allow_html=True)
     colA, colB = st.columns(2)
@@ -1186,38 +133,29 @@ with st.sidebar:
         p_end   = st.date_input("Pre End",    datetime.date(2024, 5, 30))
         f_end   = st.date_input("Post End",   datetime.date(2024, 8, 30))
 
-    # ── FEATURE 10: VH / VV TOGGLE ─────────────────────
     st.markdown('<hr class="sidebar-hr">', unsafe_allow_html=True)
     st.markdown('<div class="section-tag">SAR Polarisation</div>', unsafe_allow_html=True)
     polarization = st.radio("Polarisation", ("VH", "VV"), horizontal=True, label_visibility="collapsed")
 
-    # ── BACKSCATTER THRESHOLD ──────────────────────────
     st.markdown('<hr class="sidebar-hr">', unsafe_allow_html=True)
     st.markdown('<div class="section-tag">Backscatter Threshold</div>', unsafe_allow_html=True)
     f_threshold = st.slider("Sensitivity (dB)", 0.5, 6.0, 3.0, step=0.25, label_visibility="collapsed")
     st.markdown(f'<div style="text-align:center;font-family:JetBrains Mono,monospace;font-size:0.78rem;color:#00FFFF;margin-top:-8px;">{f_threshold} dB · {polarization}</div>', unsafe_allow_html=True)
 
-    # ── FEATURE 19: SPECKLE FILTER ─────────────────────
     st.markdown('<hr class="sidebar-hr">', unsafe_allow_html=True)
     st.markdown('<div class="section-tag">Pre-processing</div>', unsafe_allow_html=True)
     apply_speckle = st.checkbox("Apply Speckle Filter (Lee 3×3)", value=True)
 
-    # ── FEATURE 13: FLOOD PROGRESSION YEAR ─────────────
     st.markdown('<hr class="sidebar-hr">', unsafe_allow_html=True)
     st.markdown('<div class="section-tag">Flood Progression</div>', unsafe_allow_html=True)
     prog_year = st.selectbox("Year", [2019, 2020, 2021, 2022, 2023, 2024], index=5, label_visibility="collapsed")
 
-    # ── CROP LOSS SETTINGS ─────────────────────────────
     st.markdown('<hr class="sidebar-hr">', unsafe_allow_html=True)
     st.markdown('<div class="section-tag">Crop Loss Assessment</div>', unsafe_allow_html=True)
     crop_type = st.selectbox("Crop Type", list(CROP_PRICES.keys()), label_visibility="collapsed")
     default_price = CROP_PRICES[crop_type]
-    crop_price = st.number_input(
-        "Price (₹/ha)", min_value=0, value=default_price, step=5000,
-        label_visibility="visible"
-    )
+    crop_price = st.number_input("Price (₹/ha)", min_value=0, value=default_price, step=5000, label_visibility="visible")
 
-    # ── EXPORT ─────────────────────────────────────────
     st.markdown('<hr class="sidebar-hr">', unsafe_allow_html=True)
     if st.session_state.aoi:
         report = generate_report(
@@ -1225,31 +163,27 @@ with st.sidebar:
             {"lulc": w_lulc, "slope": w_slope, "rain": w_rain},
             {"pre_start": p_start, "pre_end": p_end, "f_start": f_start, "f_end": f_end,
              "threshold": f_threshold, "polarization": polarization, "speckle": apply_speckle},
-            {"area_ha":    st.session_state.get('area_ha', 0),
+            {"area_ha": st.session_state.get('area_ha', 0),
              "pop_exposed": st.session_state.get('pop_exposed', 'N/A')}
         )
-        st.download_button("EXPORT TECH REPORT (.txt)", report,
-                           file_name="HydroRisk_Atlas_Report.txt", use_container_width=True)
+        st.download_button("EXPORT TECH REPORT (.txt)", report, file_name="HydroRisk_Atlas_Report.txt", use_container_width=True)
 
-        # ── FEATURE 16: PDF REPORT ──────────────────────
         pdf_bytes = generate_pdf_bytes(
             [min_lon, min_lat, max_lon, max_lat] if input_method == "Bounding Box" else "GeoJSON",
             {"lulc": w_lulc, "slope": w_slope, "rain": w_rain},
             {"pre_start": p_start, "pre_end": p_end, "f_start": f_start, "f_end": f_end,
              "threshold": f_threshold, "polarization": polarization, "speckle": apply_speckle},
-            {"area_ha":    st.session_state.get('area_ha', 0),
+            {"area_ha": st.session_state.get('area_ha', 0),
              "pop_exposed": st.session_state.get('pop_exposed', 'N/A')},
             rp_data=st.session_state.get('rp_data')
         )
         if pdf_bytes:
-            st.download_button("EXPORT PDF REPORT (.pdf)", pdf_bytes,
-                               file_name="HydroRisk_Atlas_Report.pdf",
-                               mime="application/pdf", use_container_width=True)
+            st.download_button("EXPORT PDF REPORT (.pdf)", pdf_bytes, file_name="HydroRisk_Atlas_Report.pdf", mime="application/pdf", use_container_width=True)
         else:
             st.caption("Install fpdf2 for PDF export")
 
 # ==========================================
-# 8. MAIN RENDER
+# 3. MAIN RENDER
 # ==========================================
 st.markdown("""
     <div class="page-header">
@@ -1266,35 +200,29 @@ with st.expander("ANALYTICAL METHODOLOGY", expanded=False):
         st.markdown(f"""
         <div class="tech-panel">
             <h4>PHASE 1 — MCA SUSCEPTIBILITY</h4>
-            <p>Multi-Criteria Analysis combining three weighted layers at native 30m resolution.</p>
-            <br>
+            <p>Multi-Criteria Analysis combining three weighted layers at native 30m resolution.</p><br>
             <span class="weight-badge">LULC {w_lulc}%</span>
             <span class="weight-badge">SLOPE {w_slope}%</span>
             <span class="weight-badge">RAINFALL {w_rain}%</span>
             <hr class="grid-line">
             <p>Each layer reclassified to a <code>1–5</code> hazard rank. Final score = weighted sum, rounded to integer class.</p>
-        </div>
-        """, unsafe_allow_html=True)
+        </div>""", unsafe_allow_html=True)
     with col_b:
         st.markdown(f"""
         <div class="tech-panel">
             <h4>PHASE 2 — SAR INUNDATION DETECTION</h4>
-            <p>Change-detection on Sentinel-1 <code>{polarization}</code> backscatter between pre-flood and post-flood windows.</p>
-            <br>
+            <p>Change-detection on Sentinel-1 <code>{polarization}</code> backscatter between pre-flood and post-flood windows.</p><br>
             <span class="weight-badge">{polarization} POLARISATION</span>
             <span class="weight-badge">SLOPE MASK &lt;8°</span>
             <span class="weight-badge">{'SPECKLE FILTERED' if apply_speckle else 'RAW SAR'}</span>
             <hr class="grid-line">
             <p>Terrain Guard excludes <code>slope &gt; 8°</code> to eliminate radar shadows. Threshold: <code>{f_threshold} dB</code>.</p>
-        </div>
-        """, unsafe_allow_html=True)
+        </div>""", unsafe_allow_html=True)
 
 st.markdown("<br>", unsafe_allow_html=True)
-tab1, tab2, tab3, tab4 = st.tabs([
-    "  PHASE 1 · MCA  ",
-    "  PHASE 2 · SAR  ",
-    "  DUAL-VIEW  ",
-    "  PROGRESSION  "
+tab1, tab2, tab3, tab4, tab5 = st.tabs([
+    "  PHASE 1 · MCA  ", "  PHASE 2 · SAR  ", "  DUAL-VIEW  ",
+    "  PROGRESSION  ", "  ML INTELLIGENCE  "
 ])
 
 if st.session_state.aoi:
@@ -1307,48 +235,27 @@ if st.session_state.aoi:
         with st.expander("AOI TERRAIN STATISTICS", expanded=True):
             with st.spinner("Computing terrain stats..."):
                 stats = get_aoi_stats(_aoi_json)
-            st.markdown(f"""
-                <div class="stats-row">
-                    <div class="stat-chip"><b>{stats['area_km2']} km²</b>AOI Area</div>
-                    <div class="stat-chip"><b>{stats['elev_min']} m</b>Min Elevation</div>
-                    <div class="stat-chip"><b>{stats['elev_max']} m</b>Max Elevation</div>
-                    <div class="stat-chip"><b>{stats['elev_mean']} m</b>Mean Elevation</div>
-                    <div class="stat-chip"><b>{stats['slope_mean']}°</b>Mean Slope</div>
-                </div>
-            """, unsafe_allow_html=True)
+            st.markdown(f"""<div class="stats-row">
+                <div class="stat-chip"><b>{stats['area_km2']} km²</b>AOI Area</div>
+                <div class="stat-chip"><b>{stats['elev_min']} m</b>Min Elevation</div>
+                <div class="stat-chip"><b>{stats['elev_max']} m</b>Max Elevation</div>
+                <div class="stat-chip"><b>{stats['elev_mean']} m</b>Mean Elevation</div>
+                <div class="stat-chip"><b>{stats['slope_mean']}°</b>Mean Slope</div>
+            </div>""", unsafe_allow_html=True)
 
         c1, c2 = st.columns([1, 3])
         with c1:
-            st.markdown("""
-                <div class="metric-card">
-                    <div class="metric-label">MODEL STATUS</div>
-                    <div class="metric-value">MCA</div>
-                    <div class="metric-sub">Multi-Criteria Analysis · Active</div>
-                </div>
-            """, unsafe_allow_html=True)
+            st.markdown("""<div class="metric-card"><div class="metric-label">MODEL STATUS</div>
+                <div class="metric-value">MCA</div><div class="metric-sub">Multi-Criteria Analysis · Active</div></div>""", unsafe_allow_html=True)
             st.markdown("<br>", unsafe_allow_html=True)
-            st.markdown("""
-                <div class="metric-card">
-                    <div class="metric-label">RESOLUTION</div>
-                    <div class="metric-value">30m</div>
-                    <div class="metric-sub">Native GEE pixel scale</div>
-                </div>
-            """, unsafe_allow_html=True)
+            st.markdown("""<div class="metric-card"><div class="metric-label">RESOLUTION</div>
+                <div class="metric-value">30m</div><div class="metric-sub">Native GEE pixel scale</div></div>""", unsafe_allow_html=True)
             st.markdown("<br>", unsafe_allow_html=True)
-
-            # ── FEATURE 3 + 8 + 15: EXTRA LAYERS ──────────
-            extra_layers = st.multiselect(
-                "Extra Layers",
-                ["Flood Frequency (JRC)", "Sentinel-2 True Color", "Watershed (HydroSHEDS)"],
-                default=[], label_visibility="visible"
-            )
+            extra_layers = st.multiselect("Extra Layers", ["Flood Frequency (JRC)", "Sentinel-2 True Color", "Watershed (HydroSHEDS)"], default=[], label_visibility="visible")
             st.markdown("<br>", unsafe_allow_html=True)
-
-            # ── FEATURE 20: CLICK PICKER INFO ──────────────
             if st.session_state.clicked_coord:
                 clat, clon = st.session_state.clicked_coord
                 st.markdown(f'<div class="coord-pill">📍 {clat}°N, {clon}°E</div>', unsafe_allow_html=True)
-
             st.markdown("<br>", unsafe_allow_html=True)
             try:
                 risk_img = calculate_flood_risk(st.session_state.aoi, w_lulc, w_slope, w_rain)
@@ -1360,18 +267,13 @@ if st.session_state.aoi:
         with c2:
             with st.spinner("Rendering MCA risk map..."):
                 mca_tile = get_mca_tile(_aoi_json, w_lulc, w_slope, w_rain)
-
             m1 = folium.Map(location=st.session_state.map_center, zoom_start=11, tiles="CartoDB dark_matter")
-            folium.GeoJson(
-                st.session_state.aoi.getInfo(), name='AOI Boundary',
-                style_function=lambda _: {'fillColor':'none','color':'#00FFFF','weight':2,'dashArray':'6 4'}
-            ).add_to(m1)
-
+            folium.GeoJson(st.session_state.aoi.getInfo(), name='AOI Boundary',
+                style_function=lambda _: {'fillColor':'none','color':'#00FFFF','weight':2,'dashArray':'6 4'}).add_to(m1)
             if "Flood Frequency (JRC)" in extra_layers:
                 with st.spinner("Loading JRC flood frequency..."):
                     jrc_tile = get_jrc_freq_tile(_aoi_json)
                 folium.TileLayer(tiles=jrc_tile, attr='GEE·JRC', name='Flood Frequency', opacity=0.7).add_to(m1)
-
             if "Sentinel-2 True Color" in extra_layers:
                 with st.spinner("Loading Sentinel-2 RGB..."):
                     s2_tile = get_s2_rgb_tile(_aoi_json)
@@ -1379,24 +281,17 @@ if st.session_state.aoi:
                     folium.TileLayer(tiles=s2_tile, attr='GEE·ESA', name='Sentinel-2 RGB', opacity=0.8).add_to(m1)
                 else:
                     st.warning("Sentinel-2 true color unavailable — no cloud-free scenes for 2024.")
-
-            # ── FEATURE 15: WATERSHED ───────────────────────
             if "Watershed (HydroSHEDS)" in extra_layers:
                 with st.spinner("Loading watershed boundaries..."):
                     ws_geojson = get_watershed_geojson(_aoi_json)
                 if ws_geojson:
-                    folium.GeoJson(
-                        ws_geojson, name='Watershed Boundary',
-                        style_function=lambda _: {'fillColor':'rgba(255,200,0,0.05)','color':'#FFD700','weight':1.5,'dashArray':'4 3'}
-                    ).add_to(m1)
-
+                    folium.GeoJson(ws_geojson, name='Watershed Boundary',
+                        style_function=lambda _: {'fillColor':'rgba(255,200,0,0.05)','color':'#FFD700','weight':1.5,'dashArray':'4 3'}).add_to(m1)
             folium.TileLayer(tiles=mca_tile, attr='GEE', name='Risk Score').add_to(m1)
             Fullscreen(position='topright', force_separate_button=True).add_to(m1)
             MiniMap(tile_layer='CartoDB dark_matter', position='bottomright', toggle_display=True, zoom_level_offset=-6).add_to(m1)
             folium.LayerControl(position='topright', collapsed=False).add_to(m1)
             m1.get_root().html.add_child(folium.Element(get_mca_legend(m1.get_name())))
-
-            # ── FEATURE 20: CLICK PICKER (st_folium) ───────
             map_data = st_folium(m1, height=560, use_container_width=True, key="tab1_map", returned_objects=["last_clicked"])
             if map_data and map_data.get('last_clicked'):
                 lc = map_data['last_clicked']
@@ -1407,67 +302,33 @@ if st.session_state.aoi:
     # ════════════════════════════════════════
     with tab2:
         with st.spinner(f'Querying Sentinel-1 {polarization} SAR archive...'):
-            sar = get_all_sar_data(
-                _aoi_json, str(f_start), str(f_end), str(p_start), str(p_end),
-                f_threshold, polarization, apply_speckle
-            )
-
-        st.session_state.area_ha    = sar['area_ha']
+            sar = get_all_sar_data(_aoi_json, str(f_start), str(f_end), str(p_start), str(p_end), f_threshold, polarization, apply_speckle)
+        st.session_state.area_ha = sar['area_ha']
         st.session_state.pop_exposed = f"{sar['pop_exposed']:,}"
 
         col1, col2 = st.columns([1, 3])
         with col1:
-            st.markdown(f"""
-                <div class="metric-card">
-                    <div class="metric-label">INUNDATED AREA</div>
-                    <div class="metric-value">{sar['area_ha']}</div>
-                    <div class="metric-sub">Hectares · post-event SAR</div>
-                </div>
-            """, unsafe_allow_html=True)
+            st.markdown(f"""<div class="metric-card"><div class="metric-label">INUNDATED AREA</div>
+                <div class="metric-value">{sar['area_ha']}</div><div class="metric-sub">Hectares · post-event SAR</div></div>""", unsafe_allow_html=True)
             st.markdown("<br>", unsafe_allow_html=True)
-            st.markdown(f"""
-                <div class="metric-card">
-                    <div class="metric-label">POPULATION EXPOSED</div>
-                    <div class="metric-value" style="font-size:1.8rem;">{sar['pop_exposed']:,}</div>
-                    <div class="metric-sub">WorldPop 2020 · 100m</div>
-                </div>
-            """, unsafe_allow_html=True)
+            st.markdown(f"""<div class="metric-card"><div class="metric-label">POPULATION EXPOSED</div>
+                <div class="metric-value" style="font-size:1.8rem;">{sar['pop_exposed']:,}</div><div class="metric-sub">WorldPop 2020 · 100m</div></div>""", unsafe_allow_html=True)
             st.markdown("<br>", unsafe_allow_html=True)
-            st.markdown(f"""
-                <div class="metric-card">
-                    <div class="metric-label">THRESHOLD · POLAR.</div>
-                    <div class="metric-value" style="font-size:1.6rem;">{f_threshold} dB</div>
-                    <div class="metric-sub">{polarization} · {'Speckle filtered' if apply_speckle else 'Raw'}</div>
-                </div>
-            """, unsafe_allow_html=True)
+            st.markdown(f"""<div class="metric-card"><div class="metric-label">THRESHOLD · POLAR.</div>
+                <div class="metric-value" style="font-size:1.6rem;">{f_threshold} dB</div><div class="metric-sub">{polarization} · {'Speckle filtered' if apply_speckle else 'Raw'}</div></div>""", unsafe_allow_html=True)
             st.markdown("<br>", unsafe_allow_html=True)
-
-            sar_view = st.radio("Map Layer",
-                ("Flood Mask", "Severity Zones", "Flood Depth", "Pre-flood SAR",
-                 "Post-flood SAR", "Change Intensity", "NDVI Damage"),
-                label_visibility="collapsed"
-            )
+            sar_view = st.radio("Map Layer", ("Flood Mask", "Severity Zones", "Flood Depth", "Pre-flood SAR", "Post-flood SAR", "Change Intensity", "NDVI Damage"), label_visibility="collapsed")
             st.markdown("<br>", unsafe_allow_html=True)
-
-            # ── FEATURE 14: OSM INFRASTRUCTURE TOGGLE ──────
             show_infra = st.checkbox("Show Infrastructure (OSM)", value=False)
             st.markdown("<br>", unsafe_allow_html=True)
-
-            try:
-                sar_url = ee.Image(1).selfMask().getDownloadUrl({'scale': 30, 'crs': 'EPSG:4326', 'format': 'GeoTIFF'})
-            except Exception:
-                sar_url = None
             st.link_button("DOWNLOAD FLOOD MASK", "#", use_container_width=True)
 
         with col2:
             m2 = folium.Map(location=st.session_state.map_center, zoom_start=11, tiles="CartoDB dark_matter")
-            folium.GeoJson(
-                st.session_state.aoi.getInfo(), name='AOI Boundary',
-                style_function=lambda _: {'fillColor':'none','color':'#00FFFF','weight':2,'dashArray':'6 4'}
-            ).add_to(m2)
+            folium.GeoJson(st.session_state.aoi.getInfo(), name='AOI Boundary',
+                style_function=lambda _: {'fillColor':'none','color':'#00FFFF','weight':2,'dashArray':'6 4'}).add_to(m2)
             folium.TileLayer(tiles=sar['water_url'], attr='GEE', name='Permanent Water').add_to(m2)
             depth_data = None
-
             if sar_view == "Severity Zones":
                 folium.TileLayer(tiles=sar['severity_url'], attr='GEE', name='Flood Severity').add_to(m2)
             elif sar_view == "Pre-flood SAR":
@@ -1478,10 +339,7 @@ if st.session_state.aoi:
                 folium.TileLayer(tiles=sar['diff_url'], attr='GEE', name='Backscatter Δ (dB)').add_to(m2)
             elif sar_view == "Flood Depth":
                 with st.spinner("Estimating flood depth..."):
-                    depth_data = get_flood_depth_tile(
-                        _aoi_json, str(f_start), str(f_end),
-                        str(p_start), str(p_end), f_threshold, polarization, apply_speckle
-                    )
+                    depth_data = get_flood_depth_tile(_aoi_json, str(f_start), str(f_end), str(p_start), str(p_end), f_threshold, polarization, apply_speckle)
                 if depth_data:
                     folium.TileLayer(tiles=depth_data['tile_url'], attr='GEE·SRTM', name='Flood Depth (m)').add_to(m2)
             elif sar_view == "NDVI Damage":
@@ -1493,47 +351,31 @@ if st.session_state.aoi:
                     st.warning("NDVI Damage unavailable — no cloud-free Sentinel-2 scenes for the selected dates.")
             else:
                 folium.TileLayer(tiles=sar['flood_url'], attr='GEE', name='Active Flood').add_to(m2)
-
-            # ── FEATURE 14: OSM INFRASTRUCTURE MARKERS ─────
             if show_infra:
                 with st.spinner("Fetching OSM infrastructure..."):
                     infra_data = get_osm_infrastructure(_aoi_json)
-                icon_map = {
-                    'hospital':     ('red',    '🏥'),
-                    'school':       ('blue',   '🏫'),
-                    'fire_station': ('orange', '🚒'),
-                    'police':       ('purple', '🚓'),
-                }
+                icon_map = {'hospital': ('red','🏥'), 'school': ('blue','🏫'), 'fire_station': ('orange','🚒'), 'police': ('purple','🚓')}
                 for feat in infra_data:
-                    color, icon_emoji = icon_map.get(feat['type'], ('gray', '📍'))
-                    folium.CircleMarker(
-                        location=[feat['lat'], feat['lon']], radius=7,
-                        color=color, fill=True, fill_color=color, fill_opacity=0.7,
-                        tooltip=f"{icon_emoji} {feat['name']} ({feat['type']})"
-                    ).add_to(m2)
+                    color, icon_emoji = icon_map.get(feat['type'], ('gray','📍'))
+                    folium.CircleMarker(location=[feat['lat'], feat['lon']], radius=7, color=color, fill=True, fill_color=color, fill_opacity=0.7, tooltip=f"{icon_emoji} {feat['name']} ({feat['type']})").add_to(m2)
                 if infra_data:
-                    st.markdown(f"""
-                        <div class="infra-legend">
-                            <span class="infra-chip"><span style="color:red">●</span>Hospital ({sum(1 for f in infra_data if f['type']=='hospital')})</span>
-                            <span class="infra-chip"><span style="color:blue">●</span>School ({sum(1 for f in infra_data if f['type']=='school')})</span>
-                            <span class="infra-chip"><span style="color:orange">●</span>Fire Stn ({sum(1 for f in infra_data if f['type']=='fire_station')})</span>
-                            <span class="infra-chip"><span style="color:purple">●</span>Police ({sum(1 for f in infra_data if f['type']=='police')})</span>
-                        </div>
-                    """, unsafe_allow_html=True)
-
+                    st.markdown(f"""<div class="infra-legend">
+                        <span class="infra-chip"><span style="color:red">●</span>Hospital ({sum(1 for f in infra_data if f['type']=='hospital')})</span>
+                        <span class="infra-chip"><span style="color:blue">●</span>School ({sum(1 for f in infra_data if f['type']=='school')})</span>
+                        <span class="infra-chip"><span style="color:orange">●</span>Fire Stn ({sum(1 for f in infra_data if f['type']=='fire_station')})</span>
+                        <span class="infra-chip"><span style="color:purple">●</span>Police ({sum(1 for f in infra_data if f['type']=='police')})</span>
+                    </div>""", unsafe_allow_html=True)
             Fullscreen(position='topright', force_separate_button=True).add_to(m2)
             MiniMap(tile_layer='CartoDB dark_matter', position='bottomright', toggle_display=True, zoom_level_offset=-6).add_to(m2)
             folium.LayerControl(position='topright', collapsed=False).add_to(m2)
             m2.get_root().html.add_child(folium.Element(get_sar_legend(m2.get_name())))
             folium_static(m2, height=560)
-
-            # Show depth metrics + volume + histogram when Flood Depth layer is active
             if sar_view == "Flood Depth" and depth_data:
                 volume_Mm3 = round(sar['area_ha'] * 10000 * depth_data['mean_depth'] / 1e6, 3)
                 dm1, dm2_col, dm3, dm4 = st.columns(4)
                 dm1.metric("Mean Flood Depth", f"{depth_data['mean_depth']} m")
                 dm2_col.metric("Max Flood Depth", f"{depth_data['max_depth']} m")
-                dm3.metric("Flood Volume",      f"{volume_Mm3} M m³")
+                dm3.metric("Flood Volume", f"{volume_Mm3} M m³")
                 dm4.metric("Depth Scale", "0 – 4 m")
                 if depth_data.get('histogram'):
                     hist = depth_data['histogram']
@@ -1541,7 +383,6 @@ if st.session_state.aoi:
                     hist_df = pd.DataFrame({'Depth Band (m)': list(hist.keys()), 'Pixels': list(hist.values())}).set_index('Depth Band (m)')
                     st.bar_chart(hist_df, color="#fd8d3c", height=180)
 
-        # ── FEATURE 5: CHIRPS RAINFALL CHART ────────────
         with st.expander("CHIRPS RAINFALL TIME SERIES", expanded=False):
             with st.spinner("Fetching CHIRPS daily rainfall..."):
                 rain_df = get_chirps_series(_aoi_json, str(p_start), str(f_end))
@@ -1550,12 +391,11 @@ if st.session_state.aoi:
                 st.area_chart(rain_df, color="#00FFFF", height=200)
                 col_r1, col_r2, col_r3 = st.columns(3)
                 col_r1.metric("Total Rainfall", f"{rain_df['rainfall_mm'].sum():.1f} mm")
-                col_r2.metric("Peak Daily",     f"{rain_df['rainfall_mm'].max():.1f} mm")
-                col_r3.metric("Rainy Days",     f"{(rain_df['rainfall_mm'] > 1).sum()}")
+                col_r2.metric("Peak Daily", f"{rain_df['rainfall_mm'].max():.1f} mm")
+                col_r3.metric("Rainy Days", f"{(rain_df['rainfall_mm'] > 1).sum()}")
             else:
                 st.info("No CHIRPS data available for the selected date range.")
 
-        # ── FEATURE 17: FLOOD RETURN PERIOD ─────────────
         with st.expander("FLOOD RETURN PERIOD ANALYSIS  [Gumbel Distribution]", expanded=False):
             with st.spinner("Computing 24-year monsoon rainfall statistics..."):
                 rp_data = get_return_period(_aoi_json)
@@ -1563,373 +403,322 @@ if st.session_state.aoi:
             if rp_data:
                 col_rp1, col_rp2, col_rp3 = st.columns(3)
                 col_rp1.metric("Mean Monsoon Rain", f"{rp_data['mean']:.0f} mm")
-                col_rp2.metric("Std Deviation",     f"± {rp_data['std']:.0f} mm")
-                col_rp3.metric("Max Observed",      f"{rp_data['max_obs']:.0f} mm")
+                col_rp2.metric("Std Deviation", f"± {rp_data['std']:.0f} mm")
+                col_rp3.metric("Max Observed", f"{rp_data['max_obs']:.0f} mm")
                 st.markdown('<div style="font-family:JetBrains Mono,monospace;font-size:0.65rem;color:rgba(0,255,255,0.4);letter-spacing:2px;margin:12px 0 6px;">RETURN PERIOD TABLE · MONSOON TOTAL (Jun–Oct)</div>', unsafe_allow_html=True)
                 max_rp = max(rp_data['return_periods'].values())
                 rows_html = ''
                 for T, val in rp_data['return_periods'].items():
                     bar_w = int(80 * val / max_rp)
-                    rows_html += f'''<tr>
-                        <td>{T}-yr</td>
-                        <td class="rp-val">{val:.0f} mm</td>
-                        <td><span class="rp-bar" style="width:{bar_w}px;"></span></td>
-                    </tr>'''
-                st.markdown(f"""
-                    <table class="rp-table">
-                        <tr><th>RETURN PERIOD</th><th>RAINFALL</th><th>RELATIVE</th></tr>
-                        {rows_html}
-                    </table>
-                """, unsafe_allow_html=True)
+                    rows_html += f'<tr><td>{T}-yr</td><td class="rp-val">{val:.0f} mm</td><td><span class="rp-bar" style="width:{bar_w}px;"></span></td></tr>'
+                st.markdown(f'<table class="rp-table"><tr><th>RETURN PERIOD</th><th>RAINFALL</th><th>RELATIVE</th></tr>{rows_html}</table>', unsafe_allow_html=True)
                 st.markdown(f'<div style="font-size:0.7rem;color:#3a5060;font-family:JetBrains Mono,monospace;margin-top:10px;">Based on {rp_data["n_years"]} years CHIRPS · Gumbel extreme value distribution</div>', unsafe_allow_html=True)
             else:
                 st.warning("Return period calculation failed. Check GEE connectivity.")
 
-        # ── CROP LOSS ASSESSMENT ─────────────────────────
         with st.expander("CROP LOSS ASSESSMENT  [NDVI × WorldCover Cropland]", expanded=False):
             with st.spinner("Analysing cropland damage..."):
-                crop_data = get_crop_loss_data(
-                    _aoi_json, str(p_start), str(p_end), str(f_start), str(f_end),
-                    crop_price
-                )
+                crop_data = get_crop_loss_data(_aoi_json, str(p_start), str(p_end), str(f_start), str(f_end), crop_price)
             if crop_data:
                 cl1, cl2, cl3, cl4 = st.columns(4)
-                cl1.metric("Total Cropland",  f"{crop_data['total_crop_ha']:,.0f} ha")
-                cl2.metric("Damaged Area",    f"{crop_data['damaged_ha']:,.0f} ha")
-                cl3.metric("Damage %",        f"{crop_data['damage_pct']:.1f} %")
-                cl4.metric("Est. Crop Loss",  f"₹ {crop_data['loss_estimate']:,}")
+                cl1.metric("Total Cropland", f"{crop_data['total_crop_ha']:,.0f} ha")
+                cl2.metric("Damaged Area", f"{crop_data['damaged_ha']:,.0f} ha")
+                cl3.metric("Damage %", f"{crop_data['damage_pct']:.1f} %")
+                cl4.metric("Est. Crop Loss", f"₹ {crop_data['loss_estimate']:,}")
                 st.markdown('<div style="font-family:JetBrains Mono,monospace;font-size:0.65rem;color:rgba(0,255,255,0.4);letter-spacing:2px;margin:10px 0 4px;">NDVI DAMAGE ON CROPLAND · GREEN = HEALTHY · RED = DAMAGED</div>', unsafe_allow_html=True)
                 crop_map = folium.Map(location=st.session_state.map_center, zoom_start=11, tiles="CartoDB dark_matter")
                 folium.TileLayer(tiles=crop_data['tile_url'], attr='GEE·S2·ESA', name='Crop NDVI Damage').add_to(crop_map)
-                folium.GeoJson(
-                    st.session_state.aoi.getInfo(),
-                    style_function=lambda _: {'fillColor':'none','color':'#00FFFF','weight':2,'dashArray':'6 4'}
-                ).add_to(crop_map)
+                folium.GeoJson(st.session_state.aoi.getInfo(), style_function=lambda _: {'fillColor':'none','color':'#00FFFF','weight':2,'dashArray':'6 4'}).add_to(crop_map)
                 folium_static(crop_map, height=400)
-                st.markdown(
-                    f'<div style="font-size:0.7rem;color:#3a5060;font-family:JetBrains Mono,monospace;margin-top:8px;">'
-                    f'Crop: {crop_type} · Price: ₹{crop_price:,}/ha · NDVI drop threshold: 0.10 · Source: Sentinel-2 SR + ESA WorldCover</div>',
-                    unsafe_allow_html=True
-                )
+                st.markdown(f'<div style="font-size:0.7rem;color:#3a5060;font-family:JetBrains Mono,monospace;margin-top:8px;">Crop: {crop_type} · Price: ₹{crop_price:,}/ha · NDVI drop threshold: 0.10 · Source: Sentinel-2 SR + ESA WorldCover</div>', unsafe_allow_html=True)
             else:
                 st.warning("Crop loss analysis unavailable. No Sentinel-2 data or no cropland in AOI.")
 
-        # ── JRC HISTORICAL FLOOD FREQUENCY ───────────────
         with st.expander("JRC HISTORICAL FLOOD FREQUENCY  [1984 – 2021]", expanded=False):
             with st.spinner("Fetching 38-year JRC Monthly Water History..."):
                 jrc_hist = get_jrc_flood_history(_aoi_json)
             if jrc_hist:
-                jrc_df = pd.DataFrame({
-                    'Year':         list(jrc_hist.keys()),
-                    'Flood Months': list(jrc_hist.values()),
-                }).set_index('Year')
+                jrc_df = pd.DataFrame({'Year': list(jrc_hist.keys()), 'Flood Months': list(jrc_hist.values())}).set_index('Year')
                 total_flood_months = sum(jrc_hist.values())
                 peak_yr = max(jrc_hist, key=jrc_hist.get)
                 avg_months = round(total_flood_months / len(jrc_hist), 1)
                 jh1, jh2, jh3 = st.columns(3)
-                jh1.metric("Peak Flood Year",   str(peak_yr))
+                jh1.metric("Peak Flood Year", str(peak_yr))
                 jh2.metric("Avg Flood Months/yr", f"{avg_months} mo")
                 jh3.metric("Total Flood Months", f"{total_flood_months}")
-                st.markdown('<div style="font-family:JetBrains Mono,monospace;font-size:0.65rem;color:rgba(0,255,255,0.4);letter-spacing:2px;margin:10px 0 4px;">MONTHS WITH SURFACE WATER DETECTED · AOI · JRC MONTHLY HISTORY</div>', unsafe_allow_html=True)
                 st.bar_chart(jrc_df, color="#2E86C1", height=220)
-                st.markdown('<div style="font-size:0.7rem;color:#3a5060;font-family:JetBrains Mono,monospace;margin-top:8px;">Source: JRC/GSW1_4/MonthlyHistory · Water class = 2 · 30 m resolution · Pekel et al. (2016)</div>', unsafe_allow_html=True)
             else:
                 st.warning("JRC flood history unavailable for this AOI.")
 
-        # ── ROAD NETWORK IMPACT ───────────────────────────
         with st.expander("ROAD NETWORK IMPACT  [OSM · Evacuation Routes]", expanded=False):
             with st.spinner("Fetching road network from OSM..."):
                 road_data = get_osm_roads(_aoi_json)
             if road_data and road_data['roads']:
-                hw_colors = {
-                    'motorway': '#e74c3c', 'trunk': '#e67e22', 'primary': '#f1c40f',
-                    'secondary': '#2ecc71', 'tertiary': '#3498db', 'road': '#95a5a6',
-                }
+                hw_colors = {'motorway': '#e74c3c', 'trunk': '#e67e22', 'primary': '#f1c40f', 'secondary': '#2ecc71', 'tertiary': '#3498db', 'road': '#95a5a6'}
                 evac_count = sum(1 for r in road_data['roads'] if r['evacuation'])
                 rn1, rn2, rn3 = st.columns(3)
                 total_km = sum(road_data['km_by_type'].values())
                 rn1.metric("Total Road Length", f"{total_km:.1f} km")
-                rn2.metric("Road Types",        f"{len(road_data['km_by_type'])}")
+                rn2.metric("Road Types", f"{len(road_data['km_by_type'])}")
                 rn3.metric("Evacuation Routes", f"{evac_count} segments")
-
                 road_map = folium.Map(location=st.session_state.map_center, zoom_start=11, tiles="CartoDB dark_matter")
                 folium.TileLayer(tiles=sar['flood_url'], attr='GEE', name='Flood Mask', opacity=0.55).add_to(road_map)
                 for road in road_data['roads']:
                     color = '#00FF88' if road['evacuation'] else hw_colors.get(road['highway'], '#95a5a6')
                     weight = 4 if road['evacuation'] else 2
-                    folium.PolyLine(
-                        locations=[[c[1], c[0]] for c in road['coords']],
-                        color=color, weight=weight, opacity=0.85,
-                        tooltip=f"{road['highway'].title()} · {road['name'] or 'unnamed'} · {road['length_km']} km"
-                    ).add_to(road_map)
-                folium.GeoJson(
-                    st.session_state.aoi.getInfo(),
-                    style_function=lambda _: {'fillColor': 'none', 'color': '#00FFFF', 'weight': 2, 'dashArray': '6 4'}
-                ).add_to(road_map)
+                    folium.PolyLine(locations=[[c[1], c[0]] for c in road['coords']], color=color, weight=weight, opacity=0.85, tooltip=f"{road['highway'].title()} · {road['name'] or 'unnamed'} · {road['length_km']} km").add_to(road_map)
+                folium.GeoJson(st.session_state.aoi.getInfo(), style_function=lambda _: {'fillColor':'none','color':'#00FFFF','weight':2,'dashArray':'6 4'}).add_to(road_map)
                 folium_static(road_map, height=420)
-
-                st.markdown('<div style="font-family:JetBrains Mono,monospace;font-size:0.65rem;color:rgba(0,255,255,0.4);letter-spacing:2px;margin:12px 0 4px;">ROAD LENGTH BY TYPE · GREEN = EVACUATION CORRIDOR</div>', unsafe_allow_html=True)
                 km_df = pd.DataFrame(list(road_data['km_by_type'].items()), columns=['Highway Type', 'Length (km)']).sort_values('Length (km)', ascending=False).set_index('Highway Type')
                 st.dataframe(km_df, use_container_width=True)
-                st.markdown('<div style="font-size:0.7rem;color:#3a5060;font-family:JetBrains Mono,monospace;margin-top:6px;">Evacuation routes = primary/secondary roads exiting AOI boundary · Red overlay = flooded area · Source: OSM Overpass</div>', unsafe_allow_html=True)
             else:
                 st.warning("No road data available for this AOI.")
 
-        # ── DAM / RESERVOIR OVERLAY ───────────────────────
         with st.expander("DAMS & RESERVOIRS UPSTREAM  [GRanD v1.3 · 150 km radius]", expanded=False):
             with st.spinner("Querying GRanD dam database..."):
                 dam_list = get_dam_data(_aoi_json)
             if dam_list:
                 dam_map = folium.Map(location=st.session_state.map_center, zoom_start=8, tiles="CartoDB dark_matter")
                 folium.TileLayer(tiles=sar['flood_url'], attr='GEE', name='Flood Mask', opacity=0.5).add_to(dam_map)
-                folium.GeoJson(
-                    st.session_state.aoi.getInfo(),
-                    style_function=lambda _: {'fillColor': 'none', 'color': '#00FFFF', 'weight': 2, 'dashArray': '6 4'}
-                ).add_to(dam_map)
+                folium.GeoJson(st.session_state.aoi.getInfo(), style_function=lambda _: {'fillColor':'none','color':'#00FFFF','weight':2,'dashArray':'6 4'}).add_to(dam_map)
                 for dam in dam_list:
                     cap = dam['capacity_mcm']
                     radius = max(6, min(22, int(cap ** 0.35))) if cap > 0 else 7
-                    folium.CircleMarker(
-                        location=[dam['lat'], dam['lon']],
-                        radius=radius, color='#00BFFF', fill=True, fill_color='#00BFFF', fill_opacity=0.6,
-                        tooltip=(f"🏞 {dam['name']} · {dam['river']}<br>"
-                                 f"Capacity: {int(cap):,} MCM · Use: {dam['main_use']} · Built: {dam['year']}")
-                    ).add_to(dam_map)
+                    folium.CircleMarker(location=[dam['lat'], dam['lon']], radius=radius, color='#00BFFF', fill=True, fill_color='#00BFFF', fill_opacity=0.6,
+                        tooltip=f"🏞 {dam['name']} · {dam['river']}<br>Capacity: {int(cap):,} MCM · Use: {dam['main_use']} · Built: {dam['year']}").add_to(dam_map)
                 folium_static(dam_map, height=420)
-
                 da1, da2, da3 = st.columns(3)
                 da1.metric("Dams Found", f"{len(dam_list)}")
-                total_cap = sum(d['capacity_mcm'] for d in dam_list)
-                da2.metric("Total Capacity", f"{total_cap:,.0f} MCM")
+                da2.metric("Total Capacity", f"{sum(d['capacity_mcm'] for d in dam_list):,.0f} MCM")
                 da3.metric("Largest Dam", dam_list[0]['name'] if dam_list else "—")
-
-                st.markdown('<div style="font-family:JetBrains Mono,monospace;font-size:0.65rem;color:rgba(0,255,255,0.4);letter-spacing:2px;margin:12px 0 4px;">DAM REGISTRY · WITHIN 150 km · CIRCLE SIZE ∝ CAPACITY</div>', unsafe_allow_html=True)
-                dam_df = pd.DataFrame([{
-                    'Name': d['name'], 'River': d['river'],
-                    'Capacity (MCM)': int(d['capacity_mcm']), 'Use': d['main_use'], 'Built': d['year']
-                } for d in dam_list])
+                dam_df = pd.DataFrame([{'Name': d['name'], 'River': d['river'], 'Capacity (MCM)': int(d['capacity_mcm']), 'Use': d['main_use'], 'Built': d['year']} for d in dam_list])
                 st.dataframe(dam_df, use_container_width=True, hide_index=True)
-                st.markdown('<div style="font-size:0.7rem;color:#3a5060;font-family:JetBrains Mono,monospace;margin-top:6px;">Source: GRanD v1.3 · Lehner et al. · MCM = million cubic metres</div>', unsafe_allow_html=True)
             else:
                 st.info("No dams found within 150 km of this AOI.")
 
-        # ── FLOOD RECESSION TRACKER ───────────────────────
         with st.expander("FLOOD RECESSION TRACKER  [SAR · +12 / +24 / +36 days]", expanded=False):
             with st.spinner("Computing post-event SAR flood extent (4 × 12-day windows)..."):
-                recession = get_recession_data(
-                    _aoi_json, str(f_end), str(p_start), str(p_end),
-                    polarization, f_threshold, apply_speckle
-                )
+                recession = get_recession_data(_aoi_json, str(f_end), str(p_start), str(p_end), polarization, f_threshold, apply_speckle)
             if recession:
                 valid = [r for r in recession if r['Flood Area (ha)'] is not None]
                 if valid:
                     rec_df = pd.DataFrame(valid).set_index('Phase')
-                    peak   = rec_df['Flood Area (ha)'].max()
-                    final  = rec_df['Flood Area (ha)'].iloc[-1]
+                    peak = rec_df['Flood Area (ha)'].max()
+                    final = rec_df['Flood Area (ha)'].iloc[-1]
                     receded_pct = round(100 * (peak - final) / peak, 1) if peak > 0 else 0
                     rv1, rv2, rv3 = st.columns(3)
                     rv1.metric("Peak Flood Area", f"{peak:,.0f} ha")
-                    rv2.metric("Latest Extent",   f"{final:,.0f} ha")
-                    rv3.metric("Area Receded",     f"{receded_pct} %")
-                    st.markdown('<div style="font-family:JetBrains Mono,monospace;font-size:0.65rem;color:rgba(0,255,255,0.4);letter-spacing:2px;margin:12px 0 4px;">FLOOD AREA (ha) OVER TIME · SENTINEL-1 SAR CHANGE DETECTION</div>', unsafe_allow_html=True)
+                    rv2.metric("Latest Extent", f"{final:,.0f} ha")
+                    rv3.metric("Area Receded", f"{receded_pct} %")
                     st.line_chart(rec_df, color="#FF6B6B", height=200)
-                    st.markdown('<div style="font-size:0.7rem;color:#3a5060;font-family:JetBrains Mono,monospace;margin-top:6px;">Each phase = 12-day SAR median composite · Pre-flood reference: dry-season baseline · Sentinel-1 GRD</div>', unsafe_allow_html=True)
                 else:
-                    st.info("No SAR imagery found in post-event windows. Try extending the date range.")
+                    st.info("No SAR imagery found in post-event windows.")
             else:
                 st.warning("Recession analysis failed. Check GEE connectivity.")
 
     # ════════════════════════════════════════
-    # TAB 3 — DUAL-VIEW (FEATURE 18)
+    # TAB 3 — DUAL-VIEW
     # ════════════════════════════════════════
     with tab3:
-        st.markdown("""
-            <div style="font-family:'Rajdhani',sans-serif;font-size:0.78rem;letter-spacing:2px;color:rgba(0,255,255,0.4);margin-bottom:8px;">
-                SYNCHRONIZED PRE / POST SAR BACKSCATTER COMPARISON · SCROLL TO ZOOM · PAN TO EXPLORE
-            </div>
-        """, unsafe_allow_html=True)
-
+        st.markdown('<div style="font-family:\'Rajdhani\',sans-serif;font-size:0.78rem;letter-spacing:2px;color:rgba(0,255,255,0.4);margin-bottom:8px;">SYNCHRONIZED PRE / POST SAR BACKSCATTER COMPARISON</div>', unsafe_allow_html=True)
         with st.spinner("Building dual-view SAR comparison..."):
-            sar_d = get_all_sar_data(
-                _aoi_json, str(f_start), str(f_end), str(p_start), str(p_end),
-                f_threshold, polarization, apply_speckle
-            )
-
-        st.markdown("""
-            <div class="dual-label-row">
-                <div class="dual-label">◀ PRE-FLOOD SAR</div>
-                <div class="dual-label">POST-FLOOD SAR ▶</div>
-            </div>
-        """, unsafe_allow_html=True)
-
-        dmap = DualMap(location=st.session_state.map_center, zoom_start=11,
-                       tiles=None, layout='horizontal')
-        folium.TileLayer(tiles="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
-                         attr='CartoDB', name='Basemap').add_to(dmap.m1)
-        folium.TileLayer(tiles="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
-                         attr='CartoDB', name='Basemap').add_to(dmap.m2)
-
-        folium.TileLayer(tiles=sar_d['pre_url'],   attr='GEE', name=f'Pre-flood {polarization}').add_to(dmap.m1)
-        folium.TileLayer(tiles=sar_d['post_url'],  attr='GEE', name=f'Post-flood {polarization}').add_to(dmap.m2)
+            sar_d = get_all_sar_data(_aoi_json, str(f_start), str(f_end), str(p_start), str(p_end), f_threshold, polarization, apply_speckle)
+        st.markdown('<div class="dual-label-row"><div class="dual-label">◀ PRE-FLOOD SAR</div><div class="dual-label">POST-FLOOD SAR ▶</div></div>', unsafe_allow_html=True)
+        dmap = DualMap(location=st.session_state.map_center, zoom_start=11, tiles=None, layout='horizontal')
+        folium.TileLayer(tiles="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", attr='CartoDB', name='Basemap').add_to(dmap.m1)
+        folium.TileLayer(tiles="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", attr='CartoDB', name='Basemap').add_to(dmap.m2)
+        folium.TileLayer(tiles=sar_d['pre_url'], attr='GEE', name=f'Pre-flood {polarization}').add_to(dmap.m1)
+        folium.TileLayer(tiles=sar_d['post_url'], attr='GEE', name=f'Post-flood {polarization}').add_to(dmap.m2)
         folium.TileLayer(tiles=sar_d['flood_url'], attr='GEE', name='Flood Mask', opacity=0.6).add_to(dmap.m2)
-
-        folium.GeoJson(
-            st.session_state.aoi.getInfo(),
-            style_function=lambda _: {'fillColor':'none','color':'#00FFFF','weight':2,'dashArray':'6 4'}
-        ).add_to(dmap.m1)
-        folium.GeoJson(
-            st.session_state.aoi.getInfo(),
-            style_function=lambda _: {'fillColor':'none','color':'#00FFFF','weight':2,'dashArray':'6 4'}
-        ).add_to(dmap.m2)
-
+        folium.GeoJson(st.session_state.aoi.getInfo(), style_function=lambda _: {'fillColor':'none','color':'#00FFFF','weight':2,'dashArray':'6 4'}).add_to(dmap.m1)
+        folium.GeoJson(st.session_state.aoi.getInfo(), style_function=lambda _: {'fillColor':'none','color':'#00FFFF','weight':2,'dashArray':'6 4'}).add_to(dmap.m2)
         components.html(dmap._repr_html_(), height=580, scrolling=False)
-
         d3c1, d3c2, d3c3 = st.columns(3)
-        d3c1.metric("Pre-flood Period",  f"{p_start} → {p_end}")
+        d3c1.metric("Pre-flood Period", f"{p_start} → {p_end}")
         d3c2.metric("Post-flood Period", f"{f_start} → {f_end}")
-        d3c3.metric("Detected Flood",    f"{sar_d['area_ha']} Ha")
+        d3c3.metric("Detected Flood", f"{sar_d['area_ha']} Ha")
 
         st.markdown('<hr style="border-color:rgba(0,255,255,0.1);margin:28px 0 20px;">', unsafe_allow_html=True)
-        st.markdown("""
-            <div style="font-family:'Rajdhani',sans-serif;font-size:0.78rem;letter-spacing:2px;color:rgba(0,255,255,0.4);margin-bottom:8px;">
-                SENTINEL-2 TRUE COLOR · PRE vs POST · OPTICAL VERIFICATION
-            </div>
-        """, unsafe_allow_html=True)
-
+        st.markdown('<div style="font-family:\'Rajdhani\',sans-serif;font-size:0.78rem;letter-spacing:2px;color:rgba(0,255,255,0.4);margin-bottom:8px;">SENTINEL-2 TRUE COLOR · PRE vs POST</div>', unsafe_allow_html=True)
         with st.spinner("Loading Sentinel-2 true-color imagery..."):
-            s2_rgb = get_s2_rgb_tiles(
-                _aoi_json, str(p_start), str(p_end), str(f_start), str(f_end)
-            )
-
+            s2_rgb = get_s2_rgb_tiles(_aoi_json, str(p_start), str(p_end), str(f_start), str(f_end))
         if s2_rgb:
-            st.markdown("""
-                <div class="dual-label-row">
-                    <div class="dual-label">◀ PRE-FLOOD TRUE COLOR</div>
-                    <div class="dual-label">POST-FLOOD TRUE COLOR ▶</div>
-                </div>
-            """, unsafe_allow_html=True)
-
-            dmap_s2 = DualMap(location=st.session_state.map_center, zoom_start=11,
-                              tiles=None, layout='horizontal')
-            folium.TileLayer(tiles="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
-                             attr='CartoDB', name='Basemap').add_to(dmap_s2.m1)
-            folium.TileLayer(tiles="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
-                             attr='CartoDB', name='Basemap').add_to(dmap_s2.m2)
-            folium.TileLayer(tiles=s2_rgb['pre_url'],  attr='GEE·S2', name='Pre-flood S2').add_to(dmap_s2.m1)
+            st.markdown('<div class="dual-label-row"><div class="dual-label">◀ PRE-FLOOD TRUE COLOR</div><div class="dual-label">POST-FLOOD TRUE COLOR ▶</div></div>', unsafe_allow_html=True)
+            dmap_s2 = DualMap(location=st.session_state.map_center, zoom_start=11, tiles=None, layout='horizontal')
+            folium.TileLayer(tiles="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", attr='CartoDB', name='Basemap').add_to(dmap_s2.m1)
+            folium.TileLayer(tiles="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", attr='CartoDB', name='Basemap').add_to(dmap_s2.m2)
+            folium.TileLayer(tiles=s2_rgb['pre_url'], attr='GEE·S2', name='Pre-flood S2').add_to(dmap_s2.m1)
             folium.TileLayer(tiles=s2_rgb['post_url'], attr='GEE·S2', name='Post-flood S2').add_to(dmap_s2.m2)
-            # Overlay flood mask on post panel for context
             folium.TileLayer(tiles=sar_d['flood_url'], attr='GEE', name='Flood Mask', opacity=0.5).add_to(dmap_s2.m2)
-            folium.GeoJson(
-                st.session_state.aoi.getInfo(),
-                style_function=lambda _: {'fillColor':'none','color':'#00FFFF','weight':2,'dashArray':'6 4'}
-            ).add_to(dmap_s2.m1)
-            folium.GeoJson(
-                st.session_state.aoi.getInfo(),
-                style_function=lambda _: {'fillColor':'none','color':'#00FFFF','weight':2,'dashArray':'6 4'}
-            ).add_to(dmap_s2.m2)
+            folium.GeoJson(st.session_state.aoi.getInfo(), style_function=lambda _: {'fillColor':'none','color':'#00FFFF','weight':2,'dashArray':'6 4'}).add_to(dmap_s2.m1)
+            folium.GeoJson(st.session_state.aoi.getInfo(), style_function=lambda _: {'fillColor':'none','color':'#00FFFF','weight':2,'dashArray':'6 4'}).add_to(dmap_s2.m2)
             components.html(dmap_s2._repr_html_(), height=520, scrolling=False)
-            st.markdown('<div style="font-size:0.7rem;color:#3a5060;font-family:JetBrains Mono,monospace;margin-top:6px;">Sentinel-2 SR Harmonized · B4/B3/B2 · Cloud filter < 30% · Median composite · Red overlay = SAR flood mask</div>', unsafe_allow_html=True)
         else:
-            st.info("Sentinel-2 true-color unavailable — insufficient cloud-free scenes for the selected date windows.")
+            st.info("Sentinel-2 true-color unavailable — insufficient cloud-free scenes.")
 
     # ════════════════════════════════════════
-    # TAB 4 — FLOOD PROGRESSION (FEATURE 13)
+    # TAB 4 — FLOOD PROGRESSION
     # ════════════════════════════════════════
     with tab4:
-        st.markdown(f"""
-            <div style="font-family:'Rajdhani',sans-serif;font-size:0.78rem;letter-spacing:2px;color:rgba(0,255,255,0.4);margin-bottom:8px;">
-                MONSOON FLOOD PROGRESSION · {prog_year} · SENTINEL-1 CHANGE DETECTION vs DRY-SEASON REFERENCE (JAN–MAR)
-            </div>
-        """, unsafe_allow_html=True)
-
+        st.markdown(f'<div style="font-family:\'Rajdhani\',sans-serif;font-size:0.78rem;letter-spacing:2px;color:rgba(0,255,255,0.4);margin-bottom:8px;">MONSOON FLOOD PROGRESSION · {prog_year}</div>', unsafe_allow_html=True)
         with st.spinner(f"Fetching {prog_year} CHIRPS monthly rainfall..."):
             prog_df = get_progression_stats(_aoi_json, prog_year)
-
         if prog_df is not None and not prog_df.empty:
             t4c1, t4c2 = st.columns([1, 2])
             with t4c1:
-                st.markdown('<div style="font-family:JetBrains Mono,monospace;font-size:0.65rem;color:rgba(0,255,255,0.5);letter-spacing:2px;margin-bottom:8px;">MONTHLY RAINFALL · AOI MEAN</div>', unsafe_allow_html=True)
                 chart_df = prog_df.set_index('Month')[['Rain (mm)']]
                 st.bar_chart(chart_df, color="#FF6B6B", height=250)
-
-                st.markdown('<div style="font-family:JetBrains Mono,monospace;font-size:0.65rem;color:rgba(0,255,255,0.5);letter-spacing:2px;margin:14px 0 6px;">MONSOON STATS</div>', unsafe_allow_html=True)
                 total_rain = prog_df['Rain (mm)'].sum()
                 peak_month = prog_df.loc[prog_df['Rain (mm)'].idxmax(), 'Month']
-                st.markdown(f"""
-                    <div class="stats-row">
-                        <div class="stat-chip"><b>{total_rain:.0f} mm</b>Season Total</div>
-                        <div class="stat-chip"><b>{peak_month}</b>Peak Month</div>
-                    </div>
-                """, unsafe_allow_html=True)
-
+                st.markdown(f'<div class="stats-row"><div class="stat-chip"><b>{total_rain:.0f} mm</b>Season Total</div><div class="stat-chip"><b>{peak_month}</b>Peak Month</div></div>', unsafe_allow_html=True)
             with t4c2:
                 month_names = {'Jun':6,'Jul':7,'Aug':8,'Sep':9,'Oct':10}
-                prog_month  = st.radio("Select month for SAR flood map",
-                                       list(month_names.keys()), horizontal=True)
+                prog_month = st.radio("Select month for SAR flood map", list(month_names.keys()), horizontal=True)
                 prog_month_num = month_names[prog_month]
-
                 with st.spinner(f"Computing SAR flood mask · {prog_month} {prog_year}..."):
-                    prog_tile = get_month_sar_tile(
-                        _aoi_json, prog_year, prog_month_num,
-                        polarization, f_threshold, apply_speckle
-                    )
-
+                    prog_tile = get_month_sar_tile(_aoi_json, prog_year, prog_month_num, polarization, f_threshold, apply_speckle)
                 m4 = folium.Map(location=st.session_state.map_center, zoom_start=11, tiles="CartoDB dark_matter")
-                folium.GeoJson(
-                    st.session_state.aoi.getInfo(),
-                    style_function=lambda _: {'fillColor':'none','color':'#00FFFF','weight':2,'dashArray':'6 4'}
-                ).add_to(m4)
+                folium.GeoJson(st.session_state.aoi.getInfo(), style_function=lambda _: {'fillColor':'none','color':'#00FFFF','weight':2,'dashArray':'6 4'}).add_to(m4)
                 folium.TileLayer(tiles=sar_d['water_url'], attr='GEE', name='Permanent Water').add_to(m4)
-
                 if prog_tile:
-                    folium.TileLayer(
-                        tiles=prog_tile, attr='GEE',
-                        name=f'Flood · {prog_month} {prog_year}', opacity=0.85
-                    ).add_to(m4)
-
+                    folium.TileLayer(tiles=prog_tile, attr='GEE', name=f'Flood · {prog_month} {prog_year}', opacity=0.85).add_to(m4)
                 Fullscreen(position='topright').add_to(m4)
                 folium.LayerControl(position='topright', collapsed=False).add_to(m4)
-
-                # Progression legend
-                prog_legend_js = f'''
-                <script>
-                (function() {{
-                    var legend = L.control({{position: 'bottomleft'}});
-                    legend.onAdd = function() {{
-                        var div = document.createElement('div');
-                        div.style.cssText = 'background:rgba(13,27,42,0.93);border:1.5px solid #FF6B6B;color:#e0e1dd;font-size:11.5px;padding:12px 15px;border-radius:10px;backdrop-filter:blur(8px);line-height:2;pointer-events:none;';
-                        div.innerHTML = '<div style="color:#FF6B6B;font-weight:bold;font-size:12px;border-bottom:1px solid rgba(255,107,107,0.3);padding-bottom:4px;margin-bottom:6px;">&#9672; PROGRESSION · {prog_month} {prog_year}</div>' +
-                            '<span style="display:inline-block;width:12px;height:12px;background:#FF6B6B;border-radius:2px;margin-right:7px;vertical-align:middle;"></span>Detected Inundation<br>' +
-                            '<span style="display:inline-block;width:12px;height:12px;background:#00008B;border-radius:2px;margin-right:7px;vertical-align:middle;"></span>Permanent Water<br>' +
-                            '<span style="color:#555;font-size:10px;">Ref: Jan–Mar {prog_year} · {polarization}</span>';
-                        return div;
-                    }};
-                    legend.addTo({m4.get_name()});
-                }})();
-                </script>'''
-                m4.get_root().html.add_child(folium.Element(prog_legend_js))
                 folium_static(m4, height=420)
-
-            # Monthly chips
-            st.markdown('<div style="font-family:JetBrains Mono,monospace;font-size:0.65rem;color:rgba(0,255,255,0.4);letter-spacing:2px;margin:14px 0 6px;">MONTHLY RAINFALL BREAKDOWN</div>', unsafe_allow_html=True)
-            chips_html = ''
-            for _, row in prog_df.iterrows():
-                chips_html += f'<span class="prog-month-chip">{row["Month"]} · {row["Rain (mm)"]} mm</span>'
+            chips_html = ''.join(f'<span class="prog-month-chip">{row["Month"]} · {row["Rain (mm)"]} mm</span>' for _, row in prog_df.iterrows())
             st.markdown(f'<div>{chips_html}</div>', unsafe_allow_html=True)
-
         else:
             st.warning(f"Could not fetch CHIRPS data for {prog_year}.")
+
+    # ════════════════════════════════════════
+    # TAB 5 — ML INTELLIGENCE
+    # ════════════════════════════════════════
+    with tab5:
+        st.markdown('<div style="font-family:\'Rajdhani\',sans-serif;font-size:0.78rem;letter-spacing:2px;color:rgba(0,255,255,0.4);margin-bottom:8px;">MACHINE LEARNING MODELS · FLOOD RISK · RAINFALL FORECAST · SAR CLASSIFICATION</div>', unsafe_allow_html=True)
+
+        from ml_models.flood_risk_model import FloodRiskPredictor
+        from ml_models.rainfall_forecast import RainfallForecaster
+        from ml_models.sar_classifier import SARFloodClassifier
+
+        # ── MODEL 1: FLOOD RISK PREDICTION ────────────
+        with st.expander("MODEL 1 — FLOOD RISK PREDICTION  [Random Forest]", expanded=True):
+            st.markdown('<div style="font-family:JetBrains Mono,monospace;font-size:0.65rem;color:rgba(0,255,255,0.4);letter-spacing:2px;margin-bottom:8px;">GEE-SAMPLED FEATURES · SCIKIT-LEARN RF · 5-CLASS RISK</div>', unsafe_allow_html=True)
+            if st.button("RUN ML RISK PREDICTION", key="ml_risk_btn", use_container_width=True):
+                with st.spinner("Extracting features from GEE & running Random Forest..."):
+                    try:
+                        predictor = FloodRiskPredictor()
+                        result = predictor.predict_for_aoi(_aoi_json)
+                        if result and result.get('tile_url'):
+                            mr1, mr2, mr3, mr4 = st.columns(4)
+                            mr1.metric("Model", "Random Forest")
+                            mr2.metric("Features", f"{len(predictor.feature_names)}")
+                            mr3.metric("Samples", f"{result.get('n_samples', 'N/A')}")
+                            mr4.metric("OOB Score", f"{result.get('oob_score', 'N/A')}")
+                            ml_risk_map = folium.Map(location=st.session_state.map_center, zoom_start=11, tiles="CartoDB dark_matter")
+                            folium.TileLayer(tiles=result['tile_url'], attr='GEE·ML', name='ML Risk Prediction').add_to(ml_risk_map)
+                            folium.GeoJson(st.session_state.aoi.getInfo(), style_function=lambda _: {'fillColor':'none','color':'#00FFFF','weight':2,'dashArray':'6 4'}).add_to(ml_risk_map)
+                            folium.LayerControl(position='topright', collapsed=False).add_to(ml_risk_map)
+                            ml_risk_map.get_root().html.add_child(folium.Element(get_mca_legend(ml_risk_map.get_name())))
+                            folium_static(ml_risk_map, height=450)
+                            if result.get('feature_importance'):
+                                st.markdown('<div style="font-family:JetBrains Mono,monospace;font-size:0.65rem;color:rgba(0,255,255,0.4);letter-spacing:2px;margin:14px 0 6px;">FEATURE IMPORTANCE</div>', unsafe_allow_html=True)
+                                imp_df = pd.DataFrame(list(result['feature_importance'].items()), columns=['Feature', 'Importance']).sort_values('Importance', ascending=False).set_index('Feature')
+                                st.bar_chart(imp_df, color="#00FFFF", height=200)
+                        else:
+                            st.warning("ML Risk prediction returned no results.")
+                    except Exception as e:
+                        st.error(f"ML Risk prediction failed: {e}")
+            else:
+                st.info("Click the button above to run the ML flood risk prediction model on the current AOI.")
+
+        # ── MODEL 2: RAINFALL FORECAST ────────────────
+        with st.expander("MODEL 2 — RAINFALL FORECAST  [Prophet]", expanded=False):
+            st.markdown('<div style="font-family:JetBrains Mono,monospace;font-size:0.65rem;color:rgba(0,255,255,0.4);letter-spacing:2px;margin-bottom:8px;">CHIRPS DATA · PROPHET · TIME-SERIES FORECASTING</div>', unsafe_allow_html=True)
+            forecast_horizon = st.slider("Forecast horizon (days)", 7, 30, 14, key="forecast_horizon")
+            if st.button("RUN RAINFALL FORECAST", key="ml_rain_btn", use_container_width=True):
+                with st.spinner("Fetching CHIRPS data & fitting Prophet model..."):
+                    try:
+                        rain_data = get_chirps_series(_aoi_json, str(p_start), str(f_end))
+                        if rain_data is not None and len(rain_data) >= 30:
+                            forecaster = RainfallForecaster()
+                            fc_result = forecaster.fit_and_forecast(rain_data, forecast_horizon)
+                            fc1, fc2, fc3 = st.columns(3)
+                            fc1.metric("Cumulative Forecast", f"{fc_result['cumulative_mm']} mm")
+                            fc2.metric("Peak Daily Forecast", f"{fc_result['daily_peak_mm']} mm")
+                            fc3.metric("90% CI Range", f"{fc_result['uncertainty_range'][0]}–{fc_result['uncertainty_range'][1]} mm")
+                            fc_df = fc_result['forecast_df'].copy()
+                            fc_df['ds'] = pd.to_datetime(fc_df['ds'])
+                            fc_chart = fc_df.set_index('ds')[['yhat', 'yhat_lower', 'yhat_upper']]
+                            fc_chart.columns = ['Forecast', 'Lower CI', 'Upper CI']
+                            st.line_chart(fc_chart, height=250)
+                            if st.session_state.rp_data:
+                                flood_prob = forecaster.estimate_flood_probability(fc_result, st.session_state.rp_data)
+                                risk_colors = {'LOW': '#1a9850', 'MODERATE': '#ffffbf', 'HIGH': '#fc8d59', 'VERY HIGH': '#d73027', 'EXTREME': '#67001f', 'UNKNOWN': '#666666'}
+                                rl = flood_prob['risk_level']
+                                rc = risk_colors.get(rl, '#666666')
+                                st.markdown(f'<div style="display:inline-flex;align-items:center;gap:10px;background:rgba(0,255,255,0.04);border:1px solid {rc};border-radius:8px;padding:10px 18px;margin-top:10px;"><div style="width:12px;height:12px;background:{rc};border-radius:50%;"></div><div style="font-family:\'Rajdhani\',sans-serif;font-size:1rem;font-weight:700;color:{rc};letter-spacing:2px;">FLOOD RISK: {rl}</div><div style="font-family:\'JetBrains Mono\',monospace;font-size:0.72rem;color:#5a7a8a;">{flood_prob.get("return_period", "")}</div></div>', unsafe_allow_html=True)
+                        else:
+                            st.warning("Need at least 30 days of CHIRPS data.")
+                    except ImportError:
+                        st.error("Prophet is not installed. Run: pip install prophet")
+                    except Exception as e:
+                        st.error(f"Rainfall forecast failed: {e}")
+            else:
+                st.info("Click the button above to run the Prophet rainfall forecast.")
+
+        # ── MODEL 3: SAR FLOOD CLASSIFICATION ─────────
+        with st.expander("MODEL 3 — SAR FLOOD CLASSIFICATION  [Gradient Boosting]", expanded=False):
+            st.markdown('<div style="font-family:JetBrains Mono,monospace;font-size:0.65rem;color:rgba(0,255,255,0.4);letter-spacing:2px;margin-bottom:8px;">MULTI-FEATURE SAR · GRADIENT BOOSTED TREES · PIXEL-WISE</div>', unsafe_allow_html=True)
+            show_probability = st.checkbox("Show probability heat map", key="ml_sar_prob")
+            if st.button("RUN ML FLOOD CLASSIFICATION", key="ml_sar_btn", use_container_width=True):
+                with st.spinner("Extracting SAR features & running Gradient Boosting..."):
+                    try:
+                        classifier = SARFloodClassifier()
+                        result = classifier.classify_for_aoi(_aoi_json, str(f_start), str(f_end), str(p_start), str(p_end), f_threshold, polarization, apply_speckle, return_probability=show_probability)
+                        if result and result.get('tile_url'):
+                            ms1, ms2, ms3, ms4 = st.columns(4)
+                            ms1.metric("Model", "Gradient Boosting")
+                            ms2.metric("ML Flood Area", f"{result.get('ml_area_ha', 0)} ha")
+                            ms3.metric("Threshold Area", f"{result.get('threshold_area_ha', 0)} ha")
+                            diff_ha = result.get('ml_area_ha', 0) - result.get('threshold_area_ha', 0)
+                            ms4.metric("Difference", f"{diff_ha:+.1f} ha")
+                            ml_sar_map = folium.Map(location=st.session_state.map_center, zoom_start=11, tiles="CartoDB dark_matter")
+                            folium.TileLayer(tiles=result['tile_url'], attr='GEE·ML', name='ML Flood Classification').add_to(ml_sar_map)
+                            folium.GeoJson(st.session_state.aoi.getInfo(), style_function=lambda _: {'fillColor':'none','color':'#00FFFF','weight':2,'dashArray':'6 4'}).add_to(ml_sar_map)
+                            folium.LayerControl(position='topright', collapsed=False).add_to(ml_sar_map)
+                            folium_static(ml_sar_map, height=450)
+                            if result.get('feature_importance'):
+                                st.markdown('<div style="font-family:JetBrains Mono,monospace;font-size:0.65rem;color:rgba(0,255,255,0.4);letter-spacing:2px;margin:14px 0 6px;">FEATURE IMPORTANCE</div>', unsafe_allow_html=True)
+                                imp_df = pd.DataFrame(list(result['feature_importance'].items()), columns=['Feature', 'Importance']).sort_values('Importance', ascending=False).set_index('Feature')
+                                st.bar_chart(imp_df, color="#FF6B6B", height=200)
+                        else:
+                            st.warning("ML SAR classification returned no results.")
+                    except Exception as e:
+                        st.error(f"ML SAR classification failed: {e}")
+            else:
+                st.info("Click the button above to run the ML-based SAR flood classification.")
+
+        # ── MODEL DIAGNOSTICS ─────────────────────────
+        with st.expander("MODEL DIAGNOSTICS", expanded=False):
+            import os
+            diag_data = []
+            for name, path in [("Flood Risk RF", "models/flood_risk_rf.joblib"), ("SAR Classifier GB", "models/sar_classifier_gb.joblib")]:
+                exists = os.path.exists(path)
+                size = f"{os.path.getsize(path) / 1024:.1f} KB" if exists else "—"
+                diag_data.append({"Model": name, "Status": "Trained" if exists else "Trains on-the-fly", "File": path, "Size": size})
+            diag_data.append({"Model": "Rainfall Prophet", "Status": "Fits per-AOI at runtime", "File": "N/A", "Size": "—"})
+            st.dataframe(pd.DataFrame(diag_data), use_container_width=True, hide_index=True)
+            st.markdown("""<div class="tech-panel"><h4>TRAINING NOTES</h4>
+                <p>Models 1 & 3 can be pre-trained via <code>training/</code> scripts. Without pre-trained models, they train on-the-fly using the current AOI (slower but no setup needed).</p>
+                <p>Model 2 (Prophet) always fits at runtime since rainfall patterns are location-specific.</p></div>""", unsafe_allow_html=True)
 
 else:
     st.markdown("""
         <div style="text-align:center; padding:60px 20px; animation: fadeUp 0.6s ease;">
             <div style="font-size:3rem; margin-bottom:16px; filter:drop-shadow(0 0 20px rgba(0,255,255,0.4));">🛰️</div>
-            <div style="font-family:'Rajdhani',sans-serif; font-size:1.3rem; letter-spacing:3px; color:rgba(0,255,255,0.6); margin-bottom:10px;">
-                NO STUDY AREA DEFINED
-            </div>
+            <div style="font-family:'Rajdhani',sans-serif; font-size:1.3rem; letter-spacing:3px; color:rgba(0,255,255,0.6); margin-bottom:10px;">NO STUDY AREA DEFINED</div>
             <div style="font-size:0.8rem; color:#3a5060; font-family:'Space Grotesk',sans-serif; letter-spacing:1px;">
-                Use the sidebar to search a location or define a bounding box, then click
-                <strong style="color:rgba(0,255,255,0.4);">INITIALIZE AOI</strong>
+                Use the sidebar to search a location or define a bounding box, then click <strong style="color:rgba(0,255,255,0.4);">INITIALIZE AOI</strong>
             </div>
         </div>
     """, unsafe_allow_html=True)
