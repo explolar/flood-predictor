@@ -228,9 +228,8 @@ with st.expander("ANALYTICAL METHODOLOGY", expanded=False):
 
 st.markdown("<br>", unsafe_allow_html=True)
 tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
-    "  PHASE 1 · MCA  ", "  PHASE 2 · SAR  ", "  DUAL-VIEW  ",
-    "  PROGRESSION  ", "  ML INTELLIGENCE  ", "  MULTI-YEAR  ", "  DROUGHT  ",
-    "  INDICES  "
+    " MCA ", " SAR ", " DUAL ", " PROGRESSION ",
+    " ML ", " MULTI-YEAR ", " DROUGHT ", " INDICES "
 ])
 
 if st.session_state.aoi:
