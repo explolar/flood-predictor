@@ -26,23 +26,27 @@ def get_spi_index(aoi_json, target_year=2024, baseline_years=20):
     # Baseline annual totals
     baseline_annuals = []
     for yr in range(start_baseline, target_year):
-        annual = chirps.filterDate(f'{yr}-01-01', f'{yr + 1}-01-01').sum()
+        annual = chirps.filterDate(f'{yr}-01-01', f'{yr + 1}-01-01').sum().rename('rain')
         baseline_annuals.append(annual)
 
     baseline_stack = ee.ImageCollection(baseline_annuals)
-    baseline_mean = baseline_stack.mean().clip(aoi_geom)
-    baseline_std = baseline_stack.reduce(ee.Reducer.stdDev()).clip(aoi_geom)
+    baseline_mean = baseline_stack.mean().clip(aoi_geom)  # band: 'rain'
+    baseline_std = baseline_stack.reduce(ee.Reducer.stdDev()).clip(aoi_geom).rename('rain')
 
     # Target year rainfall
-    target_rain = chirps.filterDate(f'{target_year}-01-01', f'{target_year + 1}-01-01').sum().clip(aoi_geom)
+    target_col = chirps.filterDate(f'{target_year}-01-01', f'{target_year + 1}-01-01')
+    target_count = target_col.size().getInfo()
+    if not target_count:
+        return None
+    target_rain = target_col.sum().clip(aoi_geom).rename('rain')
 
-    # SPI calculation
+    # SPI = (P - mean) / std
     spi = target_rain.subtract(baseline_mean).divide(baseline_std.max(1)).rename('spi')
 
     # Mean SPI for AOI
     spi_stats = spi.reduceRegion(
         reducer=ee.Reducer.mean(), geometry=aoi_geom, scale=5000, maxPixels=1e8
-    ).getInfo()
+    ).getInfo() or {}
     mean_spi = round(spi_stats.get('spi', 0) or 0, 2)
 
     # Categorize
@@ -91,13 +95,17 @@ def get_ndvi_anomaly(aoi_json, target_year=2024, baseline_years=20):
 
     # Baseline mean NDVI
     baseline = modis.filterDate(f'{start_baseline}-01-01', f'{target_year}-01-01')
-    baseline_mean = baseline.mean().clip(aoi_geom)
+    baseline_mean = baseline.mean().clip(aoi_geom).rename('ndvi')
 
     # Target year NDVI
     target = modis.filterDate(f'{target_year}-01-01', f'{target_year + 1}-01-01')
-    target_mean = target.mean().clip(aoi_geom)
+    target_count = target.size().getInfo()
+    if not target_count:
+        return None
 
-    # Anomaly
+    target_mean = target.mean().clip(aoi_geom).rename('ndvi')
+
+    # Anomaly (both bands named 'ndvi' so subtract works correctly)
     anomaly = target_mean.subtract(baseline_mean).rename('ndvi_anomaly')
 
     # Scale factor: MODIS NDVI is scaled by 10000
@@ -105,7 +113,7 @@ def get_ndvi_anomaly(aoi_json, target_year=2024, baseline_years=20):
 
     anom_stats = anomaly_scaled.reduceRegion(
         reducer=ee.Reducer.mean(), geometry=aoi_geom, scale=1000, maxPixels=1e8
-    ).getInfo()
+    ).getInfo() or {}
     mean_anomaly = round(anom_stats.get('ndvi_anomaly', 0) or 0, 4)
 
     if mean_anomaly < -0.1:

@@ -28,6 +28,9 @@ def render_progression_tab(aoi_json, params):
 
     # Get permanent water URL for base layer
     sar_d = get_all_sar_data(aoi_json, str(f_start), str(f_end), str(p_start), str(p_end), f_threshold, polarization, apply_speckle)
+    if sar_d is None:
+        st.error("SAR analysis failed — no Sentinel-1 data found for the selected dates/AOI. Try adjusting dates.")
+        return
 
     if prog_df is not None and not prog_df.empty:
         t4c1, t4c2 = st.columns([1, 2])

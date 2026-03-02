@@ -24,6 +24,9 @@ def render_dual_tab(aoi_json, params):
     st.markdown('<div style="font-family:\'Rajdhani\',sans-serif;font-size:0.78rem;letter-spacing:2px;color:rgba(0,255,255,0.4);margin-bottom:8px;">SYNCHRONIZED PRE / POST SAR BACKSCATTER COMPARISON</div>', unsafe_allow_html=True)
     with st.spinner("Building dual-view SAR comparison..."):
         sar_d = get_all_sar_data(aoi_json, str(f_start), str(f_end), str(p_start), str(p_end), f_threshold, polarization, apply_speckle)
+    if sar_d is None:
+        st.error("SAR analysis failed — no Sentinel-1 data found for the selected dates/AOI. Try adjusting dates or AOI.")
+        return
     st.markdown('<div class="dual-label-row"><div class="dual-label">◀ PRE-FLOOD SAR</div><div class="dual-label">POST-FLOOD SAR ▶</div></div>', unsafe_allow_html=True)
     dmap = DualMap(location=map_center, zoom_start=11, tiles=None, layout='horizontal')
     folium.TileLayer(tiles="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", attr='CartoDB', name='Basemap').add_to(dmap.m1)

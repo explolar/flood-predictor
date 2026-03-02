@@ -37,7 +37,7 @@ def get_displacement_estimate(aoi_json, flood_mask_threshold=3.0):
     elderly_bands = [f'{g}_{a}' for g in ['M', 'F'] for a in range(60, 85, 5)]
 
     # Get available bands
-    available = pop_total.bandNames().getInfo()
+    available = pop_total.bandNames().getInfo() or []
     child_bands = [b for b in child_bands if b in available]
     elderly_bands = [b for b in elderly_bands if b in available]
 
@@ -45,8 +45,8 @@ def get_displacement_estimate(aoi_json, flood_mask_threshold=3.0):
     total_pop_stats = pop.reduceRegion(
         reducer=ee.Reducer.sum(),
         geometry=aoi_geom, scale=100, maxPixels=1e9
-    ).getInfo()
-    total_pop = round(total_pop_stats.get('population', 0))
+    ).getInfo() or {}
+    total_pop = round(total_pop_stats.get('population', 0) or 0)
 
     # For displacement calculation, use a simple flood mask from SAR
     # (assumes the caller will provide flood extent data separately)
@@ -58,14 +58,14 @@ def get_displacement_estimate(aoi_json, flood_mask_threshold=3.0):
         children = pop_total.select(child_bands).reduce(ee.Reducer.sum()).clip(aoi_geom)
         child_stats = children.reduceRegion(
             reducer=ee.Reducer.sum(), geometry=aoi_geom, scale=100, maxPixels=1e9
-        ).getInfo()
+        ).getInfo() or {}
         children_pop = round(sum(v for v in child_stats.values() if v))
 
     if elderly_bands:
         elderly = pop_total.select(elderly_bands).reduce(ee.Reducer.sum()).clip(aoi_geom)
         elderly_stats = elderly.reduceRegion(
             reducer=ee.Reducer.sum(), geometry=aoi_geom, scale=100, maxPixels=1e9
-        ).getInfo()
+        ).getInfo() or {}
         elderly_pop = round(sum(v for v in elderly_stats.values() if v))
 
     # Displacement estimate: typically 60-80% of flood-exposed population

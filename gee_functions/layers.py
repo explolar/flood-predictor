@@ -26,9 +26,12 @@ def get_ndvi_tile(aoi_json, p_start, p_end, f_start, f_end):
 
 @st.cache_data(show_spinner=False, ttl=3600)
 def get_jrc_freq_tile(aoi_json):
-    aoi_geom = ee.Geometry(json.loads(aoi_json))
-    freq = ee.Image("JRC/GSW1_4/GlobalSurfaceWater").select('occurrence').clip(aoi_geom)
-    return freq.getMapId({'min':0,'max':100,'palette':['ffffff','0000ff']})['tile_fetcher'].url_format
+    try:
+        aoi_geom = ee.Geometry(json.loads(aoi_json))
+        freq = ee.Image("JRC/GSW1_4/GlobalSurfaceWater").select('occurrence').clip(aoi_geom)
+        return freq.getMapId({'min':0,'max':100,'palette':['ffffff','0000ff']})['tile_fetcher'].url_format
+    except Exception:
+        return None
 
 
 @st.cache_data(show_spinner=False, ttl=3600)

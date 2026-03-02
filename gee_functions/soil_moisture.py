@@ -68,7 +68,7 @@ def get_soil_moisture_data(aoi_json, start_date, end_date):
     mean_stats = latest.reduceRegion(
         reducer=ee.Reducer.mean(),
         geometry=aoi_geom, scale=9000, maxPixels=1e8
-    ).getInfo()
+    ).getInfo() or {}
     mean_sm = round(mean_stats.get('soil_moisture_am', 0) or 0, 3)
 
     return {
@@ -81,22 +81,29 @@ def get_soil_moisture_data(aoi_json, start_date, end_date):
 
 def get_smap_tile(aoi_json, target_date=None):
     """Get a single SMAP soil moisture tile for a specific date."""
-    aoi_geom = ee.Geometry(json.loads(aoi_json))
+    try:
+        aoi_geom = ee.Geometry(json.loads(aoi_json))
 
-    if target_date:
-        smap = (ee.ImageCollection('NASA/SMAP/SPL3SMP_E/005')
-                .filterBounds(aoi_geom)
-                .filterDate(target_date, ee.Date(target_date).advance(7, 'day'))
-                .select('soil_moisture_am'))
-    else:
-        smap = (ee.ImageCollection('NASA/SMAP/SPL3SMP_E/005')
-                .filterBounds(aoi_geom)
-                .sort('system:time_start', False)
-                .limit(1)
-                .select('soil_moisture_am'))
+        if target_date:
+            smap = (ee.ImageCollection('NASA/SMAP/SPL3SMP_E/005')
+                    .filterBounds(aoi_geom)
+                    .filterDate(target_date, ee.Date(target_date).advance(7, 'day'))
+                    .select('soil_moisture_am'))
+        else:
+            smap = (ee.ImageCollection('NASA/SMAP/SPL3SMP_E/005')
+                    .filterBounds(aoi_geom)
+                    .sort('system:time_start', False)
+                    .limit(1)
+                    .select('soil_moisture_am'))
 
-    img = smap.first().clip(aoi_geom)
-    return img.getMapId({
-        'min': 0.0, 'max': 0.5,
-        'palette': ['f7fcb1', 'addd8e', '41ab5d', '006837', '004529']
-    })['tile_fetcher'].url_format
+        count = smap.size().getInfo()
+        if count == 0:
+            return None
+
+        img = smap.first().clip(aoi_geom)
+        return img.getMapId({
+            'min': 0.0, 'max': 0.5,
+            'palette': ['f7fcb1', 'addd8e', '41ab5d', '006837', '004529']
+        })['tile_fetcher'].url_format
+    except Exception:
+        return None

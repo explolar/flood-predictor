@@ -89,7 +89,7 @@ class LGBMFloodClassifier:
         df = extract_sar_training_samples(
             aoi_json, f_start, f_end, p_start, p_end,
             threshold, polarization, speckle,
-            n_points=8000, scale=30
+            n_points=4000, scale=30
         )
 
         if df.empty or len(df) < 100:

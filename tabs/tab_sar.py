@@ -30,6 +30,9 @@ def render_sar_tab(aoi_json, params):
 
     with st.spinner(f'Querying Sentinel-1 {polarization} SAR archive...'):
         sar = get_all_sar_data(aoi_json, str(f_start), str(f_end), str(p_start), str(p_end), f_threshold, polarization, apply_speckle)
+    if sar is None:
+        st.error("SAR analysis failed — no Sentinel-1 data found for the selected dates/AOI, or GEE returned an error. Try adjusting dates or AOI.")
+        return
     st.session_state.area_ha = sar['area_ha']
     st.session_state.pop_exposed = f"{sar['pop_exposed']:,}"
 

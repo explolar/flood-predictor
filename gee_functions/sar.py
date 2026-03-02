@@ -24,10 +24,11 @@ def _make_flood_mask(pre, post, threshold, aoi_geom, dem=None, elev_p40=None):
     jrc_gate   = jrc.select('occurrence').gte(5).clip(aoi_geom)
 
     if elev_p40 is None:
-        elev_p40 = (dem.reduceRegion(
+        _info = dem.reduceRegion(
             reducer=ee.Reducer.percentile([40]),
             geometry=aoi_geom, scale=100, maxPixels=1e9
-        ).getInfo().get('elevation_p40') or 9999)
+        ).getInfo() or {}
+        elev_p40 = _info.get('elevation_p40') or 9999
     elev_mask = dem.lte(ee.Number(float(elev_p40)))
 
     diff    = pre.subtract(post)
@@ -60,18 +61,19 @@ def get_all_sar_data(aoi_json, f_start, f_end, p_start, p_end, threshold, polari
     flood, dem = _make_flood_mask(pre, post, threshold, aoi_geom)
     water_m = ee.Image("JRC/GSW1_4/GlobalSurfaceWater").select('seasonality').gte(10).clip(aoi_geom).selfMask()
 
-    ep = dem.reduceRegion(reducer=ee.Reducer.percentile([10,50]), geometry=aoi_geom, scale=100, maxPixels=1e9).getInfo()
-    p10 = ep.get('elevation_p10', 50)
-    p50 = ep.get('elevation_p50', 100)
+    ep = dem.reduceRegion(reducer=ee.Reducer.percentile([10,50]), geometry=aoi_geom, scale=100, maxPixels=1e9).getInfo() or {}
+    p10 = ep.get('elevation_p10', 50) or 50
+    p50 = ep.get('elevation_p50', 100) or 100
     sev = flood.where(flood.And(dem.lte(p10)), 3)
     sev = sev.where(flood.And(dem.gt(p10).And(dem.lte(p50))), 2)
     sev = sev.where(flood.And(dem.gt(p50)), 1)
     severity = sev.updateMask(flood)
 
-    area_val = flood.multiply(ee.Image.pixelArea()).reduceRegion(
+    _area_info = flood.multiply(ee.Image.pixelArea()).reduceRegion(
         reducer=ee.Reducer.sum(), geometry=aoi_geom, scale=50, maxPixels=1e9
-    ).get(polarization).getInfo()
-    area_ha = round(area_val / 10000, 2) if area_val else 0
+    ).getInfo() or {}
+    area_val = list(_area_info.values())[0] if _area_info else 0
+    area_ha = round((area_val or 0) / 10000, 2)
 
     try:
         pop_img = ee.ImageCollection("WorldPop/GP/100m/pop").filter(ee.Filter.eq('year', 2020)).mosaic().clip(aoi_geom)
@@ -132,7 +134,7 @@ def get_flood_depth_tile(aoi_json, f_start, f_end, p_start, p_end, threshold, po
         ep = flood_dem.reduceRegion(
             reducer=ee.Reducer.percentile([95]),
             geometry=aoi_geom, scale=30, maxPixels=1e9
-        ).getInfo()
+        ).getInfo() or {}
         water_surface = ep.get('elevation_p95', 0) or 0
 
         depth = ee.Image(float(water_surface)).subtract(dem).updateMask(flood).max(ee.Image(0))
@@ -140,12 +142,13 @@ def get_flood_depth_tile(aoi_json, f_start, f_end, p_start, p_end, threshold, po
         depth_stats = depth.reduceRegion(
             reducer=ee.Reducer.mean().combine(ee.Reducer.max(), '', True),
             geometry=aoi_geom, scale=30, maxPixels=1e9
-        ).getInfo()
+        ).getInfo() or {}
 
-        hist_raw = depth.reduceRegion(
+        _hist_info = depth.reduceRegion(
             reducer=ee.Reducer.fixedHistogram(0, 4, 8),
             geometry=aoi_geom, scale=30, maxPixels=1e9
-        ).getInfo().get('constant', [])
+        ).getInfo() or {}
+        hist_raw = _hist_info.get('constant', [])
         hist_labels = ['0-0.5', '0.5-1', '1-1.5', '1.5-2', '2-2.5', '2.5-3', '3-3.5', '3.5-4']
         hist = {hist_labels[i]: int(row[1]) for i, row in enumerate(hist_raw) if i < len(hist_labels)}
 
@@ -175,10 +178,11 @@ def get_recession_data(aoi_json, f_end_str, p_start_str, p_end_str, polarization
         px_area = ee.Image.pixelArea()
 
         dem_r    = ee.Image('USGS/SRTMGL1_003').select('elevation').clip(aoi_geom)
-        elev_p40 = (dem_r.reduceRegion(
+        _ep_info = dem_r.reduceRegion(
             reducer=ee.Reducer.percentile([40]),
             geometry=aoi_geom, scale=100, maxPixels=1e9
-        ).getInfo().get('elevation_p40') or 9999)
+        ).getInfo() or {}
+        elev_p40 = _ep_info.get('elevation_p40') or 9999
 
         phases = [
             ('Peak (T\u2080)',  0,  12),
@@ -199,9 +203,11 @@ def get_recession_data(aoi_json, f_end_str, p_start_str, p_end_str, polarization
                 post = post.focal_mean(radius=1, kernelType='square', units='pixels')
             flood, _ = _make_flood_mask(pre, post, threshold, aoi_geom,
                                         dem=dem_r, elev_p40=elev_p40)
-            area_ha = (flood.multiply(px_area).reduceRegion(
+            _r_info = flood.multiply(px_area).reduceRegion(
                 reducer=ee.Reducer.sum(), geometry=aoi_geom, scale=30, maxPixels=1e9
-            ).getInfo().get(polarization, 0) or 0) / 10000
+            ).getInfo() or {}
+            area_ha = (list(_r_info.values())[0] if _r_info else 0) or 0
+            area_ha = area_ha / 10000
             results.append({'Phase': label, 'Flood Area (ha)': round(area_ha, 1)})
         return results
     except Exception:

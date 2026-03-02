@@ -70,7 +70,7 @@ def render_ml_tab(aoi_json, params):
 def _render_classifiers(aoi_json, aoi, map_center,
                         f_start, f_end, p_start, p_end,
                         f_threshold, polarization, apply_speckle):
-    """Flood Risk RF · SAR Multi-model · U-Net."""
+    """Flood Risk RF · SAR Multi-model (GB / XGB / LGBM / Ensemble)."""
 
     from ml_models.flood_risk_model import FloodRiskPredictor
     from ml_models.sar_classifier import SARFloodClassifier
@@ -186,54 +186,6 @@ def _render_classifiers(aoi_json, aoi, map_center,
                 st.error(f"Classification failed: {e}")
     else:
         st.info("Select a classifier and click RUN to classify flood pixels.")
-
-    st.markdown('<hr style="border-color:rgba(0,255,255,0.08);margin:24px 0;">', unsafe_allow_html=True)
-
-    # ── 3. U-NET SEGMENTATION ─────────────────────
-    st.markdown(
-        '<div style="font-family:\'Rajdhani\',sans-serif;font-size:0.95rem;'
-        'font-weight:700;letter-spacing:2px;color:#00FFFF;margin-bottom:6px;">'
-        'U-NET SAR SEGMENTATION</div>'
-        '<div style="font-size:0.7rem;color:#3a5060;margin-bottom:10px;">'
-        'Deep learning · MobileNetV2 encoder · ONNX Runtime</div>',
-        unsafe_allow_html=True,
-    )
-
-    unet_threshold = st.slider("Flood probability threshold", 0.3, 0.9, 0.5, step=0.05, key="unet_thresh")
-    if st.button("RUN U-NET", key="ml_unet_btn", use_container_width=True):
-        with st.spinner("Running U-Net inference..."):
-            try:
-                from ml_models.unet_segmentation import UNetFloodSegmenter
-                segmenter = UNetFloodSegmenter()
-                if not segmenter.available:
-                    st.warning("U-Net model file not found. Place `unet_flood_mobilenet.onnx` in `models/`.")
-                else:
-                    result = segmenter.segment_for_aoi(
-                        aoi_json, str(f_start), str(f_end), str(p_start), str(p_end),
-                        polarization, apply_speckle, threshold=unet_threshold,
-                    )
-                    if result and result.get('tile_url'):
-                        c1, c2, c3 = st.columns(3)
-                        c1.metric("Model", result.get('model_name', 'U-Net'))
-                        c2.metric("Flood Area", f"{result.get('flood_area_ha', 0)} ha")
-                        c3.metric("Flood %", f"{result.get('flood_fraction', 0):.2%}")
-                        m = folium.Map(location=map_center, zoom_start=11, tiles="CartoDB dark_matter")
-                        folium.TileLayer(tiles=result['tile_url'], attr='GEE·DL', name='U-Net').add_to(m)
-                        folium.GeoJson(aoi.getInfo(), style_function=lambda _: {
-                            'fillColor': 'none', 'color': '#00FFFF', 'weight': 2, 'dashArray': '6 4'
-                        }).add_to(m)
-                        folium.LayerControl(position='topright', collapsed=False).add_to(m)
-                        folium_static(m, height=450)
-                    elif result and result.get('error'):
-                        st.warning(result['error'])
-                    else:
-                        st.warning("U-Net returned no results.")
-            except ImportError:
-                st.error("onnxruntime not installed. Run: pip install onnxruntime")
-            except Exception as e:
-                st.error(f"U-Net segmentation failed: {e}")
-    else:
-        st.info("Run deep learning flood segmentation. Requires pre-trained ONNX model.")
 
 
 # ─────────────────────────────────────────────────
@@ -413,7 +365,6 @@ def _render_tools(aoi_json,
         ("SAR Classifier XGB", "models/sar_classifier_xgb.joblib"),
         ("SAR Classifier LGBM", "models/sar_classifier_lgbm.joblib"),
         ("Ensemble Stacker", "models/ensemble_stacker.joblib"),
-        ("U-Net ONNX", "models/unet_flood_mobilenet.onnx"),
     ]
     diag_data = []
     for name, path in model_files:

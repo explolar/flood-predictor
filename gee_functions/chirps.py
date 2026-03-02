@@ -13,6 +13,8 @@ def get_chirps_series(aoi_json, start_str, end_str):
         mean = img.reduceRegion(reducer=ee.Reducer.mean(), geometry=aoi_geom, scale=5000, maxPixels=1e8)
         return ee.Feature(None, {'date': img.date().format('YYYY-MM-dd'), 'rain': mean.get('precipitation')})
     fc = chirps.map(extract).getInfo()
+    if not fc or not fc.get('features'):
+        return None
     records = [{'date': f['properties']['date'], 'rainfall_mm': float(f['properties']['rain'])}
                for f in fc['features'] if f['properties'].get('rain') is not None]
     if not records:

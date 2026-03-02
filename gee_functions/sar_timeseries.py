@@ -35,7 +35,7 @@ def get_sar_monthly_stats(aoi_json, start_year=2018, end_year=2024, polarization
                    .select(polarization))
 
             count = col.size().getInfo()
-            if count == 0:
+            if not count:
                 continue
 
             monthly = col.median().clip(aoi_geom)
@@ -45,7 +45,7 @@ def get_sar_monthly_stats(aoi_json, start_year=2018, end_year=2024, polarization
                 geometry=aoi_geom,
                 scale=100,
                 maxPixels=1e8,
-            ).getInfo()
+            ).getInfo() or {}
 
             records.append({
                 'year': year,

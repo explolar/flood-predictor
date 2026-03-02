@@ -50,12 +50,12 @@ def get_turbidity_map(aoi_json, start_date, end_date):
     ndti_stats = ndti.reduceRegion(
         reducer=ee.Reducer.mean().combine(ee.Reducer.minMax(), '', True),
         geometry=aoi_geom, scale=20, maxPixels=1e9
-    ).getInfo()
+    ).getInfo() or {}
 
     chl_stats = chl_a.reduceRegion(
         reducer=ee.Reducer.mean(),
         geometry=aoi_geom, scale=20, maxPixels=1e9
-    ).getInfo()
+    ).getInfo() or {}
 
     # Tile URLs
     ndti_tile = ndti.getMapId({

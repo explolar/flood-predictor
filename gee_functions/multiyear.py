@@ -27,63 +27,68 @@ def get_multiyear_flood_comparison(aoi_json, years=None, polarization='VH',
     results = []
     tile_urls = {}
 
+    s1 = (ee.ImageCollection('COPERNICUS/S1_GRD')
+          .filterBounds(aoi_geom)
+          .filter(ee.Filter.listContains('transmitterReceiverPolarisation', polarization))
+          .select(polarization))
+
+    dem = ee.Image('USGS/SRTMGL1_003').select('elevation').clip(aoi_geom)
+    slope_mask = ee.Terrain.slope(dem).lt(8)
+
     for year in years:
-        # Monsoon window: Aug 1 - Sep 30
-        f_start = f'{year}-08-01'
-        f_end = f'{year}-09-30'
-        # Pre-flood: May 1 - May 31
-        p_start = f'{year}-05-01'
-        p_end = f'{year}-05-31'
+        try:
+            f_start = f'{year}-08-01'
+            f_end = f'{year}-09-30'
+            p_start = f'{year}-05-01'
+            p_end = f'{year}-05-31'
 
-        s1 = (ee.ImageCollection('COPERNICUS/S1_GRD')
-              .filterBounds(aoi_geom)
-              .filter(ee.Filter.listContains('transmitterReceiverPolarisation', polarization))
-              .select(polarization))
+            pre_col = s1.filterDate(p_start, p_end)
+            post_col = s1.filterDate(f_start, f_end)
 
-        pre_col = s1.filterDate(p_start, p_end)
-        post_col = s1.filterDate(f_start, f_end)
+            # Single combined getInfo to check both counts
+            counts = ee.Dictionary({
+                'pre': pre_col.size(), 'post': post_col.size()
+            }).getInfo() or {}
 
-        pre_count = pre_col.size().getInfo()
-        post_count = post_col.size().getInfo()
+            pre_count = counts.get('pre', 0) or 0
+            post_count = counts.get('post', 0) or 0
 
-        if pre_count == 0 or post_count == 0:
-            results.append({'year': year, 'flood_area_ha': None, 'pre_scenes': pre_count, 'post_scenes': post_count})
-            continue
+            if pre_count == 0 or post_count == 0:
+                results.append({'year': year, 'flood_area_ha': None,
+                                'pre_scenes': pre_count, 'post_scenes': post_count})
+                continue
 
-        pre = pre_col.median().clip(aoi_geom)
-        post = post_col.median().clip(aoi_geom)
+            pre = pre_col.median().clip(aoi_geom)
+            post = post_col.median().clip(aoi_geom)
 
-        if speckle:
-            pre = pre.focal_mean(radius=1, kernelType='square', units='pixels')
-            post = post.focal_mean(radius=1, kernelType='square', units='pixels')
+            if speckle:
+                pre = pre.focal_mean(radius=1, kernelType='square', units='pixels')
+                post = post.focal_mean(radius=1, kernelType='square', units='pixels')
 
-        diff = pre.subtract(post)
-        dem = ee.Image('USGS/SRTMGL1_003').select('elevation').clip(aoi_geom)
-        slope = ee.Terrain.slope(dem)
-        slope_mask = slope.lt(8)
+            flood = pre.subtract(post).gt(threshold).And(slope_mask).selfMask()
 
-        flood = diff.gt(threshold).And(slope_mask).selfMask()
+            # Area + tile in one pass
+            flood_area = flood.multiply(ee.Image.pixelArea()).reduceRegion(
+                reducer=ee.Reducer.sum(),
+                geometry=aoi_geom, scale=100, maxPixels=1e9
+            ).getInfo()
 
-        # Area calculation
-        flood_area = flood.multiply(ee.Image.pixelArea()).reduceRegion(
-            reducer=ee.Reducer.sum(),
-            geometry=aoi_geom, scale=30, maxPixels=1e9
-        ).getInfo()
+            vals = list(flood_area.values()) if flood_area else []
+            area_val = vals[0] if vals and vals[0] else 0
+            area_ha = round(area_val / 10000, 1)
 
-        area_ha = round(list(flood_area.values())[0] / 10000, 1) if flood_area and list(flood_area.values())[0] else 0
+            tile_url = flood.getMapId({
+                'palette': ['FF6B6B']
+            })['tile_fetcher'].url_format
 
-        # Tile URL
-        tile_url = flood.getMapId({
-            'palette': ['FF6B6B']
-        })['tile_fetcher'].url_format
-
-        tile_urls[year] = tile_url
-        results.append({
-            'year': year,
-            'flood_area_ha': area_ha,
-            'pre_scenes': pre_count,
-            'post_scenes': post_count,
-        })
+            tile_urls[year] = tile_url
+            results.append({
+                'year': year, 'flood_area_ha': area_ha,
+                'pre_scenes': pre_count, 'post_scenes': post_count,
+            })
+        except Exception:
+            results.append({'year': year, 'flood_area_ha': None,
+                            'pre_scenes': 0, 'post_scenes': 0})
 
     df = pd.DataFrame(results)
 

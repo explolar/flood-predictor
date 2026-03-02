@@ -24,13 +24,17 @@ def get_crop_loss_data(aoi_json, p_start, p_end, f_start, f_end, crop_price_per_
         damaged   = ndvi_diff.gt(ndvi_threshold).And(crop_mask)
 
         px_area = ee.Image.pixelArea()
-        total_crop_ha = (crop_mask.multiply(px_area).reduceRegion(
+        _crop_info = crop_mask.multiply(px_area).reduceRegion(
             reducer=ee.Reducer.sum(), geometry=aoi_geom, scale=10, maxPixels=1e10
-        ).get('Map').getInfo() or 0) / 10000
+        ).getInfo() or {}
+        total_crop_ha = (list(_crop_info.values())[0] if _crop_info else 0) or 0
+        total_crop_ha = total_crop_ha / 10000
 
-        damaged_ha = (damaged.multiply(px_area).reduceRegion(
+        _dmg_info = damaged.multiply(px_area).reduceRegion(
             reducer=ee.Reducer.sum(), geometry=aoi_geom, scale=10, maxPixels=1e10
-        ).get('nd').getInfo() or 0) / 10000
+        ).getInfo() or {}
+        damaged_ha = (list(_dmg_info.values())[0] if _dmg_info else 0) or 0
+        damaged_ha = damaged_ha / 10000
 
         loss = damaged_ha * crop_price_per_ha
         pct  = round(100 * damaged_ha / total_crop_ha, 1) if total_crop_ha > 0 else 0

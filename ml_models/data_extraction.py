@@ -86,7 +86,7 @@ def extract_risk_training_samples(aoi_json, n_points=5000, scale=100):
 
 def extract_sar_training_samples(aoi_json, f_start, f_end, p_start, p_end,
                                   threshold, polarization, speckle,
-                                  n_points=8000, scale=30):
+                                  n_points=4000, scale=30):
     """
     Sample pixels with SAR + terrain features and threshold-based flood labels
     for training the Gradient Boosting SAR classifier.
@@ -149,8 +149,16 @@ def extract_sar_training_samples(aoi_json, f_start, f_end, p_start, p_end,
     return _features_from_info(sample_info, feature_names, label_name='flood_label')
 
 
-def dataframe_to_ee_fc(df, value_col, lat_col='latitude', lon_col='longitude'):
-    """Convert a DataFrame with lat/lon + prediction column to an ee.FeatureCollection."""
+def dataframe_to_ee_fc(df, value_col, lat_col='latitude', lon_col='longitude',
+                       max_features=4500):
+    """Convert a DataFrame with lat/lon + prediction column to an ee.FeatureCollection.
+
+    GEE client-side FeatureCollections are limited to ~5000 elements.
+    If the DataFrame exceeds max_features, it is subsampled.
+    """
+    if len(df) > max_features:
+        df = df.sample(n=max_features, random_state=42)
+
     features = []
     for _, row in df.iterrows():
         geom = ee.Geometry.Point([row[lon_col], row[lat_col]])

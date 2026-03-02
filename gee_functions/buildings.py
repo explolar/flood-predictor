@@ -85,9 +85,9 @@ def get_building_damage(aoi_json, f_start, f_end, p_start, p_end,
     stats = damage_img.reduceRegion(
         reducer=ee.Reducer.frequencyHistogram(),
         geometry=aoi_geom, scale=10, maxPixels=1e9
-    ).getInfo()
+    ).getInfo() or {}
 
-    hist = stats.get('constant', {})
+    hist = stats.get('constant', {}) or {}
     damage_counts = {
         'minor': int(hist.get('1', 0)),
         'moderate': int(hist.get('2', 0)),
