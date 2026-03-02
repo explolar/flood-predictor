@@ -11,7 +11,7 @@
 
 > **Live app →** https://flood-predictor-518484395506.asia-south1.run.app
 
-A satellite-powered flood risk assessment dashboard built with **Google Earth Engine**, **Sentinel-1 SAR**, and **Streamlit**. Designed for rapid geospatial flood inundation mapping and multi-hazard risk analysis at 30 m resolution using freely available Earth observation data.
+A satellite-powered flood risk assessment dashboard built with **Google Earth Engine**, **Sentinel-1 SAR**, **scikit-learn**, **Prophet**, and **Streamlit**. Combines real-time satellite imagery with machine learning for flood inundation mapping, risk prediction, rainfall forecasting, and multi-hazard analysis at 30 m resolution using freely available Earth observation data.
 
 ---
 
@@ -19,26 +19,32 @@ A satellite-powered flood risk assessment dashboard built with **Google Earth En
 
 1. [Overview](#overview)
 2. [Technical Architecture](#technical-architecture)
-3. [Analytical Methodology](#analytical-methodology)
-4. [Data Sources](#data-sources)
-5. [Features](#features)
-6. [Installation](#installation)
-7. [Configuration](#configuration)
-8. [Docker / Cloud Run Deployment](#docker--cloud-run-deployment)
-9. [Usage](#usage)
-10. [Caching Strategy](#caching-strategy)
-11. [Dependencies](#dependencies)
-12. [Author](#author)
-13. [License](#license)
+3. [Project Structure](#project-structure)
+4. [Analytical Methodology](#analytical-methodology)
+5. [ML Models](#ml-models)
+6. [Data Sources](#data-sources)
+7. [Features](#features)
+8. [Installation](#installation)
+9. [Model Training](#model-training)
+10. [Configuration](#configuration)
+11. [Docker / Cloud Run Deployment](#docker--cloud-run-deployment)
+12. [Usage](#usage)
+13. [Caching Strategy](#caching-strategy)
+14. [Dependencies](#dependencies)
+15. [Author](#author)
+16. [License](#license)
 
 ---
 
 ## Overview
 
-HydroRisk Atlas is a multi-module geospatial flood intelligence platform. Its core analytical pipeline covers:
+HydroRisk Atlas is a multi-module geospatial flood intelligence platform that combines rule-based geospatial analysis with three machine learning models. Its core analytical pipeline covers:
 
 - **Phase 1 — MCA Susceptibility:** Weighted multi-criteria analysis of land cover, terrain slope, and historical rainfall to produce a static flood susceptibility index.
 - **Phase 2 — SAR Inundation:** Sentinel-1 SAR change-detection between a dry-season reference window and a user-defined post-event window to map active inundation extent with a 6-layer quality filter chain.
+- **ML Model 1 — Flood Risk Prediction (Random Forest):** Trained classifier predicting 5-class flood risk from terrain, climate, land cover, and historical water features — replacing/augmenting the rule-based MCA.
+- **ML Model 2 — Rainfall Forecasting (Prophet):** Per-AOI time-series model forecasting 7–30 days of rainfall from CHIRPS historical data, with flood probability estimation via Gumbel return period cross-referencing.
+- **ML Model 3 — SAR Flood Classification (Gradient Boosting):** Pixel-wise ML classifier using SAR backscatter, terrain, and JRC features to detect floods — an alternative to the threshold-based change detection.
 - **Flood Depth Estimation:** Per-pixel water depth derived from SRTM DEM and a water-surface elevation proxy (95th-percentile elevation of flooded pixels).
 - **Crop Loss Assessment:** ESA WorldCover cropland mask × NDVI drop (Sentinel-2) with configurable price-per-hectare monetary valuation.
 - **Flood Return Period:** Gumbel Type-I distribution fitted to 24 years of CHIRPS monsoon rainfall.
@@ -47,7 +53,7 @@ HydroRisk Atlas is a multi-module geospatial flood intelligence platform. Its co
 - **Infrastructure & Road Risk:** OSM amenity points (hospitals, schools, police, fire) and road network with automated evacuation-route flagging.
 - **Dam / Reservoir Context:** GRanD v1.3 dams within 150 km of the AOI.
 
-All computation runs server-side on GEE; no raster data is downloaded to the client. Tile URLs returned by `getMapId()` are served directly from Google's tile infrastructure to the Folium map in the browser.
+GEE computation runs server-side; tile URLs returned by `getMapId()` are served directly from Google's tile infrastructure. ML models use a GEE→Python→GEE round-trip: features are sampled via GEE, predictions run locally in scikit-learn/Prophet, and results are reconstructed as `ee.Image` via `reduceToImage()` for map rendering.
 
 ---
 
@@ -56,17 +62,21 @@ All computation runs server-side on GEE; no raster data is downloaded to the cli
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                        Streamlit Frontend                       │
-│  Sidebar controls  →  Session state  →  4-tab render engine    │
-└────────────────────┬────────────────────────────────────────────┘
-                     │ @st.cache_data (TTL 3600 s)
-                     ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                   GEE Python Client Library                     │
-│   ee.ImageCollection  ·  ee.Image  ·  ee.FeatureCollection     │
-│   ee.Reducer  ·  ee.Geometry  ·  ee.Algorithms                 │
-└────────────────────┬────────────────────────────────────────────┘
-                     │ getMapId() → tile URL strings
-                     ▼
+│  Sidebar controls  →  Session state  →  5-tab render engine    │
+└────────────────────┬──────────────────────┬─────────────────────┘
+                     │                      │
+    @st.cache_data   │                      │  Tab 5: ML Intelligence
+    (TTL 3600 s)     │                      │
+                     ▼                      ▼
+┌────────────────────────────┐  ┌────────────────────────────────┐
+│   GEE Python Client        │  │   ML Models (Python)           │
+│   ee.ImageCollection       │  │   Random Forest (scikit-learn) │
+│   ee.Image · ee.Reducer    │──│   Prophet (time-series)        │
+│   ee.Geometry              │  │   Gradient Boosting (sklearn)  │
+└────────────────────┬───────┘  └────────────┬───────────────────┘
+                     │                       │
+                     │ getMapId() → tiles    │ reduceToImage() → tiles
+                     ▼                       ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │                  Folium / Leaflet.js Maps                       │
 │  TileLayer  ·  GeoJson  ·  DualMap  ·  L.control legends       │
@@ -80,6 +90,53 @@ All computation runs server-side on GEE; no raster data is downloaded to the cli
 - EE initialization is wrapped in `@st.cache_resource` to create a singleton authenticated session shared across all users.
 - Folium legends are injected as Leaflet `L.control` objects via JavaScript (not raw HTML divs), ensuring they persist inside the map container during fullscreen mode.
 - The AOI geometry is serialized to a JSON string (`json.dumps(aoi.getInfo())`) to serve as a hashable cache key, then deserialized with `json.loads()` inside cached functions before passing to `ee.Geometry()`.
+- **ML round-trip pattern:** GEE samples features via `stratifiedSample()` with `geometries=True`, Python runs `.predict()`, results are converted back to `ee.FeatureCollection` → `reduceToImage()` → `getMapId()` for tile rendering.
+
+---
+
+## Project Structure
+
+```
+flood-predictor/
+├── app.py                            # Streamlit entrypoint — sidebar, 5 tabs, rendering
+├── requirements.txt                  # Python dependencies
+├── Dockerfile                        # Container build for Cloud Run
+├── LICENSE                           # MIT License
+├── README.md
+│
+├── gee_functions/                    # Google Earth Engine computation modules
+│   ├── __init__.py
+│   ├── core.py                       # EE initialization, AOI terrain stats
+│   ├── mca.py                        # Multi-Criteria Analysis (weighted LULC + Slope + Rain)
+│   ├── sar.py                        # SAR flood detection, depth, recession, monthly tiles
+│   ├── chirps.py                     # CHIRPS rainfall series, Gumbel return periods
+│   ├── layers.py                     # NDVI, JRC frequency, Sentinel-2 RGB tiles
+│   ├── infrastructure.py             # OSM infrastructure, roads, GRanD dams
+│   ├── crop.py                       # NDVI-based crop loss assessment
+│   └── watershed.py                  # HydroSHEDS watershed boundaries
+│
+├── ui_components/                    # Frontend utilities
+│   ├── __init__.py
+│   ├── styles.py                     # CSS injection (cyberpunk theme)
+│   ├── constants.py                  # SAR/DIFF/SEV/DEPTH viz palettes, crop prices
+│   ├── legends.py                    # Leaflet L.control legend generators
+│   └── reports.py                    # Plain-text and PDF report generation
+│
+├── ml_models/                        # Machine learning models
+│   ├── __init__.py
+│   ├── data_extraction.py            # GEE pixel sampling for training data
+│   ├── flood_risk_model.py           # Model 1: Random Forest (5-class flood risk)
+│   ├── rainfall_forecast.py          # Model 2: Prophet (rainfall forecast + flood prob.)
+│   └── sar_classifier.py             # Model 3: Gradient Boosting (SAR flood classification)
+│
+├── training/                         # Offline model training scripts
+│   ├── train_flood_risk.py           # Extract GEE data → train RF → save .joblib
+│   └── train_sar_classifier.py       # Extract SAR features → train GB → save .joblib
+│
+└── models/                           # Serialized trained model files
+    ├── flood_risk_rf.joblib           # Pre-trained Random Forest (created by training script)
+    └── sar_classifier_gb.joblib       # Pre-trained Gradient Boosting (created by training script)
+```
 
 ---
 
@@ -252,6 +309,66 @@ Inundated area (ha) is computed at each snapshot using `ee.Image.pixelArea()`, g
 
 ---
 
+## ML Models
+
+### Model 1 — Flood Risk Prediction (Random Forest)
+
+Replaces/augments the rule-based MCA with a trained `RandomForestClassifier` that learns non-linear feature interactions from GEE-extracted terrain, climate, and historical water data.
+
+**Features (6):** `elevation` (SRTM), `slope`, `annual_rainfall` (CHIRPS 2023), `lulc_class` (ESA WorldCover), `jrc_occurrence`, `jrc_max_extent`
+
+**Target:** JRC water occurrence reclassified to 5 risk classes:
+
+| JRC Occurrence | Risk Class |
+|:--------------:|:----------:|
+| 0 – 5 %       | 1 (Very Low) |
+| 5 – 20 %      | 2 (Low) |
+| 20 – 40 %     | 3 (Moderate) |
+| 40 – 70 %     | 4 (High) |
+| 70 – 100 %    | 5 (Very High) |
+
+**Hyperparameters:** `n_estimators=200`, `max_depth=15`, `min_samples_leaf=10`, `class_weight='balanced'`, `oob_score=True`
+
+**Training regions:** Patna (Bihar), Kolkata (WB), Chennai (TN), Guwahati (Assam), Kochi (Kerala) — ~5000 stratified samples per region.
+
+**Inference:** GEE samples features from the user's AOI → Python RF `.predict()` → results reconstructed as `ee.Image` via `reduceToImage()` → rendered as map tiles.
+
+---
+
+### Model 2 — Rainfall Forecasting (Prophet)
+
+Fits per-AOI at runtime using CHIRPS historical daily rainfall (no pre-trained model file needed). Forecasts 7–30 days ahead and estimates flood probability by cross-referencing with Gumbel return periods.
+
+**Pipeline:**
+1. CHIRPS daily rainfall time series from `get_chirps_series()` → Prophet format (`ds`, `y`)
+2. Prophet with `yearly_seasonality=True` + custom monsoon seasonality (`period=365.25`, `fourier_order=8`)
+3. Forecast with 90% confidence interval, negative values clipped to 0
+4. Daily forecast rate scaled to equivalent monsoon season total → compared against Gumbel return period thresholds
+
+**Output:** Forecast DataFrame, cumulative rainfall (mm), daily peak (mm), uncertainty range, flood probability level (LOW → EXTREME).
+
+**Fit time:** 3–10 seconds per AOI (no GPU required).
+
+---
+
+### Model 3 — SAR Flood Classification (Gradient Boosting)
+
+Replaces threshold-based SAR change detection with a pixel-wise `GradientBoostingClassifier` using multiple SAR, terrain, and historical water features.
+
+**Features (8):** `pre_sar`, `post_sar`, `sar_diff` (pre − post), `sar_ratio` (pre / post), `elevation`, `slope`, `jrc_occ`, `jrc_season`
+
+**Target:** Binary flood/non-flood labels derived from the threshold-based flood mask (self-supervised — the existing heuristic method provides training labels).
+
+**Hyperparameters:** `n_estimators=200`, `max_depth=6`, `learning_rate=0.1`, `subsample=0.8`
+
+**Training events:** Patna Bihar 2024 monsoon, Assam 2024 monsoon, Kerala 2024 monsoon — ~5000 stratified samples per event.
+
+**Output modes:**
+- Binary flood mask (classification)
+- Flood probability heatmap (`.predict_proba()` continuous 0–1)
+
+---
+
 ## Data Sources
 
 | Dataset | GEE Asset ID | Resolution | Use |
@@ -304,6 +421,12 @@ Inundated area (ha) is computed at each snapshot using `ee.Image.pixelArea()`, g
 - Dry-season reference: Jan–Mar of the selected year
 - Season-total and peak-month statistics
 
+### Tab 5 — ML Intelligence
+- **Flood Risk Prediction (Random Forest):** ML-predicted 5-class risk map, feature importance bar chart, OOB score, comparison with rule-based MCA
+- **Rainfall Forecast (Prophet):** Adjustable forecast horizon (7–30 days), historical + forecast line chart with 90% confidence band, cumulative/peak metrics, flood probability cross-referenced with Gumbel return periods
+- **SAR Flood Classification (Gradient Boosting):** ML-classified flood mask, toggle between binary mask and probability heatmap, feature importance chart, area comparison with threshold-based method
+- **Model Diagnostics:** Model versions, file sizes, training region details, retrain instructions
+
 ### Sidebar
 - Place name geocoding (Nominatim) → auto-fill AOI bounding box
 - Bounding box inputs or GeoJSON file upload
@@ -337,12 +460,30 @@ A browser window will open for OAuth2 sign-in. Once complete, credentials are st
 
 ---
 
+## Model Training
+
+Pre-trained model files (`.joblib`) are stored in the `models/` directory. If you need to retrain:
+
+```bash
+# Train the Random Forest flood risk model (~5 min, requires GEE auth)
+python training/train_flood_risk.py
+
+# Train the Gradient Boosting SAR classifier (~10 min, requires GEE auth)
+python training/train_sar_classifier.py
+```
+
+Both scripts extract training samples from multiple Indian flood-prone regions via GEE, train the classifier, and save to `models/`. The Prophet rainfall model does not require pre-training — it fits per-AOI at runtime.
+
+If no pre-trained `.joblib` files are present, the models will train on-the-fly using data from the user's selected AOI (slower first run, but no manual training step needed).
+
+---
+
 ## Configuration
 
-Open `app.py` and set your GEE Cloud Project ID on line:
+Open `gee_functions/core.py` and set your GEE Cloud Project ID:
 
 ```python
-project_id = 'your-gee-project-id'
+project_id = 'your-gee-project-id'  # in gee_functions/core.py
 ```
 
 The project must have the **Earth Engine API** enabled in Google Cloud Console. On Compute Engine or Cloud Run the app will automatically use `ComputeEngineCredentials`; locally it uses the credentials written by `earthengine authenticate`.
@@ -351,7 +492,7 @@ The project must have the **Earth Engine API** enabled in Google Cloud Console. 
 
 ## Docker / Cloud Run Deployment
 
-A `Dockerfile` is included for containerised deployment (e.g. Google Cloud Run):
+A `Dockerfile` is included for containerised deployment (e.g. Google Cloud Run). It installs `build-essential` (required for Prophet C compilation) and copies all module packages + pre-trained models:
 
 ```bash
 # Build image
@@ -382,7 +523,8 @@ Open `http://localhost:8501`.
 3. Set pre-flood and post-flood date windows for SAR analysis.
 4. Choose VH or VV polarization and set the backscatter change threshold.
 5. Switch between tabs to explore susceptibility, inundation, dual-view comparison, and monthly progression.
-6. Download the technical report or PDF from the sidebar.
+6. Open **Tab 5 — ML Intelligence** to run ML models: flood risk prediction, rainfall forecasting, and SAR flood classification.
+7. Download the technical report or PDF from the sidebar.
 
 ---
 
@@ -418,32 +560,23 @@ The AOI geometry is serialized to a JSON string for cache keying (`json.dumps(ao
 Core (listed in `requirements.txt`):
 
 ```
-streamlit
-earthengine-api
-folium
-streamlit-folium
+streamlit                     # web framework
+earthengine-api               # Google Earth Engine
+folium                        # interactive maps
+streamlit-folium              # Folium ↔ Streamlit bridge
+scikit-learn       >= 1.3     # Random Forest, Gradient Boosting
+joblib                        # model serialization
+prophet            >= 1.1     # time-series rainfall forecasting
+pandas                        # data manipulation
+numpy                         # numerical computation
 ```
 
 Optional extras used by the app (install manually if needed):
 
 ```
-pandas             >= 2.0    # data manipulation
 requests           >= 2.31   # Overpass API calls
 geopy              >= 2.4    # place name geocoding
 fpdf2              >= 2.7    # PDF report export
-```
-
----
-
-## Project Structure
-
-```
-flood-predictor/
-├── app.py            # Single-file Streamlit application (~1800 lines)
-├── requirements.txt  # Python dependencies
-├── Dockerfile        # Container build for Cloud Run deployment
-├── LICENSE           # MIT License
-└── README.md
 ```
 
 ---
