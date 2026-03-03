@@ -11,7 +11,7 @@
 
 > **Live app →** https://flood-predictor-518484395506.asia-south1.run.app
 
-A satellite-powered flood risk assessment platform built with **Google Earth Engine**, **Sentinel-1 SAR**, **scikit-learn**, **XGBoost**, **LightGBM**, and **Streamlit**. Combines real-time satellite imagery with an ensemble of ML classifiers for flood inundation mapping, risk prediction, anomaly detection, and multi-hazard analysis at 30 m resolution.
+A satellite-powered flood risk assessment platform built with **Google Earth Engine**, **Sentinel-1 SAR**, **Sentinel-2 SR**, **scikit-learn**, **XGBoost**, **LightGBM**, and **Streamlit**. Combines real-time satellite imagery with an ensemble of ML classifiers for flood inundation mapping, risk prediction, anomaly detection, and multi-hazard analysis at 10–30 m resolution.
 
 ---
 
@@ -36,7 +36,7 @@ A satellite-powered flood risk assessment platform built with **Google Earth Eng
 
 ## Overview
 
-HydroRisk Atlas is a modular geospatial flood intelligence platform that combines rule-based geospatial analysis with a suite of ML classifiers. The analytical pipeline covers:
+HydroRisk Atlas is a modular geospatial flood intelligence platform with 5 consolidated tabs (RISK, SAR, ML, CLIMATE, INDICES) that combines rule-based geospatial analysis with a suite of ML classifiers. The analytical pipeline covers:
 
 **Core Analysis**
 - **MCA Susceptibility** — Weighted multi-criteria analysis of land cover, terrain slope, and historical rainfall producing a static flood susceptibility index.
@@ -61,7 +61,7 @@ HydroRisk Atlas is a modular geospatial flood intelligence platform that combine
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                        Streamlit Frontend                       │
-│  Sidebar controls  →  Session state  →  8-tab render engine    │
+│  Sidebar controls  →  Session state  →  5-tab render engine    │
 └────────────────────┬──────────────────────┬─────────────────────┘
                      │                      │
     @st.cache_data   │                      │  Tab 5: ML Intelligence
@@ -89,6 +89,8 @@ HydroRisk Atlas is a modular geospatial flood intelligence platform that combine
 - Folium legends are injected as Leaflet `L.control` objects via JavaScript, persisting during fullscreen mode.
 - **ML round-trip:** GEE samples features via `stratifiedSample()` → Python `.predict()` → `ee.FeatureCollection` → `reduceToImage()` → `getMapId()` for tile rendering.
 - Modular tab architecture: each tab is a standalone module in `tabs/`, receiving `aoi_json` and a `params` dict from `app.py`.
+- **S2 scene cap:** Collections are capped at 40 least-cloudy scenes to keep GEE computation graphs under the 50 MB request-size limit.
+- **On-demand downloads:** GeoTIFF download URLs are generated per-index on click (not during batch computation) to avoid blocking the main pipeline.
 
 ---
 
@@ -96,21 +98,21 @@ HydroRisk Atlas is a modular geospatial flood intelligence platform that combine
 
 ```
 flood-predictor/
-├── app.py                            # Streamlit entrypoint — sidebar + 8-tab dispatch
+├── app.py                            # Streamlit entrypoint — sidebar + 5-tab dispatch
 ├── requirements.txt
 ├── Dockerfile                        # Dual-mode: MODE=api (FastAPI) or Streamlit
 ├── pyproject.toml                    # Ruff linting config
 ├── pytest.ini
 │
 ├── tabs/                             # Per-tab render modules
-│   ├── tab_mca.py                    # MCA susceptibility + Urban Vulnerability
-│   ├── tab_sar.py                    # SAR detection + Population + Buildings + Soil + Water Quality
-│   ├── tab_dual.py                   # Dual-view comparison + 3D Terrain (PyDeck)
-│   ├── tab_progression.py            # Flood progression + Timelapse animation
-│   ├── tab_ml.py                     # ML Intelligence (sub-tabs: Classifiers / Analytics / Tools)
-│   ├── tab_multiyear.py              # Multi-year flood comparison
-│   ├── tab_drought.py                # SPI + NDVI anomaly drought monitoring
-│   └── tab_indices.py                # Spectral indices download (NDVI, NDWI, MNDWI, NDBI, SAVI, EVI, BSI)
+│   ├── tab_mca.py                    # RISK — MCA susceptibility + Urban Vulnerability
+│   ├── tab_sar.py                    # SAR — Detection + Comparison + Progression (sub-tabs)
+│   ├── tab_dual.py                   # SAR sub-tab: Dual-view comparison + 3D Terrain (PyDeck)
+│   ├── tab_progression.py            # SAR sub-tab: Flood progression + Timelapse animation
+│   ├── tab_ml.py                     # ML — Classifiers / Analytics / Tools (sub-tabs)
+│   ├── tab_multiyear.py              # CLIMATE sub-tab: Multi-year flood comparison
+│   ├── tab_drought.py                # CLIMATE sub-tab: SPI + NDVI anomaly drought monitoring
+│   └── tab_indices.py                # INDICES — Spectral indices (NDVI, NDWI, MNDWI, NDBI, SAVI, EVI, BSI)
 │
 ├── gee_functions/                    # Google Earth Engine computation modules
 │   ├── core.py                       # EE init, AOI terrain stats
@@ -297,45 +299,31 @@ Bayesian hyperparameter optimization for GB and XGBoost with cross-validated F1 
 
 ## Features
 
-### Tab 1 — MCA Susceptibility
+### Tab 1 — RISK (MCA Susceptibility)
 - Weighted MCA (LULC + Slope + Rainfall) with interactive sliders
 - AOI terrain stats, JRC flood frequency, S2 true color, watershed overlay
 - Urban Flood Vulnerability Index (imperviousness + elevation + slope + population)
 - GeoTIFF download
 
-### Tab 2 — SAR Inundation
-- 8 selectable layers: Flood mask, severity, depth, pre/post SAR, change, NDVI damage, crop loss
-- Flood depth raster with histogram
-- Population displacement estimate (WorldPop demographics)
-- Building damage assessment (Google Open Buildings × flood depth)
-- Soil moisture integration (NASA SMAP)
-- Water quality (Sentinel-2 turbidity / chlorophyll-a)
-- Flood recession curve, infrastructure overlay, road risk, dam context
+### Tab 2 — SAR (sub-tabs: Detection | Comparison | Progression)
+- **Detection** — 8 selectable layers: Flood mask, severity, depth, pre/post SAR, change, NDVI damage, crop loss; flood depth raster with histogram; population displacement (WorldPop); building damage (Google Open Buildings); soil moisture (SMAP); water quality (S2 turbidity/chlorophyll-a); recession curve, infrastructure overlay, road risk, dam context
+- **Comparison** — Synchronized side-by-side pre/post SAR maps (DualMap); Sentinel-2 true-color pre/post comparison; 3D terrain flood visualization (PyDeck)
+- **Progression** — Monthly SAR flood extent (Jun–Oct) with CHIRPS rainfall chart; timelapse animation with play/pause controls
 
-### Tab 3 — Dual-View
-- Synchronized side-by-side pre/post SAR maps
-- 3D terrain flood visualization (PyDeck)
-
-### Tab 4 — Progression
-- Monthly SAR flood extent (Jun–Oct) with rainfall chart
-- Timelapse animation with play/pause controls
-
-### Tab 5 — ML Intelligence
+### Tab 3 — ML Intelligence (sub-tabs: Classifiers | Analytics | Tools)
 - **Classifiers** — Random Forest risk, SAR multi-model (GB/XGB/LGBM/Ensemble)
 - **Analytics** — SHAP explainability, Isolation Forest anomaly detection
 - **Tools** — Optuna hyperparameter tuning, model diagnostics
 
-### Tab 6 — Multi-Year Comparison
-- Side-by-side flood maps across years, comparative bar chart, trend analysis
+### Tab 4 — CLIMATE (sub-tabs: Multi-Year | Drought)
+- **Multi-Year** — Side-by-side flood maps across years, comparative bar chart, trend analysis
+- **Drought** — Standardized Precipitation Index (SPI), MODIS NDVI anomaly vs 20-year climatology
 
-### Tab 7 — Drought Monitoring
-- Standardized Precipitation Index (SPI), MODIS NDVI anomaly vs 20-year climatology
-
-### Tab 8 — Spectral Indices Download
+### Tab 5 — INDICES (Spectral Indices Download)
 - 7 indices from Sentinel-2 SR at 10 m: **NDVI**, **NDWI**, **MNDWI**, **NDBI**, **SAVI**, **EVI**, **BSI**
 - Classified maps with per-index thresholds and color ramps
 - Interactive folium map with index tile overlay and dynamic legend
-- GeoTIFF download for each index
+- GeoTIFF download (30 m) for each index
 - Cartographic PDF export with north arrow, coordinate labels, classified legend, statistics, and methodology
 - Info/methodology panel with classification basis and threshold table for each index
 
