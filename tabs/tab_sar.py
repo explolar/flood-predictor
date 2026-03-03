@@ -1,4 +1,4 @@
-"""Tab 2: SAR Inundation Detection."""
+"""Tab 2: SAR Inundation Detection — with Comparison & Progression sub-tabs."""
 
 import json
 import streamlit as st
@@ -13,10 +13,25 @@ from gee_functions.layers import get_ndvi_tile, get_jrc_flood_history
 from gee_functions.infrastructure import get_osm_infrastructure, get_osm_roads, get_dam_data
 from gee_functions.crop import get_crop_loss_data
 from ui_components.legends import get_sar_legend
+from tabs.tab_dual import render_dual_tab
+from tabs.tab_progression import render_progression_tab
 
 
 def render_sar_tab(aoi_json, params):
-    """Render the SAR inundation tab."""
+    """Render the SAR tab with Detection / Comparison / Progression sub-tabs."""
+    sar_sub1, sar_sub2, sar_sub3 = st.tabs([
+        "  DETECTION  ", "  COMPARISON  ", "  PROGRESSION  "
+    ])
+    with sar_sub1:
+        _render_detection(aoi_json, params)
+    with sar_sub2:
+        render_dual_tab(aoi_json, params)
+    with sar_sub3:
+        render_progression_tab(aoi_json, params)
+
+
+def _render_detection(aoi_json, params):
+    """Render the SAR detection sub-tab."""
     f_start = params['f_start']
     f_end = params['f_end']
     p_start = params['p_start']
@@ -114,7 +129,7 @@ def render_sar_tab(aoi_json, params):
             dm4.metric("Depth Scale", "0 – 4 m")
             if depth_data.get('histogram'):
                 hist = depth_data['histogram']
-                st.markdown('<div style="font-family:JetBrains Mono,monospace;font-size:0.65rem;color:rgba(0,255,255,0.4);letter-spacing:2px;margin:10px 0 4px;">FLOOD DEPTH DISTRIBUTION · PIXEL COUNT PER DEPTH BAND</div>', unsafe_allow_html=True)
+                st.markdown('<div style="font-family:JetBrains Mono,monospace;font-size:0.65rem;color:rgba(144,202,249,0.4);letter-spacing:2px;margin:10px 0 4px;">FLOOD DEPTH DISTRIBUTION · PIXEL COUNT PER DEPTH BAND</div>', unsafe_allow_html=True)
                 hist_df = pd.DataFrame({'Depth Band (m)': list(hist.keys()), 'Pixels': list(hist.values())}).set_index('Depth Band (m)')
                 st.bar_chart(hist_df, color="#fd8d3c", height=180)
 
@@ -122,7 +137,7 @@ def render_sar_tab(aoi_json, params):
         with st.spinner("Fetching CHIRPS daily rainfall..."):
             rain_df = get_chirps_series(aoi_json, str(p_start), str(f_end))
         if rain_df is not None and not rain_df.empty:
-            st.markdown('<div style="font-family:JetBrains Mono,monospace;font-size:0.72rem;color:rgba(0,255,255,0.5);letter-spacing:2px;margin-bottom:8px;">MEAN DAILY RAINFALL (mm) · AOI AVERAGE</div>', unsafe_allow_html=True)
+            st.markdown('<div style="font-family:JetBrains Mono,monospace;font-size:0.72rem;color:rgba(144,202,249,0.5);letter-spacing:2px;margin-bottom:8px;">MEAN DAILY RAINFALL (mm) · AOI AVERAGE</div>', unsafe_allow_html=True)
             st.area_chart(rain_df, color="#00FFFF", height=200)
             col_r1, col_r2, col_r3 = st.columns(3)
             col_r1.metric("Total Rainfall", f"{rain_df['rainfall_mm'].sum():.1f} mm")
@@ -140,7 +155,7 @@ def render_sar_tab(aoi_json, params):
             col_rp1.metric("Mean Monsoon Rain", f"{rp_data['mean']:.0f} mm")
             col_rp2.metric("Std Deviation", f"± {rp_data['std']:.0f} mm")
             col_rp3.metric("Max Observed", f"{rp_data['max_obs']:.0f} mm")
-            st.markdown('<div style="font-family:JetBrains Mono,monospace;font-size:0.65rem;color:rgba(0,255,255,0.4);letter-spacing:2px;margin:12px 0 6px;">RETURN PERIOD TABLE · MONSOON TOTAL (Jun–Oct)</div>', unsafe_allow_html=True)
+            st.markdown('<div style="font-family:JetBrains Mono,monospace;font-size:0.65rem;color:rgba(144,202,249,0.4);letter-spacing:2px;margin:12px 0 6px;">RETURN PERIOD TABLE · MONSOON TOTAL (Jun–Oct)</div>', unsafe_allow_html=True)
             max_rp = max(rp_data['return_periods'].values())
             rows_html = ''
             for T, val in rp_data['return_periods'].items():
@@ -160,7 +175,7 @@ def render_sar_tab(aoi_json, params):
             cl2.metric("Damaged Area", f"{crop_data['damaged_ha']:,.0f} ha")
             cl3.metric("Damage %", f"{crop_data['damage_pct']:.1f} %")
             cl4.metric("Est. Crop Loss", f"₹ {crop_data['loss_estimate']:,}")
-            st.markdown('<div style="font-family:JetBrains Mono,monospace;font-size:0.65rem;color:rgba(0,255,255,0.4);letter-spacing:2px;margin:10px 0 4px;">NDVI DAMAGE ON CROPLAND · GREEN = HEALTHY · RED = DAMAGED</div>', unsafe_allow_html=True)
+            st.markdown('<div style="font-family:JetBrains Mono,monospace;font-size:0.65rem;color:rgba(144,202,249,0.4);letter-spacing:2px;margin:10px 0 4px;">NDVI DAMAGE ON CROPLAND · GREEN = HEALTHY · RED = DAMAGED</div>', unsafe_allow_html=True)
             crop_map = folium.Map(location=map_center, zoom_start=11, tiles="CartoDB dark_matter")
             folium.TileLayer(tiles=crop_data['tile_url'], attr='GEE·S2·ESA', name='Crop NDVI Damage').add_to(crop_map)
             folium.GeoJson(json.loads(aoi_json), style_function=lambda _: {'fillColor': 'none', 'color': '#00FFFF', 'weight': 2, 'dashArray': '6 4'}).add_to(crop_map)

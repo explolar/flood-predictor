@@ -196,64 +196,6 @@ def _compute_index(s2, index_key):
         raise ValueError(f'Unknown index: {index_key}')
 
 
-@st.cache_data(show_spinner=False, ttl=3600)
-def get_index_tile(aoi_json, index_key, date_start, date_end, cloud_thresh=60):
-    """
-    Compute a spectral index and return tile URL, download URL, thumb URL, stats.
-
-    Returns dict or None on failure.
-    """
-    try:
-        aoi_geom = _make_geometry(aoi_json)
-        meta = INDEX_REGISTRY[index_key]
-
-        col, n_scenes, col_id = _build_s2_collection(
-            aoi_geom, date_start, date_end, cloud_thresh
-        )
-        if not col:
-            return None
-
-        def mask_clouds(img):
-            scl = img.select('SCL')
-            mask = scl.neq(3).And(scl.neq(8)).And(scl.neq(9)).And(scl.neq(10))
-            return img.updateMask(mask)
-
-        s2 = col.map(mask_clouds).median().clip(aoi_geom)
-        index_img = _compute_index(s2, index_key)
-
-        viz = {'min': meta['min'], 'max': meta['max'], 'palette': meta['palette']}
-
-        tile_url = index_img.getMapId(viz)['tile_fetcher'].url_format
-
-        download_url = index_img.getDownloadUrl({
-            'scale': 10, 'crs': 'EPSG:4326',
-            'format': 'GeoTIFF', 'region': aoi_geom,
-        })
-
-        thumb_url = index_img.getThumbUrl({
-            'min': meta['min'], 'max': meta['max'],
-            'palette': meta['palette'], 'dimensions': 512,
-            'region': aoi_geom, 'format': 'png',
-        })
-
-        stats = index_img.reduceRegion(
-            reducer=ee.Reducer.mean(),
-            geometry=aoi_geom, scale=30, maxPixels=1e9,
-        ).getInfo() or {}
-        mean_val = round(stats.get(index_key.lower(), 0) or 0, 4)
-
-        return {
-            'tile_url': tile_url,
-            'download_url': download_url,
-            'thumb_url': thumb_url,
-            'mean_value': mean_val,
-            'n_scenes': n_scenes,
-        }
-    except Exception as e:
-        logger.warning(f"get_index_tile({index_key}) failed: {e}")
-        return None
-
-
 def _make_geometry(aoi_json):
     """Safely reconstruct an ee.Geometry from serialized AOI JSON.
 
@@ -276,8 +218,13 @@ def _make_geometry(aoi_json):
 
 
 def _build_s2_collection(aoi_geom, date_start, date_end, cloud_thresh):
-    """Try S2_SR_HARMONIZED first, fall back to S2_SR if no scenes found."""
+    """Try S2_SR_HARMONIZED first, fall back to S2_SR if no scenes found.
+
+    Caps at 40 least-cloudy scenes to keep the GEE computation graph
+    under the 50 MB request-size limit.
+    """
     _BANDS = ['B2', 'B3', 'B4', 'B8', 'B11', 'SCL']
+    _MAX_SCENES = 40
 
     for collection_id in ['COPERNICUS/S2_SR_HARMONIZED', 'COPERNICUS/S2_SR']:
         base = (ee.ImageCollection(collection_id)
@@ -286,8 +233,12 @@ def _build_s2_collection(aoi_geom, date_start, date_end, cloud_thresh):
                 .filter(ee.Filter.lte('CLOUDY_PIXEL_PERCENTAGE', cloud_thresh)))
         n_scenes = base.size().getInfo()
         if n_scenes:
-            logger.info(f"{collection_id}: {n_scenes} scenes found")
-            return base.select(_BANDS), n_scenes, collection_id
+            if n_scenes > _MAX_SCENES:
+                base = base.sort('CLOUDY_PIXEL_PERCENTAGE').limit(_MAX_SCENES)
+                logger.info(f"{collection_id}: {n_scenes} scenes found, capped to {_MAX_SCENES} least-cloudy")
+            else:
+                logger.info(f"{collection_id}: {n_scenes} scenes found")
+            return base.select(_BANDS), min(n_scenes, _MAX_SCENES), collection_id
 
     return None, 0, None
 
@@ -329,27 +280,15 @@ def get_all_index_tiles(aoi_json, date_start, date_end, cloud_thresh=60):
 
             tile_url = index_img.getMapId(viz)['tile_fetcher'].url_format
 
-            download_url = index_img.getDownloadUrl({
-                'scale': 10, 'crs': 'EPSG:4326',
-                'format': 'GeoTIFF', 'region': aoi_geom,
-            })
-
-            thumb_url = index_img.getThumbUrl({
-                'min': meta['min'], 'max': meta['max'],
-                'palette': meta['palette'], 'dimensions': 512,
-                'region': aoi_geom, 'format': 'png',
-            })
-
             stats = index_img.reduceRegion(
                 reducer=ee.Reducer.mean(),
-                geometry=aoi_geom, scale=30, maxPixels=1e9,
+                geometry=aoi_geom, scale=100, maxPixels=1e9,
+                bestEffort=True,
             ).getInfo() or {}
             mean_val = round(stats.get(index_key.lower(), 0) or 0, 4)
 
             results[index_key] = {
                 'tile_url': tile_url,
-                'download_url': download_url,
-                'thumb_url': thumb_url,
                 'mean_value': mean_val,
                 'n_scenes': n_scenes,
             }
@@ -366,6 +305,31 @@ def get_all_index_tiles(aoi_json, date_start, date_end, cloud_thresh=60):
         )
 
     return results
+
+
+@st.cache_data(show_spinner=False, ttl=3600)
+def get_index_download_url(aoi_json, index_key, date_start, date_end, cloud_thresh=60):
+    """Generate GeoTIFF download URL for a single index on demand."""
+    try:
+        aoi_geom = _make_geometry(aoi_json)
+        col, _, _ = _build_s2_collection(aoi_geom, date_start, date_end, cloud_thresh)
+        if not col:
+            return None
+
+        def mask_clouds(img):
+            scl = img.select('SCL')
+            mask = scl.neq(3).And(scl.neq(8)).And(scl.neq(9)).And(scl.neq(10))
+            return img.updateMask(mask)
+
+        s2 = col.map(mask_clouds).median().clip(aoi_geom)
+        index_img = _compute_index(s2, index_key)
+        return index_img.getDownloadUrl({
+            'scale': 10, 'crs': 'EPSG:4326',
+            'format': 'GeoTIFF', 'region': aoi_geom,
+        })
+    except Exception as e:
+        logger.warning(f"get_index_download_url({index_key}) failed: {e}")
+        return None
 
 
 def diagnose_s2_access(aoi_json, date_start, date_end, cloud_thresh):

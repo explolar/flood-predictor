@@ -88,7 +88,7 @@ def render_mca_tab(aoi_json, params):
 
     # ── URBAN FLOOD VULNERABILITY ──────────────────
     with st.expander("URBAN FLOOD VULNERABILITY INDEX  [UFVI]", expanded=False):
-        st.markdown('<div style="font-family:JetBrains Mono,monospace;font-size:0.65rem;color:rgba(0,255,255,0.4);letter-spacing:2px;margin-bottom:8px;">IMPERVIOUSNESS · ELEVATION · SLOPE · POPULATION · DRAINAGE PROXY</div>', unsafe_allow_html=True)
+        st.markdown('<div style="font-family:JetBrains Mono,monospace;font-size:0.65rem;color:rgba(144,202,249,0.4);letter-spacing:2px;margin-bottom:8px;">IMPERVIOUSNESS · ELEVATION · SLOPE · POPULATION · DRAINAGE PROXY</div>', unsafe_allow_html=True)
         if st.button("COMPUTE UFVI", key="ufvi_btn", use_container_width=True):
             with st.spinner("Computing Urban Flood Vulnerability Index..."):
                 try:

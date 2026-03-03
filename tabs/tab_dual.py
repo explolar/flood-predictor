@@ -22,7 +22,7 @@ def render_dual_tab(aoi_json, params):
     aoi = params['aoi']
     map_center = params['map_center']
 
-    st.markdown('<div style="font-family:\'Rajdhani\',sans-serif;font-size:0.78rem;letter-spacing:2px;color:rgba(0,255,255,0.4);margin-bottom:8px;">SYNCHRONIZED PRE / POST SAR BACKSCATTER COMPARISON</div>', unsafe_allow_html=True)
+    st.markdown('<div style="font-family:\'Inter\',sans-serif;font-size:0.78rem;letter-spacing:2px;color:rgba(144,202,249,0.4);margin-bottom:8px;">SYNCHRONIZED PRE / POST SAR BACKSCATTER COMPARISON</div>', unsafe_allow_html=True)
     with st.spinner("Building dual-view SAR comparison..."):
         sar_d = get_all_sar_data(aoi_json, str(f_start), str(f_end), str(p_start), str(p_end), f_threshold, polarization, apply_speckle)
     if sar_d is None:
@@ -43,8 +43,8 @@ def render_dual_tab(aoi_json, params):
     d3c2.metric("Post-flood Period", f"{f_start} → {f_end}")
     d3c3.metric("Detected Flood", f"{sar_d['area_ha']} Ha")
 
-    st.markdown('<hr style="border-color:rgba(0,255,255,0.1);margin:28px 0 20px;">', unsafe_allow_html=True)
-    st.markdown('<div style="font-family:\'Rajdhani\',sans-serif;font-size:0.78rem;letter-spacing:2px;color:rgba(0,255,255,0.4);margin-bottom:8px;">SENTINEL-2 TRUE COLOR · PRE vs POST</div>', unsafe_allow_html=True)
+    st.markdown('<hr style="border-color:rgba(144,202,249,0.1);margin:28px 0 20px;">', unsafe_allow_html=True)
+    st.markdown('<div style="font-family:\'Inter\',sans-serif;font-size:0.78rem;letter-spacing:2px;color:rgba(144,202,249,0.4);margin-bottom:8px;">SENTINEL-2 TRUE COLOR · PRE vs POST</div>', unsafe_allow_html=True)
     with st.spinner("Loading Sentinel-2 true-color imagery..."):
         s2_rgb = get_s2_rgb_tiles(aoi_json, str(p_start), str(p_end), str(f_start), str(f_end))
     if s2_rgb:
@@ -63,7 +63,7 @@ def render_dual_tab(aoi_json, params):
 
     # ── 3D TERRAIN VISUALIZATION ───────────────────
     with st.expander("3D TERRAIN FLOOD VIEW  [PyDeck]", expanded=False):
-        st.markdown('<div style="font-family:JetBrains Mono,monospace;font-size:0.65rem;color:rgba(0,255,255,0.4);letter-spacing:2px;margin-bottom:8px;">SRTM DEM · PYDECK COLUMNLAYER · INTERACTIVE 3D</div>', unsafe_allow_html=True)
+        st.markdown('<div style="font-family:JetBrains Mono,monospace;font-size:0.65rem;color:rgba(144,202,249,0.4);letter-spacing:2px;margin-bottom:8px;">SRTM DEM · PYDECK COLUMNLAYER · INTERACTIVE 3D</div>', unsafe_allow_html=True)
         if st.button("RENDER 3D TERRAIN", key="deck3d_btn", use_container_width=True):
             with st.spinner("Extracting DEM grid from GEE & building 3D visualization..."):
                 try:

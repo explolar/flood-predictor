@@ -13,13 +13,13 @@ def render_drought_tab(aoi_json, params):
     aoi = params['aoi']
     map_center = params['map_center']
 
-    st.markdown('<div style="font-family:\'Rajdhani\',sans-serif;font-size:0.78rem;letter-spacing:2px;color:rgba(0,255,255,0.4);margin-bottom:8px;">DROUGHT MONITORING · SPI · NDVI ANOMALY</div>', unsafe_allow_html=True)
+    st.markdown('<div style="font-family:\'Inter\',sans-serif;font-size:0.78rem;letter-spacing:2px;color:rgba(144,202,249,0.4);margin-bottom:8px;">DROUGHT MONITORING · SPI · NDVI ANOMALY</div>', unsafe_allow_html=True)
 
     drought_year = st.selectbox("Target Year", list(range(2024, 2004, -1)), index=0, key="drought_year")
 
     # ── SPI INDEX ──────────────────────────────────
     with st.expander("STANDARDIZED PRECIPITATION INDEX (SPI)", expanded=True):
-        st.markdown('<div style="font-family:JetBrains Mono,monospace;font-size:0.65rem;color:rgba(0,255,255,0.4);letter-spacing:2px;margin-bottom:8px;">CHIRPS · 20-YEAR BASELINE · ANNUAL SPI</div>', unsafe_allow_html=True)
+        st.markdown('<div style="font-family:JetBrains Mono,monospace;font-size:0.65rem;color:rgba(144,202,249,0.4);letter-spacing:2px;margin-bottom:8px;">CHIRPS · 20-YEAR BASELINE · ANNUAL SPI</div>', unsafe_allow_html=True)
         if st.button("COMPUTE SPI", key="spi_btn", use_container_width=True):
             with st.spinner(f"Computing SPI for {drought_year}..."):
                 try:
@@ -30,7 +30,7 @@ def render_drought_tab(aoi_json, params):
                         sc1.metric("SPI Value", f"{spi['spi_value']:.2f}")
                         sc2.metric("Category", spi['category'])
                         sc3.metric("Baseline", f"{spi['baseline_years']} years")
-                        st.markdown(f'<div style="display:inline-flex;align-items:center;gap:8px;background:rgba(0,255,255,0.04);border:1px solid {spi_color};border-radius:8px;padding:8px 16px;margin:8px 0;"><div style="width:10px;height:10px;background:{spi_color};border-radius:50%;"></div><div style="font-family:\'Rajdhani\',sans-serif;font-size:0.9rem;font-weight:700;color:{spi_color};letter-spacing:2px;">{spi["category"].upper()}</div></div>', unsafe_allow_html=True)
+                        st.markdown(f'<div style="display:inline-flex;align-items:center;gap:8px;background:rgba(144,202,249,0.04);border:1px solid {spi_color};border-radius:8px;padding:8px 16px;margin:8px 0;"><div style="width:10px;height:10px;background:{spi_color};border-radius:50%;"></div><div style="font-family:\'Inter\',sans-serif;font-size:0.9rem;font-weight:700;color:{spi_color};letter-spacing:2px;">{spi["category"].upper()}</div></div>', unsafe_allow_html=True)
 
                         spi_map = folium.Map(location=map_center, zoom_start=11, tiles="CartoDB dark_matter")
                         folium.TileLayer(tiles=spi['tile_url'], attr='GEE·CHIRPS', name='SPI Index', opacity=0.8).add_to(spi_map)
@@ -46,7 +46,7 @@ def render_drought_tab(aoi_json, params):
 
     # ── NDVI ANOMALY ───────────────────────────────
     with st.expander("NDVI VEGETATION ANOMALY  [MODIS]", expanded=False):
-        st.markdown('<div style="font-family:JetBrains Mono,monospace;font-size:0.65rem;color:rgba(0,255,255,0.4);letter-spacing:2px;margin-bottom:8px;">MODIS MOD13A2 · 20-YEAR CLIMATOLOGY · VEGETATION HEALTH</div>', unsafe_allow_html=True)
+        st.markdown('<div style="font-family:JetBrains Mono,monospace;font-size:0.65rem;color:rgba(144,202,249,0.4);letter-spacing:2px;margin-bottom:8px;">MODIS MOD13A2 · 20-YEAR CLIMATOLOGY · VEGETATION HEALTH</div>', unsafe_allow_html=True)
         if st.button("COMPUTE NDVI ANOMALY", key="ndvi_anom_btn", use_container_width=True):
             with st.spinner(f"Computing NDVI anomaly for {drought_year}..."):
                 try:

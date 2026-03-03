@@ -7,7 +7,7 @@ import pandas as pd
 from folium.plugins import Fullscreen, MiniMap
 from streamlit_folium import folium_static
 
-from gee_functions.indices import INDEX_REGISTRY, get_all_index_tiles, diagnose_s2_access
+from gee_functions.indices import INDEX_REGISTRY, get_all_index_tiles, get_index_download_url, diagnose_s2_access
 from ui_components.legends import get_index_legend
 from ui_components.reports import generate_index_pdf_bytes
 
@@ -24,8 +24,8 @@ def render_indices_tab(aoi_json, params):
     date_end = str(img_end)
 
     st.markdown(
-        '<div style="font-family:\'Rajdhani\',sans-serif;font-size:0.78rem;'
-        'letter-spacing:2px;color:rgba(0,255,255,0.4);margin-bottom:8px;">'
+        '<div style="font-family:\'Inter\',sans-serif;font-size:0.78rem;'
+        'letter-spacing:2px;color:rgba(144,202,249,0.4);margin-bottom:8px;">'
         f'SENTINEL-2 SR  ·  SPECTRAL INDICES  ·  10 m  ·  {date_start} to {date_end}  ·  '
         f'CLOUD ≤ {cloud_thresh}%</div>',
         unsafe_allow_html=True,
@@ -92,7 +92,7 @@ def _render_single_index(index_key, aoi_json, aoi, map_center,
 
     st.markdown(
         f'<div style="font-family:JetBrains Mono,monospace;font-size:0.65rem;'
-        f'color:rgba(0,255,255,0.5);letter-spacing:2px;margin-bottom:8px;">'
+        f'color:rgba(144,202,249,0.5);letter-spacing:2px;margin-bottom:8px;">'
         f'{index_key} = {meta["formula"]}  ·  {meta["source"]}</div>',
         unsafe_allow_html=True,
     )
@@ -138,15 +138,18 @@ def _render_single_index(index_key, aoi_json, aoi, map_center,
         )
         st.markdown('<br>', unsafe_allow_html=True)
 
-        # GeoTIFF download
-        try:
+        # GeoTIFF download (generated on demand to avoid blocking computation)
+        download_url = get_index_download_url(
+            aoi_json, index_key, date_start, date_end, cloud_thresh
+        )
+        if download_url:
             st.link_button(
                 f'DOWNLOAD {index_key} GEOTIFF',
-                result['download_url'],
+                download_url,
                 use_container_width=True,
             )
-        except Exception:
-            st.warning('GeoTIFF download unavailable — AOI may be too large.')
+        else:
+            st.caption('GeoTIFF download unavailable — AOI may be too large.')
 
         st.markdown('<br>', unsafe_allow_html=True)
 
@@ -204,7 +207,7 @@ def _render_info_expander(index_key, meta):
     with st.expander(f'INFO & METHODOLOGY — {index_key}', expanded=False):
         st.markdown(
             f'<div style="font-family:JetBrains Mono,monospace;font-size:0.65rem;'
-            f'color:rgba(0,255,255,0.4);letter-spacing:2px;margin-bottom:10px;">'
+            f'color:rgba(144,202,249,0.4);letter-spacing:2px;margin-bottom:10px;">'
             f'CLASSIFICATION BASIS · SENTINEL-2 SR · COPERNICUS</div>',
             unsafe_allow_html=True,
         )

@@ -17,7 +17,7 @@ def render_multiyear_tab(aoi_json, params):
     aoi = params['aoi']
     map_center = params['map_center']
 
-    st.markdown('<div style="font-family:\'Rajdhani\',sans-serif;font-size:0.78rem;letter-spacing:2px;color:rgba(0,255,255,0.4);margin-bottom:8px;">MULTI-YEAR MONSOON FLOOD COMPARISON · SAR-BASED</div>', unsafe_allow_html=True)
+    st.markdown('<div style="font-family:\'Inter\',sans-serif;font-size:0.78rem;letter-spacing:2px;color:rgba(144,202,249,0.4);margin-bottom:8px;">MULTI-YEAR MONSOON FLOOD COMPARISON · SAR-BASED</div>', unsafe_allow_html=True)
 
     years_available = list(range(2017, 2025))
     selected_years = st.multiselect(
@@ -58,7 +58,7 @@ def render_multiyear_tab(aoi_json, params):
                 years_with_tiles = [y for y in sorted(selected_years) if y in tile_urls]
 
                 if len(years_with_tiles) >= 2:
-                    st.markdown('<div style="font-family:JetBrains Mono,monospace;font-size:0.65rem;color:rgba(0,255,255,0.4);letter-spacing:2px;margin:14px 0 6px;">FLOOD EXTENT MAPS</div>', unsafe_allow_html=True)
+                    st.markdown('<div style="font-family:JetBrains Mono,monospace;font-size:0.65rem;color:rgba(144,202,249,0.4);letter-spacing:2px;margin:14px 0 6px;">FLOOD EXTENT MAPS</div>', unsafe_allow_html=True)
                     col_a, col_b = st.columns(2)
                     with col_a:
                         yr = years_with_tiles[0]

@@ -23,8 +23,8 @@ def render_ml_tab(aoi_json, params):
     map_center = params['map_center']
 
     st.markdown(
-        '<div style="font-family:\'Rajdhani\',sans-serif;font-size:0.78rem;'
-        'letter-spacing:2px;color:rgba(0,255,255,0.4);margin-bottom:12px;">'
+        '<div style="font-family:\'Inter\',sans-serif;font-size:0.78rem;'
+        'letter-spacing:2px;color:rgba(144,202,249,0.4);margin-bottom:12px;">'
         'MACHINE LEARNING SUITE</div>',
         unsafe_allow_html=True,
     )
@@ -78,7 +78,7 @@ def _render_classifiers(aoi_json, aoi, map_center,
 
     # ── 1. FLOOD RISK PREDICTION ──────────────────
     st.markdown(
-        '<div style="font-family:\'Rajdhani\',sans-serif;font-size:0.95rem;'
+        '<div style="font-family:\'Inter\',sans-serif;font-size:0.95rem;'
         'font-weight:700;letter-spacing:2px;color:#00FFFF;margin:16px 0 6px;">'
         'FLOOD RISK PREDICTION</div>'
         '<div style="font-size:0.7rem;color:#3a5060;margin-bottom:10px;">'
@@ -118,11 +118,11 @@ def _render_classifiers(aoi_json, aoi, map_center,
     else:
         st.info("Run ML flood risk prediction on the current AOI.")
 
-    st.markdown('<hr style="border-color:rgba(0,255,255,0.08);margin:24px 0;">', unsafe_allow_html=True)
+    st.markdown('<hr style="border-color:rgba(144,202,249,0.08);margin:24px 0;">', unsafe_allow_html=True)
 
     # ── 2. SAR FLOOD CLASSIFICATION ───────────────
     st.markdown(
-        '<div style="font-family:\'Rajdhani\',sans-serif;font-size:0.95rem;'
+        '<div style="font-family:\'Inter\',sans-serif;font-size:0.95rem;'
         'font-weight:700;letter-spacing:2px;color:#00FFFF;margin-bottom:6px;">'
         'SAR FLOOD CLASSIFICATION</div>'
         '<div style="font-size:0.7rem;color:#3a5060;margin-bottom:10px;">'
@@ -201,7 +201,7 @@ def _render_analytics(aoi_json, aoi,
 
     # ── SHAP EXPLAINABILITY ───────────────────────
     st.markdown(
-        '<div style="font-family:\'Rajdhani\',sans-serif;font-size:0.95rem;'
+        '<div style="font-family:\'Inter\',sans-serif;font-size:0.95rem;'
         'font-weight:700;letter-spacing:2px;color:#00FFFF;margin:16px 0 6px;">'
         'SHAP EXPLAINABILITY</div>'
         '<div style="font-size:0.7rem;color:#3a5060;margin-bottom:10px;">'
@@ -234,7 +234,7 @@ def _render_analytics(aoi_json, aoi,
                 if img_b64:
                     st.markdown(
                         f'<img src="data:image/png;base64,{img_b64}" '
-                        f'style="width:100%;border-radius:8px;border:1px solid rgba(0,255,255,0.1);">',
+                        f'style="width:100%;border-radius:8px;border:1px solid rgba(144,202,249,0.1);">',
                         unsafe_allow_html=True,
                     )
             except ImportError:
@@ -244,11 +244,11 @@ def _render_analytics(aoi_json, aoi,
     else:
         st.info("Compute SHAP feature attributions for the SAR flood classifier.")
 
-    st.markdown('<hr style="border-color:rgba(0,255,255,0.08);margin:24px 0;">', unsafe_allow_html=True)
+    st.markdown('<hr style="border-color:rgba(144,202,249,0.08);margin:24px 0;">', unsafe_allow_html=True)
 
     # ── ANOMALY DETECTION ─────────────────────────
     st.markdown(
-        '<div style="font-family:\'Rajdhani\',sans-serif;font-size:0.95rem;'
+        '<div style="font-family:\'Inter\',sans-serif;font-size:0.95rem;'
         'font-weight:700;letter-spacing:2px;color:#00FFFF;margin-bottom:6px;">'
         'ANOMALY DETECTION</div>'
         '<div style="font-size:0.7rem;color:#3a5060;margin-bottom:10px;">'
@@ -278,7 +278,7 @@ def _render_analytics(aoi_json, aoi,
                         if result['n_anomalies'] > 0:
                             anomaly_df = chart_df[chart_df['anomaly'] == 1][['mean_backscatter', 'anomaly_score']]
                             st.markdown(
-                                '<div style="font-size:0.7rem;color:rgba(0,255,255,0.4);'
+                                '<div style="font-size:0.7rem;color:rgba(144,202,249,0.4);'
                                 'letter-spacing:2px;margin:10px 0 4px;">ANOMALOUS MONTHS</div>',
                                 unsafe_allow_html=True,
                             )
@@ -301,7 +301,7 @@ def _render_tools(aoi_json,
 
     # ── AUTOML TUNING ─────────────────────────────
     st.markdown(
-        '<div style="font-family:\'Rajdhani\',sans-serif;font-size:0.95rem;'
+        '<div style="font-family:\'Inter\',sans-serif;font-size:0.95rem;'
         'font-weight:700;letter-spacing:2px;color:#00FFFF;margin:16px 0 6px;">'
         'HYPERPARAMETER TUNING</div>'
         '<div style="font-size:0.7rem;color:#3a5060;margin-bottom:10px;">'
@@ -350,11 +350,11 @@ def _render_tools(aoi_json,
     else:
         st.info("Run Bayesian hyperparameter optimization with Optuna.")
 
-    st.markdown('<hr style="border-color:rgba(0,255,255,0.08);margin:24px 0;">', unsafe_allow_html=True)
+    st.markdown('<hr style="border-color:rgba(144,202,249,0.08);margin:24px 0;">', unsafe_allow_html=True)
 
     # ── MODEL DIAGNOSTICS ─────────────────────────
     st.markdown(
-        '<div style="font-family:\'Rajdhani\',sans-serif;font-size:0.95rem;'
+        '<div style="font-family:\'Inter\',sans-serif;font-size:0.95rem;'
         'font-weight:700;letter-spacing:2px;color:#00FFFF;margin-bottom:10px;">'
         'MODEL DIAGNOSTICS</div>',
         unsafe_allow_html=True,

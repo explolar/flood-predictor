@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(python -c \"import py_compile; files=[''gee_functions/indices.py'',''tabs/tab_indices.py'',''ui_components/styles.py'']; [py_compile.compile\\(f, doraise=True\\) for f in files]; print\\(''All files compile OK''\\)\")",
-      "Bash(python -c \"import py_compile; py_compile.compile\\(''gee_functions/indices.py'', doraise=True\\); py_compile.compile\\(''tabs/tab_indices.py'', doraise=True\\); print\\(''OK''\\)\")"
+      "Bash(python -c \"import py_compile; py_compile.compile\\(''gee_functions/indices.py'', doraise=True\\); py_compile.compile\\(''tabs/tab_indices.py'', doraise=True\\); print\\(''OK''\\)\")",
+      "Read(//d d:/**)"
     ]
   }
 }

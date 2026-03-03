@@ -23,7 +23,7 @@ def render_progression_tab(aoi_json, params):
     aoi = params['aoi']
     map_center = params['map_center']
 
-    st.markdown(f'<div style="font-family:\'Rajdhani\',sans-serif;font-size:0.78rem;letter-spacing:2px;color:rgba(0,255,255,0.4);margin-bottom:8px;">MONSOON FLOOD PROGRESSION · {prog_year}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div style="font-family:\'Inter\',sans-serif;font-size:0.78rem;letter-spacing:2px;color:rgba(144,202,249,0.4);margin-bottom:8px;">MONSOON FLOOD PROGRESSION · {prog_year}</div>', unsafe_allow_html=True)
     with st.spinner(f"Fetching {prog_year} CHIRPS monthly rainfall..."):
         prog_df = get_progression_stats(aoi_json, prog_year)
 
@@ -59,7 +59,7 @@ def render_progression_tab(aoi_json, params):
         st.markdown(f'<div>{chips_html}</div>', unsafe_allow_html=True)
         # ── TIMELAPSE ANIMATION ──────────────────────
         with st.expander("FLOOD TIMELAPSE ANIMATION", expanded=False):
-            st.markdown('<div style="font-family:JetBrains Mono,monospace;font-size:0.65rem;color:rgba(0,255,255,0.4);letter-spacing:2px;margin-bottom:8px;">LEAFLET.JS ANIMATION · MONTHLY SAR FRAMES · PLAY/PAUSE</div>', unsafe_allow_html=True)
+            st.markdown('<div style="font-family:JetBrains Mono,monospace;font-size:0.65rem;color:rgba(144,202,249,0.4);letter-spacing:2px;margin-bottom:8px;">LEAFLET.JS ANIMATION · MONTHLY SAR FRAMES · PLAY/PAUSE</div>', unsafe_allow_html=True)
             if st.button("GENERATE TIMELAPSE", key="timelapse_btn", use_container_width=True):
                 with st.spinner("Generating monthly SAR flood tiles for animation..."):
                     try:
