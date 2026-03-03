@@ -74,6 +74,7 @@ with st.sidebar:
                     lon = float(results[0]["lon"])
                     d   = 0.25
                     st.session_state.aoi = ee.Geometry.BBox(lon-d, lat-d, lon+d, lat+d)
+                    st.session_state._aoi_changed = True
                     st.session_state.map_center = [lat, lon]
                     st.success(f"✓ {results[0]['display_name'][:60]}")
                 else:
@@ -95,6 +96,7 @@ with st.sidebar:
             max_lat = st.number_input("Max Lat", value=25.80, format="%.4f")
         if st.button("INITIALIZE AOI", use_container_width=True):
             st.session_state.aoi = ee.Geometry.BBox(min_lon, min_lat, max_lon, max_lat)
+            st.session_state._aoi_changed = True
             st.session_state.map_center = [(min_lat+max_lat)/2, (min_lon+max_lon)/2]
     else:
         uploaded_file = st.file_uploader("Upload District GeoJSON", type=["geojson","json"])
@@ -102,6 +104,7 @@ with st.sidebar:
             data = json.load(uploaded_file)
             coords = data["features"][0]["geometry"]["coordinates"]
             st.session_state.aoi = ee.Geometry.Polygon(coords)
+            st.session_state._aoi_changed = True
             st.session_state.map_center = [coords[0][0][1], coords[0][0][0]]
 
     if st.session_state.aoi:
@@ -243,7 +246,11 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
 ])
 
 if st.session_state.aoi:
-    _aoi_json = json.dumps(st.session_state.aoi.getInfo())
+    # Cache the serialized AOI to avoid a blocking .getInfo() on every rerender
+    if 'aoi_json' not in st.session_state or st.session_state.get('_aoi_changed', False):
+        st.session_state.aoi_json = json.dumps(st.session_state.aoi.getInfo())
+        st.session_state._aoi_changed = False
+    _aoi_json = st.session_state.aoi_json
 
     # Bundle all sidebar params for tab functions
     params = {

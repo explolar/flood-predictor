@@ -1,5 +1,6 @@
 """Tab 6: Multi-Year Comparison Dashboard."""
 
+import json
 import streamlit as st
 import folium
 import pandas as pd
@@ -64,14 +65,14 @@ def render_multiyear_tab(aoi_json, params):
                         st.markdown(f'<div style="text-align:center;color:#00FFFF;font-size:0.8rem;letter-spacing:2px;">{yr}</div>', unsafe_allow_html=True)
                         m = folium.Map(location=map_center, zoom_start=11, tiles="CartoDB dark_matter")
                         folium.TileLayer(tiles=tile_urls[yr], attr='GEE', name=f'Flood {yr}', opacity=0.85).add_to(m)
-                        folium.GeoJson(aoi.getInfo(), style_function=lambda _: {'fillColor': 'none', 'color': '#00FFFF', 'weight': 2, 'dashArray': '6 4'}).add_to(m)
+                        folium.GeoJson(json.loads(aoi_json), style_function=lambda _: {'fillColor': 'none', 'color': '#00FFFF', 'weight': 2, 'dashArray': '6 4'}).add_to(m)
                         folium_static(m, height=350)
                     with col_b:
                         yr = years_with_tiles[-1]
                         st.markdown(f'<div style="text-align:center;color:#00FFFF;font-size:0.8rem;letter-spacing:2px;">{yr}</div>', unsafe_allow_html=True)
                         m = folium.Map(location=map_center, zoom_start=11, tiles="CartoDB dark_matter")
                         folium.TileLayer(tiles=tile_urls[yr], attr='GEE', name=f'Flood {yr}', opacity=0.85).add_to(m)
-                        folium.GeoJson(aoi.getInfo(), style_function=lambda _: {'fillColor': 'none', 'color': '#00FFFF', 'weight': 2, 'dashArray': '6 4'}).add_to(m)
+                        folium.GeoJson(json.loads(aoi_json), style_function=lambda _: {'fillColor': 'none', 'color': '#00FFFF', 'weight': 2, 'dashArray': '6 4'}).add_to(m)
                         folium_static(m, height=350)
 
                 # Data table

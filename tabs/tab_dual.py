@@ -1,5 +1,6 @@
 """Tab 3: Dual-View SAR Comparison."""
 
+import json
 import streamlit as st
 import folium
 from folium.plugins import DualMap
@@ -34,8 +35,8 @@ def render_dual_tab(aoi_json, params):
     folium.TileLayer(tiles=sar_d['pre_url'], attr='GEE', name=f'Pre-flood {polarization}').add_to(dmap.m1)
     folium.TileLayer(tiles=sar_d['post_url'], attr='GEE', name=f'Post-flood {polarization}').add_to(dmap.m2)
     folium.TileLayer(tiles=sar_d['flood_url'], attr='GEE', name='Flood Mask', opacity=0.6).add_to(dmap.m2)
-    folium.GeoJson(aoi.getInfo(), style_function=lambda _: {'fillColor': 'none', 'color': '#00FFFF', 'weight': 2, 'dashArray': '6 4'}).add_to(dmap.m1)
-    folium.GeoJson(aoi.getInfo(), style_function=lambda _: {'fillColor': 'none', 'color': '#00FFFF', 'weight': 2, 'dashArray': '6 4'}).add_to(dmap.m2)
+    folium.GeoJson(json.loads(aoi_json), style_function=lambda _: {'fillColor': 'none', 'color': '#00FFFF', 'weight': 2, 'dashArray': '6 4'}).add_to(dmap.m1)
+    folium.GeoJson(json.loads(aoi_json), style_function=lambda _: {'fillColor': 'none', 'color': '#00FFFF', 'weight': 2, 'dashArray': '6 4'}).add_to(dmap.m2)
     components.html(dmap._repr_html_(), height=580, scrolling=False)
     d3c1, d3c2, d3c3 = st.columns(3)
     d3c1.metric("Pre-flood Period", f"{p_start} → {p_end}")
@@ -54,8 +55,8 @@ def render_dual_tab(aoi_json, params):
         folium.TileLayer(tiles=s2_rgb['pre_url'], attr='GEE·S2', name='Pre-flood S2').add_to(dmap_s2.m1)
         folium.TileLayer(tiles=s2_rgb['post_url'], attr='GEE·S2', name='Post-flood S2').add_to(dmap_s2.m2)
         folium.TileLayer(tiles=sar_d['flood_url'], attr='GEE', name='Flood Mask', opacity=0.5).add_to(dmap_s2.m2)
-        folium.GeoJson(aoi.getInfo(), style_function=lambda _: {'fillColor': 'none', 'color': '#00FFFF', 'weight': 2, 'dashArray': '6 4'}).add_to(dmap_s2.m1)
-        folium.GeoJson(aoi.getInfo(), style_function=lambda _: {'fillColor': 'none', 'color': '#00FFFF', 'weight': 2, 'dashArray': '6 4'}).add_to(dmap_s2.m2)
+        folium.GeoJson(json.loads(aoi_json), style_function=lambda _: {'fillColor': 'none', 'color': '#00FFFF', 'weight': 2, 'dashArray': '6 4'}).add_to(dmap_s2.m1)
+        folium.GeoJson(json.loads(aoi_json), style_function=lambda _: {'fillColor': 'none', 'color': '#00FFFF', 'weight': 2, 'dashArray': '6 4'}).add_to(dmap_s2.m2)
         components.html(dmap_s2._repr_html_(), height=520, scrolling=False)
     else:
         st.info("Sentinel-2 true-color unavailable — insufficient cloud-free scenes.")

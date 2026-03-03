@@ -1,5 +1,6 @@
 """Tab 5: ML Intelligence — clean, consolidated layout."""
 
+import json
 import os
 import streamlit as st
 import folium
@@ -98,7 +99,7 @@ def _render_classifiers(aoi_json, aoi, map_center,
                     c4.metric("OOB Score", f"{result.get('oob_score', 'N/A')}")
                     m = folium.Map(location=map_center, zoom_start=11, tiles="CartoDB dark_matter")
                     folium.TileLayer(tiles=result['tile_url'], attr='GEE·ML', name='ML Risk').add_to(m)
-                    folium.GeoJson(aoi.getInfo(), style_function=lambda _: {
+                    folium.GeoJson(json.loads(aoi_json), style_function=lambda _: {
                         'fillColor': 'none', 'color': '#00FFFF', 'weight': 2, 'dashArray': '6 4'
                     }).add_to(m)
                     folium.LayerControl(position='topright', collapsed=False).add_to(m)
@@ -167,7 +168,7 @@ def _render_classifiers(aoi_json, aoi, map_center,
                     c4.metric("Diff", f"{diff:+.1f} ha")
                     m = folium.Map(location=map_center, zoom_start=11, tiles="CartoDB dark_matter")
                     folium.TileLayer(tiles=result['tile_url'], attr='GEE·ML', name='ML Classification').add_to(m)
-                    folium.GeoJson(aoi.getInfo(), style_function=lambda _: {
+                    folium.GeoJson(json.loads(aoi_json), style_function=lambda _: {
                         'fillColor': 'none', 'color': '#00FFFF', 'weight': 2, 'dashArray': '6 4'
                     }).add_to(m)
                     folium.LayerControl(position='topright', collapsed=False).add_to(m)

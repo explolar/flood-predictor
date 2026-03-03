@@ -1,5 +1,6 @@
 """Tab 2: SAR Inundation Detection."""
 
+import json
 import streamlit as st
 import folium
 import pandas as pd
@@ -55,7 +56,7 @@ def render_sar_tab(aoi_json, params):
 
     with col2:
         m2 = folium.Map(location=map_center, zoom_start=11, tiles="CartoDB dark_matter")
-        folium.GeoJson(aoi.getInfo(), name='AOI Boundary',
+        folium.GeoJson(json.loads(aoi_json), name='AOI Boundary',
             style_function=lambda _: {'fillColor': 'none', 'color': '#00FFFF', 'weight': 2, 'dashArray': '6 4'}).add_to(m2)
         folium.TileLayer(tiles=sar['water_url'], attr='GEE', name='Permanent Water').add_to(m2)
         depth_data = None
@@ -158,7 +159,7 @@ def render_sar_tab(aoi_json, params):
             st.markdown('<div style="font-family:JetBrains Mono,monospace;font-size:0.65rem;color:rgba(0,255,255,0.4);letter-spacing:2px;margin:10px 0 4px;">NDVI DAMAGE ON CROPLAND · GREEN = HEALTHY · RED = DAMAGED</div>', unsafe_allow_html=True)
             crop_map = folium.Map(location=map_center, zoom_start=11, tiles="CartoDB dark_matter")
             folium.TileLayer(tiles=crop_data['tile_url'], attr='GEE·S2·ESA', name='Crop NDVI Damage').add_to(crop_map)
-            folium.GeoJson(aoi.getInfo(), style_function=lambda _: {'fillColor': 'none', 'color': '#00FFFF', 'weight': 2, 'dashArray': '6 4'}).add_to(crop_map)
+            folium.GeoJson(json.loads(aoi_json), style_function=lambda _: {'fillColor': 'none', 'color': '#00FFFF', 'weight': 2, 'dashArray': '6 4'}).add_to(crop_map)
             folium_static(crop_map, height=400)
             st.markdown(f'<div style="font-size:0.7rem;color:#3a5060;font-family:JetBrains Mono,monospace;margin-top:8px;">Crop: {crop_type} · Price: ₹{crop_price:,}/ha · NDVI drop threshold: 0.10 · Source: Sentinel-2 SR + ESA WorldCover</div>', unsafe_allow_html=True)
         else:
@@ -197,7 +198,7 @@ def render_sar_tab(aoi_json, params):
                 color = '#00FF88' if road['evacuation'] else hw_colors.get(road['highway'], '#95a5a6')
                 weight = 4 if road['evacuation'] else 2
                 folium.PolyLine(locations=[[c[1], c[0]] for c in road['coords']], color=color, weight=weight, opacity=0.85, tooltip=f"{road['highway'].title()} · {road['name'] or 'unnamed'} · {road['length_km']} km").add_to(road_map)
-            folium.GeoJson(aoi.getInfo(), style_function=lambda _: {'fillColor': 'none', 'color': '#00FFFF', 'weight': 2, 'dashArray': '6 4'}).add_to(road_map)
+            folium.GeoJson(json.loads(aoi_json), style_function=lambda _: {'fillColor': 'none', 'color': '#00FFFF', 'weight': 2, 'dashArray': '6 4'}).add_to(road_map)
             folium_static(road_map, height=420)
             km_df = pd.DataFrame(list(road_data['km_by_type'].items()), columns=['Highway Type', 'Length (km)']).sort_values('Length (km)', ascending=False).set_index('Highway Type')
             st.dataframe(km_df, use_container_width=True)
@@ -210,7 +211,7 @@ def render_sar_tab(aoi_json, params):
         if dam_list:
             dam_map = folium.Map(location=map_center, zoom_start=8, tiles="CartoDB dark_matter")
             folium.TileLayer(tiles=sar['flood_url'], attr='GEE', name='Flood Mask', opacity=0.5).add_to(dam_map)
-            folium.GeoJson(aoi.getInfo(), style_function=lambda _: {'fillColor': 'none', 'color': '#00FFFF', 'weight': 2, 'dashArray': '6 4'}).add_to(dam_map)
+            folium.GeoJson(json.loads(aoi_json), style_function=lambda _: {'fillColor': 'none', 'color': '#00FFFF', 'weight': 2, 'dashArray': '6 4'}).add_to(dam_map)
             for dam in dam_list:
                 cap = dam['capacity_mcm']
                 radius = max(6, min(22, int(cap ** 0.35))) if cap > 0 else 7
@@ -287,7 +288,7 @@ def render_sar_tab(aoi_json, params):
                         st.bar_chart(damage_df, color="#fc8d59", height=180)
                         bldg_map = folium.Map(location=map_center, zoom_start=11, tiles="CartoDB dark_matter")
                         folium.TileLayer(tiles=bldg['tile_url'], attr='GEE·GOB', name='Building Damage').add_to(bldg_map)
-                        folium.GeoJson(aoi.getInfo(), style_function=lambda _: {'fillColor': 'none', 'color': '#00FFFF', 'weight': 2, 'dashArray': '6 4'}).add_to(bldg_map)
+                        folium.GeoJson(json.loads(aoi_json), style_function=lambda _: {'fillColor': 'none', 'color': '#00FFFF', 'weight': 2, 'dashArray': '6 4'}).add_to(bldg_map)
                         folium_static(bldg_map, height=380)
                     else:
                         st.warning("No building data found in this AOI (Google Open Buildings).")
@@ -310,7 +311,7 @@ def render_sar_tab(aoi_json, params):
                             st.line_chart(sm['timeseries'], color="#41ab5d", height=200)
                         sm_map = folium.Map(location=map_center, zoom_start=11, tiles="CartoDB dark_matter")
                         folium.TileLayer(tiles=sm['tile_url'], attr='GEE·SMAP', name='Soil Moisture').add_to(sm_map)
-                        folium.GeoJson(aoi.getInfo(), style_function=lambda _: {'fillColor': 'none', 'color': '#00FFFF', 'weight': 2, 'dashArray': '6 4'}).add_to(sm_map)
+                        folium.GeoJson(json.loads(aoi_json), style_function=lambda _: {'fillColor': 'none', 'color': '#00FFFF', 'weight': 2, 'dashArray': '6 4'}).add_to(sm_map)
                         folium_static(sm_map, height=380)
                     else:
                         st.warning("SMAP data unavailable for this AOI/date range.")
@@ -333,7 +334,7 @@ def render_sar_tab(aoi_json, params):
                         wq_map = folium.Map(location=map_center, zoom_start=11, tiles="CartoDB dark_matter")
                         folium.TileLayer(tiles=wq['ndti_tile'], attr='GEE·S2', name='Turbidity (NDTI)').add_to(wq_map)
                         folium.TileLayer(tiles=wq['chl_tile'], attr='GEE·S2', name='Chlorophyll-a').add_to(wq_map)
-                        folium.GeoJson(aoi.getInfo(), style_function=lambda _: {'fillColor': 'none', 'color': '#00FFFF', 'weight': 2, 'dashArray': '6 4'}).add_to(wq_map)
+                        folium.GeoJson(json.loads(aoi_json), style_function=lambda _: {'fillColor': 'none', 'color': '#00FFFF', 'weight': 2, 'dashArray': '6 4'}).add_to(wq_map)
                         folium.LayerControl(position='topright', collapsed=False).add_to(wq_map)
                         folium_static(wq_map, height=380)
                     else:

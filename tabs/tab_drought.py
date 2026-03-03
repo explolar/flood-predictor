@@ -1,5 +1,6 @@
 """Tab 7: Drought Monitoring."""
 
+import json
 import streamlit as st
 import folium
 from streamlit_folium import folium_static
@@ -33,7 +34,7 @@ def render_drought_tab(aoi_json, params):
 
                         spi_map = folium.Map(location=map_center, zoom_start=11, tiles="CartoDB dark_matter")
                         folium.TileLayer(tiles=spi['tile_url'], attr='GEE·CHIRPS', name='SPI Index', opacity=0.8).add_to(spi_map)
-                        folium.GeoJson(aoi.getInfo(), style_function=lambda _: {'fillColor': 'none', 'color': '#00FFFF', 'weight': 2, 'dashArray': '6 4'}).add_to(spi_map)
+                        folium.GeoJson(json.loads(aoi_json), style_function=lambda _: {'fillColor': 'none', 'color': '#00FFFF', 'weight': 2, 'dashArray': '6 4'}).add_to(spi_map)
                         folium.LayerControl(position='topright', collapsed=False).add_to(spi_map)
                         folium_static(spi_map, height=400)
                     else:
@@ -57,7 +58,7 @@ def render_drought_tab(aoi_json, params):
 
                         ndvi_map = folium.Map(location=map_center, zoom_start=11, tiles="CartoDB dark_matter")
                         folium.TileLayer(tiles=ndvi['tile_url'], attr='GEE·MODIS', name='NDVI Anomaly', opacity=0.8).add_to(ndvi_map)
-                        folium.GeoJson(aoi.getInfo(), style_function=lambda _: {'fillColor': 'none', 'color': '#00FFFF', 'weight': 2, 'dashArray': '6 4'}).add_to(ndvi_map)
+                        folium.GeoJson(json.loads(aoi_json), style_function=lambda _: {'fillColor': 'none', 'color': '#00FFFF', 'weight': 2, 'dashArray': '6 4'}).add_to(ndvi_map)
                         folium.LayerControl(position='topright', collapsed=False).add_to(ndvi_map)
                         folium_static(ndvi_map, height=400)
                     else:

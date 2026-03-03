@@ -1,5 +1,6 @@
 """Tab 8: Spectral Indices Download — NDVI, NDWI, MNDWI, NDBI, SAVI, EVI, BSI."""
 
+import json
 import streamlit as st
 import folium
 import pandas as pd
@@ -32,13 +33,17 @@ def render_indices_tab(aoi_json, params):
 
     # ── Compute All button ─────────────────────────────
     if st.button('COMPUTE ALL INDICES', use_container_width=True, type='primary'):
-        with st.spinner('Building Sentinel-2 composite & computing 7 indices...'):
-            all_results = get_all_index_tiles(aoi_json, date_start, date_end, cloud_thresh)
+        try:
+            with st.spinner('Building Sentinel-2 composite & computing 7 indices...'):
+                all_results = get_all_index_tiles(aoi_json, date_start, date_end, cloud_thresh)
+        except Exception as e:
+            all_results = {}
+            st.error(f'Computation failed: {e}')
         if not all_results:
             st.error(
                 f'No Sentinel-2 scenes found with ≤ {cloud_thresh}% cloud for '
-                f'{date_start} to {date_end}. Try increasing the cloud cover slider '
-                f'or expanding the date range in the sidebar.'
+                f'{date_start} to {date_end}. Try: (1) increase cloud cover slider to 80-100%, '
+                f'(2) expand the date range, or (3) check GEE connectivity.'
             )
         else:
             st.session_state['all_indices'] = all_results
@@ -124,7 +129,7 @@ def _render_single_index(index_key, aoi_json, aoi, map_center,
         st.markdown('<br>', unsafe_allow_html=True)
 
         # PDF download
-        aoi_coords = _get_aoi_coords(aoi)
+        aoi_coords = _get_aoi_coords(aoi_json)
         pdf_bytes = generate_index_pdf_bytes(
             index_key=index_key,
             index_data=result,
@@ -147,7 +152,7 @@ def _render_single_index(index_key, aoi_json, aoi, map_center,
     with col_map:
         m = folium.Map(location=map_center, zoom_start=11, tiles='CartoDB dark_matter')
         folium.GeoJson(
-            aoi.getInfo(), name='AOI Boundary',
+            json.loads(aoi_json), name='AOI Boundary',
             style_function=lambda _: {
                 'fillColor': 'none', 'color': '#00FFFF',
                 'weight': 2, 'dashArray': '6 4',
@@ -211,13 +216,25 @@ def _classify(value, classes):
     return 'Out of Range'
 
 
-def _get_aoi_coords(aoi):
-    """Extract [min_lon, min_lat, max_lon, max_lat] from an ee.Geometry."""
+def _get_aoi_coords(aoi_json):
+    """Extract [min_lon, min_lat, max_lon, max_lat] from serialized AOI JSON."""
     try:
-        info = aoi.bounds().getInfo()
-        coords = info['coordinates'][0]
-        lons = [c[0] for c in coords]
-        lats = [c[1] for c in coords]
+        info = json.loads(aoi_json)
+        # Flatten all coordinates from the geometry
+        coords_raw = info.get('coordinates', [])
+        # Handle nested coordinate arrays (Polygon has [ring], BBox has [ring])
+        flat = []
+        def _flatten(obj):
+            if isinstance(obj, list) and obj and isinstance(obj[0], (int, float)):
+                flat.append(obj)
+            elif isinstance(obj, list):
+                for item in obj:
+                    _flatten(item)
+        _flatten(coords_raw)
+        if not flat:
+            return 'AOI'
+        lons = [c[0] for c in flat]
+        lats = [c[1] for c in flat]
         return [min(lons), min(lats), max(lons), max(lats)]
     except Exception:
         return 'AOI'

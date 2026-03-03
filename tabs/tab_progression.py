@@ -1,5 +1,6 @@
 """Tab 4: Flood Progression."""
 
+import json
 import streamlit as st
 import folium
 from folium.plugins import Fullscreen
@@ -47,7 +48,7 @@ def render_progression_tab(aoi_json, params):
             with st.spinner(f"Computing SAR flood mask · {prog_month} {prog_year}..."):
                 prog_tile = get_month_sar_tile(aoi_json, prog_year, prog_month_num, polarization, f_threshold, apply_speckle)
             m4 = folium.Map(location=map_center, zoom_start=11, tiles="CartoDB dark_matter")
-            folium.GeoJson(aoi.getInfo(), style_function=lambda _: {'fillColor': 'none', 'color': '#00FFFF', 'weight': 2, 'dashArray': '6 4'}).add_to(m4)
+            folium.GeoJson(json.loads(aoi_json), style_function=lambda _: {'fillColor': 'none', 'color': '#00FFFF', 'weight': 2, 'dashArray': '6 4'}).add_to(m4)
             folium.TileLayer(tiles=sar_d['water_url'], attr='GEE', name='Permanent Water').add_to(m4)
             if prog_tile:
                 folium.TileLayer(tiles=prog_tile, attr='GEE', name=f'Flood · {prog_month} {prog_year}', opacity=0.85).add_to(m4)

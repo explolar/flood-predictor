@@ -1,5 +1,6 @@
 """Tab 1: MCA Susceptibility Map."""
 
+import json
 import streamlit as st
 import folium
 from folium.plugins import Fullscreen, MiniMap
@@ -56,7 +57,7 @@ def render_mca_tab(aoi_json, params):
         with st.spinner("Rendering MCA risk map..."):
             mca_tile = get_mca_tile(aoi_json, w_lulc, w_slope, w_rain)
         m1 = folium.Map(location=map_center, zoom_start=11, tiles="CartoDB dark_matter")
-        folium.GeoJson(aoi.getInfo(), name='AOI Boundary',
+        folium.GeoJson(json.loads(aoi_json), name='AOI Boundary',
             style_function=lambda _: {'fillColor': 'none', 'color': '#00FFFF', 'weight': 2, 'dashArray': '6 4'}).add_to(m1)
         if "Flood Frequency (JRC)" in extra_layers:
             with st.spinner("Loading JRC flood frequency..."):
@@ -102,7 +103,7 @@ def render_mca_tab(aoi_json, params):
                         from streamlit_folium import folium_static as fs
                         ufvi_map = fol.Map(location=map_center, zoom_start=11, tiles="CartoDB dark_matter")
                         fol.TileLayer(tiles=ufvi['tile_url'], attr='GEE·UFVI', name='UFVI', opacity=0.8).add_to(ufvi_map)
-                        fol.GeoJson(aoi.getInfo(), style_function=lambda _: {'fillColor': 'none', 'color': '#00FFFF', 'weight': 2, 'dashArray': '6 4'}).add_to(ufvi_map)
+                        fol.GeoJson(json.loads(aoi_json), style_function=lambda _: {'fillColor': 'none', 'color': '#00FFFF', 'weight': 2, 'dashArray': '6 4'}).add_to(ufvi_map)
                         fol.LayerControl(position='topright', collapsed=False).add_to(ufvi_map)
                         fs(ufvi_map, height=400)
                     else:

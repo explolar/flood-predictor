@@ -297,5 +297,127 @@ def inject_styles():
         color:#00FFFF; font-weight:700;
         text-shadow:0 0 8px rgba(0,255,255,0.5);
     }
+
+    /* ── MOBILE RESPONSIVENESS ────────────────────────── */
+    @media (max-width: 768px) {
+        /* Sidebar toggle hint */
+        [data-testid="stSidebar"] {
+            min-width: 260px !important;
+            max-width: 280px !important;
+        }
+        [data-testid="stSidebar"][aria-expanded="false"] ~ div [data-testid="stAppViewBlockContainer"]::before {
+            content: 'Tap ☰ for controls';
+            display: block;
+            text-align: center;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.7rem;
+            letter-spacing: 1.5px;
+            color: rgba(0,255,255,0.5);
+            background: rgba(0,255,255,0.04);
+            border: 1px solid rgba(0,255,255,0.12);
+            border-radius: 6px;
+            padding: 6px 12px;
+            margin-bottom: 10px;
+        }
+
+        /* Shrink header text */
+        h1 {
+            font-size: 1.2rem !important;
+            letter-spacing: 2px !important;
+        }
+        .page-header .subtitle {
+            font-size: 0.55rem !important;
+            letter-spacing: 1.5px !important;
+        }
+
+        /* Tab labels smaller */
+        [data-testid="stTabs"] button[role="tab"] {
+            font-size: 0.65rem !important;
+            letter-spacing: 1px !important;
+            padding: 0.4rem 0.6rem !important;
+        }
+
+        /* Stack columns vertically */
+        [data-testid="stHorizontalBlock"] {
+            flex-direction: column !important;
+        }
+        [data-testid="stHorizontalBlock"] > div {
+            width: 100% !important;
+            flex: none !important;
+        }
+
+        /* Metric cards smaller */
+        .metric-card {
+            padding: 14px 12px !important;
+        }
+        .metric-card .metric-value {
+            font-size: 1.8rem !important;
+        }
+        .metric-card .metric-label {
+            font-size: 0.58rem !important;
+            letter-spacing: 2px !important;
+        }
+
+        /* Stats row wrap */
+        .stats-row {
+            gap: 6px !important;
+        }
+        .stat-chip {
+            padding: 6px 8px !important;
+            font-size: 0.65rem !important;
+        }
+        .stat-chip b {
+            font-size: 0.9rem !important;
+        }
+
+        /* Dual labels */
+        .dual-label {
+            font-size: 0.65rem !important;
+            letter-spacing: 1px !important;
+            padding: 4px !important;
+        }
+
+        /* Tech panel */
+        .tech-panel {
+            padding: 10px 12px !important;
+        }
+
+        /* Sidebar sliders usable on mobile */
+        [data-baseweb="slider"] {
+            padding: 8px 0 !important;
+        }
+        [data-baseweb="slider"] [role="slider"] {
+            width: 20px !important;
+            height: 20px !important;
+        }
+
+        /* Hide system status icon on mobile to save space */
+        .system-status {
+            display: none !important;
+        }
+
+        /* Return period table */
+        .rp-table {
+            font-size: 0.65rem !important;
+        }
+        .rp-table th, .rp-table td {
+            padding: 4px 6px !important;
+        }
+    }
+
+    /* Small phones */
+    @media (max-width: 480px) {
+        h1 {
+            font-size: 1rem !important;
+            letter-spacing: 1.5px !important;
+        }
+        [data-testid="stTabs"] button[role="tab"] {
+            font-size: 0.55rem !important;
+            padding: 0.3rem 0.4rem !important;
+        }
+        .metric-card .metric-value {
+            font-size: 1.4rem !important;
+        }
+    }
     </style>
     """, unsafe_allow_html=True)
