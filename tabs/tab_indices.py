@@ -32,20 +32,28 @@ def render_indices_tab(aoi_json, params):
     )
 
     # ── Compute All button ─────────────────────────────
-    if st.button('COMPUTE ALL INDICES', use_container_width=True, type='primary'):
+    btn_col, clear_col = st.columns([3, 1])
+    with btn_col:
+        compute_clicked = st.button('COMPUTE ALL INDICES', use_container_width=True, type='primary')
+    with clear_col:
+        if st.button('CLEAR CACHE', use_container_width=True, key='idx_clear_cache'):
+            get_all_index_tiles.clear()
+            st.session_state.pop('all_indices', None)
+            for k in INDEX_REGISTRY:
+                st.session_state.pop(f'{k}_computed', None)
+            st.success('Cache cleared — click COMPUTE to retry.')
+
+    if compute_clicked:
         try:
             with st.spinner('Building Sentinel-2 composite & computing 7 indices...'):
                 all_results = get_all_index_tiles(aoi_json, date_start, date_end, cloud_thresh)
+        except ValueError as e:
+            all_results = {}
+            st.error(str(e))
         except Exception as e:
             all_results = {}
-            st.error(f'Computation failed: {e}')
-        if not all_results:
-            st.error(
-                f'No Sentinel-2 scenes found with ≤ {cloud_thresh}% cloud for '
-                f'{date_start} to {date_end}. Try: (1) increase cloud cover slider to 80-100%, '
-                f'(2) expand the date range, or (3) check GEE connectivity.'
-            )
-        else:
+            st.error(f'GEE error: {e}')
+        if all_results:
             st.session_state['all_indices'] = all_results
             for k in all_results:
                 st.session_state[f'{k}_computed'] = True

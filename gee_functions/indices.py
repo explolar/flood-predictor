@@ -5,7 +5,10 @@ Computes NDVI, NDWI, MNDWI, NDBI, SAVI, EVI, BSI with classification.
 
 import ee
 import json
+import logging
 import streamlit as st
+
+logger = logging.getLogger(__name__)
 
 # ── Registry: single source of truth for all indices ─────────────────────────
 INDEX_REGISTRY = {
@@ -204,14 +207,10 @@ def get_index_tile(aoi_json, index_key, date_start, date_end, cloud_thresh=60):
         aoi_geom = ee.Geometry(json.loads(aoi_json))
         meta = INDEX_REGISTRY[index_key]
 
-        col = (ee.ImageCollection('COPERNICUS/S2_SR_HARMONIZED')
-               .filterBounds(aoi_geom)
-               .filterDate(date_start, date_end)
-               .filter(ee.Filter.lte('CLOUDY_PIXEL_PERCENTAGE', cloud_thresh))
-               .select(['B2', 'B3', 'B4', 'B8', 'B11', 'SCL']))
-
-        n_scenes = col.size().getInfo()
-        if not n_scenes:
+        col, n_scenes, col_id = _build_s2_collection(
+            aoi_geom, date_start, date_end, cloud_thresh
+        )
+        if not col:
             return None
 
         def mask_clouds(img):
@@ -251,34 +250,48 @@ def get_index_tile(aoi_json, index_key, date_start, date_end, cloud_thresh=60):
             'n_scenes': n_scenes,
         }
     except Exception as e:
-        import logging
-        logging.getLogger(__name__).warning(f"get_index_tile({index_key}) failed: {e}")
+        logger.warning(f"get_index_tile({index_key}) failed: {e}")
         return None
+
+
+def _build_s2_collection(aoi_geom, date_start, date_end, cloud_thresh):
+    """Try S2_SR_HARMONIZED first, fall back to S2_SR if no scenes found."""
+    _BANDS = ['B2', 'B3', 'B4', 'B8', 'B11', 'SCL']
+
+    for collection_id in ['COPERNICUS/S2_SR_HARMONIZED', 'COPERNICUS/S2_SR']:
+        # Count scenes WITHOUT .select() to avoid band-filtering issues
+        base = (ee.ImageCollection(collection_id)
+                .filterBounds(aoi_geom)
+                .filterDate(date_start, date_end)
+                .filter(ee.Filter.lte('CLOUDY_PIXEL_PERCENTAGE', cloud_thresh)))
+        n_scenes = base.size().getInfo()
+        if n_scenes:
+            logger.info(f"{collection_id}: {n_scenes} scenes found")
+            return base.select(_BANDS), n_scenes, collection_id
+
+    return None, 0, None
 
 
 @st.cache_data(show_spinner=False, ttl=3600)
 def get_all_index_tiles(aoi_json, date_start, date_end, cloud_thresh=60):
     """
     Compute ALL 7 indices from a single S2 composite (one GEE collection fetch).
-    Returns {index_key: result_dict} or empty dict on failure.
+    Returns {index_key: result_dict}.
+    Raises ValueError on no scenes (prevents caching empty results).
     """
-    import logging
-    logger = logging.getLogger(__name__)
-
     aoi_geom = ee.Geometry(json.loads(aoi_json))
 
-    col = (ee.ImageCollection('COPERNICUS/S2_SR_HARMONIZED')
-           .filterBounds(aoi_geom)
-           .filterDate(date_start, date_end)
-           .filter(ee.Filter.lte('CLOUDY_PIXEL_PERCENTAGE', cloud_thresh))
-           .select(['B2', 'B3', 'B4', 'B8', 'B11', 'SCL']))
+    col, n_scenes, col_id = _build_s2_collection(
+        aoi_geom, date_start, date_end, cloud_thresh
+    )
 
-    n_scenes = col.size().getInfo()
-    if not n_scenes:
-        logger.warning(
-            f"No S2 scenes: date={date_start}..{date_end}, cloud<={cloud_thresh}%"
+    if not col:
+        raise ValueError(
+            f"No Sentinel-2 scenes found with cloud <= {cloud_thresh}% "
+            f"for {date_start} to {date_end}. "
+            f"Tried S2_SR_HARMONIZED and S2_SR. "
+            f"Try increasing cloud cover to 80-100% or expanding the date range."
         )
-        return {}
 
     def mask_clouds(img):
         scl = img.select('SCL')
