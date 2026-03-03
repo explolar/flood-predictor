@@ -204,7 +204,7 @@ def get_index_tile(aoi_json, index_key, date_start, date_end, cloud_thresh=60):
     Returns dict or None on failure.
     """
     try:
-        aoi_geom = ee.Geometry(json.loads(aoi_json))
+        aoi_geom = _make_geometry(aoi_json)
         meta = INDEX_REGISTRY[index_key]
 
         col, n_scenes, col_id = _build_s2_collection(
@@ -254,12 +254,32 @@ def get_index_tile(aoi_json, index_key, date_start, date_end, cloud_thresh=60):
         return None
 
 
+def _make_geometry(aoi_json):
+    """Safely reconstruct an ee.Geometry from serialized AOI JSON.
+
+    Handles the geodesic/evenOdd fields that ee.Geometry.getInfo() adds
+    but that ee.Geometry() constructor may misinterpret on round-trip.
+    """
+    geo = json.loads(aoi_json) if isinstance(aoi_json, str) else aoi_json
+    coords = geo.get('coordinates', [])
+    geo_type = geo.get('type', 'Polygon')
+    geodesic = geo.get('geodesic', True)
+
+    if geo_type == 'Polygon':
+        return ee.Geometry.Polygon(coords, proj='EPSG:4326', geodesic=geodesic)
+    elif geo_type == 'MultiPolygon':
+        return ee.Geometry.MultiPolygon(coords, proj='EPSG:4326', geodesic=geodesic)
+    elif geo_type == 'Rectangle':
+        return ee.Geometry.Rectangle(coords, proj='EPSG:4326', geodesic=geodesic)
+    else:
+        return ee.Geometry(geo, opt_proj='EPSG:4326')
+
+
 def _build_s2_collection(aoi_geom, date_start, date_end, cloud_thresh):
     """Try S2_SR_HARMONIZED first, fall back to S2_SR if no scenes found."""
     _BANDS = ['B2', 'B3', 'B4', 'B8', 'B11', 'SCL']
 
     for collection_id in ['COPERNICUS/S2_SR_HARMONIZED', 'COPERNICUS/S2_SR']:
-        # Count scenes WITHOUT .select() to avoid band-filtering issues
         base = (ee.ImageCollection(collection_id)
                 .filterBounds(aoi_geom)
                 .filterDate(date_start, date_end)
@@ -279,7 +299,7 @@ def get_all_index_tiles(aoi_json, date_start, date_end, cloud_thresh=60):
     Returns {index_key: result_dict}.
     Raises ValueError on no scenes (prevents caching empty results).
     """
-    aoi_geom = ee.Geometry(json.loads(aoi_json))
+    aoi_geom = _make_geometry(aoi_json)
 
     col, n_scenes, col_id = _build_s2_collection(
         aoi_geom, date_start, date_end, cloud_thresh
@@ -337,3 +357,52 @@ def get_all_index_tiles(aoi_json, date_start, date_end, cloud_thresh=60):
             continue
 
     return results
+
+
+def diagnose_s2_access(aoi_json, date_start, date_end, cloud_thresh):
+    """Step-by-step diagnostic for S2 collection access. Returns list of dicts."""
+    steps = []
+    try:
+        aoi_geom = _make_geometry(aoi_json)
+        centroid = aoi_geom.centroid(1).getInfo()['coordinates']
+        steps.append({'step': 'Geometry', 'status': 'OK',
+                      'detail': f'Centroid: [{centroid[0]:.4f}, {centroid[1]:.4f}]'})
+    except Exception as e:
+        steps.append({'step': 'Geometry', 'status': 'FAIL', 'detail': str(e)})
+        return steps
+
+    for col_id in ['COPERNICUS/S2_SR_HARMONIZED', 'COPERNICUS/S2_SR']:
+        try:
+            # Date only (no location filter)
+            n_date = (ee.ImageCollection(col_id)
+                      .filterDate(date_start, date_end)
+                      .limit(1).size().getInfo())
+            steps.append({'step': f'{col_id.split("/")[-1]} (date only)',
+                          'status': 'OK' if n_date else 'EMPTY',
+                          'detail': f'{n_date} image(s)'})
+
+            # Date + bounds
+            n_bounds = (ee.ImageCollection(col_id)
+                        .filterBounds(aoi_geom)
+                        .filterDate(date_start, date_end)
+                        .size().getInfo())
+            steps.append({'step': f'{col_id.split("/")[-1]} (date+AOI)',
+                          'status': 'OK' if n_bounds else 'EMPTY',
+                          'detail': f'{n_bounds} scene(s)'})
+
+            # Date + bounds + cloud
+            n_full = (ee.ImageCollection(col_id)
+                      .filterBounds(aoi_geom)
+                      .filterDate(date_start, date_end)
+                      .filter(ee.Filter.lte('CLOUDY_PIXEL_PERCENTAGE', cloud_thresh))
+                      .size().getInfo())
+            steps.append({'step': f'{col_id.split("/")[-1]} (date+AOI+cloud≤{cloud_thresh}%)',
+                          'status': 'OK' if n_full else 'EMPTY',
+                          'detail': f'{n_full} scene(s)'})
+
+            if n_full:
+                return steps
+        except Exception as e:
+            steps.append({'step': col_id, 'status': 'ERROR', 'detail': str(e)})
+
+    return steps

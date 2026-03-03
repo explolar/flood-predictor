@@ -7,7 +7,7 @@ import pandas as pd
 from folium.plugins import Fullscreen, MiniMap
 from streamlit_folium import folium_static
 
-from gee_functions.indices import INDEX_REGISTRY, get_all_index_tiles
+from gee_functions.indices import INDEX_REGISTRY, get_all_index_tiles, diagnose_s2_access
 from ui_components.legends import get_index_legend
 from ui_components.reports import generate_index_pdf_bytes
 
@@ -32,7 +32,7 @@ def render_indices_tab(aoi_json, params):
     )
 
     # ── Compute All button ─────────────────────────────
-    btn_col, clear_col = st.columns([3, 1])
+    btn_col, clear_col, diag_col = st.columns([3, 1, 1])
     with btn_col:
         compute_clicked = st.button('COMPUTE ALL INDICES', use_container_width=True, type='primary')
     with clear_col:
@@ -42,6 +42,15 @@ def render_indices_tab(aoi_json, params):
             for k in INDEX_REGISTRY:
                 st.session_state.pop(f'{k}_computed', None)
             st.success('Cache cleared — click COMPUTE to retry.')
+    with diag_col:
+        diag_clicked = st.button('DIAGNOSE', use_container_width=True, key='idx_diag')
+
+    if diag_clicked:
+        with st.spinner('Running S2 diagnostics...'):
+            steps = diagnose_s2_access(aoi_json, date_start, date_end, cloud_thresh)
+        for s in steps:
+            icon = '✅' if s['status'] == 'OK' else '❌' if s['status'] in ('FAIL', 'ERROR') else '⚠️'
+            st.markdown(f'`{icon} {s["step"]}` — {s["detail"]}')
 
     if compute_clicked:
         try:

@@ -52,8 +52,20 @@ def get_all_sar_data(aoi_json, f_start, f_end, p_start, p_end, threshold, polari
           .filterBounds(aoi_geom)
           .filter(ee.Filter.listContains('transmitterReceiverPolarisation', polarization))
           .select(polarization))
-    pre  = s1.filterDate(str(p_start), str(p_end)).median().clip(aoi_geom)
-    post = s1.filterDate(str(f_start), str(f_end)).median().clip(aoi_geom)
+
+    pre_col  = s1.filterDate(str(p_start), str(p_end))
+    post_col = s1.filterDate(str(f_start), str(f_end))
+    n_pre  = pre_col.size().getInfo()
+    n_post = post_col.size().getInfo()
+    if not n_pre or not n_post:
+        raise ValueError(
+            f"Insufficient Sentinel-1 data: {n_pre} pre-flood scenes "
+            f"({p_start}–{p_end}), {n_post} post-flood scenes "
+            f"({f_start}–{f_end}). Try expanding the date windows."
+        )
+
+    pre  = pre_col.median().clip(aoi_geom)
+    post = post_col.median().clip(aoi_geom)
     if speckle:
         pre  = pre.focal_mean(radius=1, kernelType='square', units='pixels')
         post = post.focal_mean(radius=1, kernelType='square', units='pixels')
