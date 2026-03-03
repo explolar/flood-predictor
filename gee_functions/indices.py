@@ -321,6 +321,7 @@ def get_all_index_tiles(aoi_json, date_start, date_end, cloud_thresh=60):
     s2 = col.map(mask_clouds).median().clip(aoi_geom)
 
     results = {}
+    errors = []
     for index_key, meta in INDEX_REGISTRY.items():
         try:
             index_img = _compute_index(s2, index_key)
@@ -354,7 +355,15 @@ def get_all_index_tiles(aoi_json, date_start, date_end, cloud_thresh=60):
             }
         except Exception as e:
             logger.warning(f"Index {index_key} failed: {e}")
+            errors.append(f"{index_key}: {e}")
             continue
+
+    if not results:
+        # Raise so @st.cache_data does NOT cache an empty result
+        raise ValueError(
+            f"Found {n_scenes} S2 scenes ({col_id}) but all 7 index "
+            f"computations failed: {'; '.join(errors[:3])}"
+        )
 
     return results
 

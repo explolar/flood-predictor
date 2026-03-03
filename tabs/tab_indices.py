@@ -53,6 +53,11 @@ def render_indices_tab(aoi_json, params):
             st.markdown(f'`{icon} {s["step"]}` — {s["detail"]}')
 
     if compute_clicked:
+        # Clear ALL stale caches before recomputing
+        get_all_index_tiles.clear()
+        st.session_state.pop('all_indices', None)
+        for k in INDEX_REGISTRY:
+            st.session_state.pop(f'{k}_computed', None)
         try:
             with st.spinner('Building Sentinel-2 composite & computing 7 indices...'):
                 all_results = get_all_index_tiles(aoi_json, date_start, date_end, cloud_thresh)
