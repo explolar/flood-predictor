@@ -7,8 +7,15 @@ def inject_styles():
 
     /* ── BASE ─────────────────────────────────────────── */
     html, body, [class*="css"] { font-family: 'Space Grotesk', sans-serif !important; }
-    #MainMenu, footer, header { visibility: hidden; }
+    #MainMenu, footer { visibility: hidden; }
+    header[data-testid="stHeader"] { background: transparent !important; }
     .stDeployButton { display: none !important; }
+    /* Keep sidebar toggle visible on mobile */
+    [data-testid="collapsedControl"] {
+        visibility: visible !important;
+        display: flex !important;
+        color: #00FFFF !important;
+    }
     ::-webkit-scrollbar { width: 4px; }
     ::-webkit-scrollbar-track { background: #020c1b; }
     ::-webkit-scrollbar-thumb { background: rgba(0,255,255,0.25); border-radius: 2px; }
@@ -165,14 +172,18 @@ def inject_styles():
     [data-testid="stTabs"] [role="tablist"] {
         background: transparent !important; gap: 0 !important;
         border-bottom: 1px solid rgba(0,255,255,0.1) !important; padding-bottom: 0 !important;
+        overflow-x: auto !important; flex-wrap: nowrap !important;
+        -webkit-overflow-scrolling: touch !important;
+        scrollbar-width: none !important;
     }
+    [data-testid="stTabs"] [role="tablist"]::-webkit-scrollbar { display: none !important; }
     [data-testid="stTabs"] button[role="tab"] {
         font-family: 'Rajdhani', sans-serif !important; font-weight: 600 !important;
         font-size: 0.92rem !important; letter-spacing: 2px !important;
         color: rgba(0,255,255,0.35) !important; border: none !important;
         background: transparent !important; padding: 0.55rem 1.6rem !important;
         border-bottom: 2px solid transparent !important; transition: all 0.3s !important;
-        margin-bottom: -1px !important;
+        margin-bottom: -1px !important; white-space: nowrap !important; flex-shrink: 0 !important;
     }
     [data-testid="stTabs"] button[role="tab"]:hover { color: rgba(0,255,255,0.7) !important; background: rgba(0,255,255,0.03) !important; }
     [data-testid="stTabs"] button[role="tab"][aria-selected="true"] {
@@ -300,24 +311,17 @@ def inject_styles():
 
     /* ── MOBILE RESPONSIVENESS ────────────────────────── */
     @media (max-width: 768px) {
-        /* Sidebar toggle hint */
+        /* Sidebar: narrower on mobile */
         [data-testid="stSidebar"] {
             min-width: 260px !important;
             max-width: 280px !important;
         }
-        [data-testid="stSidebar"][aria-expanded="false"] ~ div [data-testid="stAppViewBlockContainer"]::before {
-            content: 'Tap ☰ for controls';
-            display: block;
-            text-align: center;
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.7rem;
-            letter-spacing: 1.5px;
-            color: rgba(0,255,255,0.5);
-            background: rgba(0,255,255,0.04);
-            border: 1px solid rgba(0,255,255,0.12);
-            border-radius: 6px;
-            padding: 6px 12px;
-            margin-bottom: 10px;
+
+        /* Reduce main content padding */
+        [data-testid="stAppViewBlockContainer"] {
+            padding-left: 12px !important;
+            padding-right: 12px !important;
+            padding-top: 8px !important;
         }
 
         /* Shrink header text */
@@ -325,16 +329,20 @@ def inject_styles():
             font-size: 1.2rem !important;
             letter-spacing: 2px !important;
         }
+        .page-header {
+            padding: 2px 0 10px 0 !important;
+            margin-bottom: 10px !important;
+        }
         .page-header .subtitle {
             font-size: 0.55rem !important;
             letter-spacing: 1.5px !important;
         }
 
-        /* Tab labels smaller */
+        /* Tab labels smaller & scrollable */
         [data-testid="stTabs"] button[role="tab"] {
-            font-size: 0.65rem !important;
+            font-size: 0.7rem !important;
             letter-spacing: 1px !important;
-            padding: 0.4rem 0.6rem !important;
+            padding: 0.4rem 0.7rem !important;
         }
 
         /* Stack columns vertically */
@@ -359,16 +367,9 @@ def inject_styles():
         }
 
         /* Stats row wrap */
-        .stats-row {
-            gap: 6px !important;
-        }
-        .stat-chip {
-            padding: 6px 8px !important;
-            font-size: 0.65rem !important;
-        }
-        .stat-chip b {
-            font-size: 0.9rem !important;
-        }
+        .stats-row { gap: 6px !important; }
+        .stat-chip { padding: 6px 8px !important; font-size: 0.65rem !important; }
+        .stat-chip b { font-size: 0.9rem !important; }
 
         /* Dual labels */
         .dual-label {
@@ -378,31 +379,31 @@ def inject_styles():
         }
 
         /* Tech panel */
-        .tech-panel {
-            padding: 10px 12px !important;
-        }
+        .tech-panel { padding: 10px 12px !important; }
 
-        /* Sidebar sliders usable on mobile */
-        [data-baseweb="slider"] {
-            padding: 8px 0 !important;
-        }
+        /* Sidebar sliders — larger touch targets */
+        [data-baseweb="slider"] { padding: 8px 0 !important; }
         [data-baseweb="slider"] [role="slider"] {
-            width: 20px !important;
-            height: 20px !important;
+            width: 22px !important;
+            height: 22px !important;
         }
 
-        /* Hide system status icon on mobile to save space */
-        .system-status {
-            display: none !important;
-        }
+        /* Hide system status icon on mobile */
+        .system-status { display: none !important; }
 
         /* Return period table */
-        .rp-table {
-            font-size: 0.65rem !important;
+        .rp-table { font-size: 0.65rem !important; }
+        .rp-table th, .rp-table td { padding: 4px 6px !important; }
+
+        /* Expander */
+        [data-testid="stExpander"] summary {
+            font-size: 0.75rem !important;
+            letter-spacing: 1px !important;
+            padding: 8px 12px !important;
         }
-        .rp-table th, .rp-table td {
-            padding: 4px 6px !important;
-        }
+
+        /* Folium maps — full width, shorter on mobile */
+        iframe { max-height: 350px !important; }
     }
 
     /* Small phones */
@@ -411,12 +412,21 @@ def inject_styles():
             font-size: 1rem !important;
             letter-spacing: 1.5px !important;
         }
+        .page-header .subtitle {
+            font-size: 0.48rem !important;
+            letter-spacing: 1px !important;
+        }
         [data-testid="stTabs"] button[role="tab"] {
-            font-size: 0.55rem !important;
-            padding: 0.3rem 0.4rem !important;
+            font-size: 0.6rem !important;
+            padding: 0.3rem 0.5rem !important;
+            letter-spacing: 0.5px !important;
         }
         .metric-card .metric-value {
             font-size: 1.4rem !important;
+        }
+        [data-testid="stAppViewBlockContainer"] {
+            padding-left: 8px !important;
+            padding-right: 8px !important;
         }
     }
     </style>
