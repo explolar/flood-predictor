@@ -36,7 +36,7 @@ A satellite-powered flood risk assessment platform built with **Google Earth Eng
 
 ## Overview
 
-HydroRisk Atlas is a modular geospatial flood intelligence platform with 5 consolidated tabs (RISK, SAR, ML, CLIMATE, INDICES) that combines rule-based geospatial analysis with a suite of ML classifiers. The analytical pipeline covers:
+HydroRisk Atlas is a modular geospatial flood intelligence platform with 6 consolidated tabs (RISK, SAR, ML, CLIMATE, INDICES, HYDROLOGY) that combines rule-based geospatial analysis with a suite of ML classifiers. The analytical pipeline covers:
 
 **Core Analysis**
 - **MCA Susceptibility** — Weighted multi-criteria analysis of land cover, terrain slope, and historical rainfall producing a static flood susceptibility index.
@@ -52,7 +52,7 @@ HydroRisk Atlas is a modular geospatial flood intelligence platform with 5 conso
 - **Isolation Forest** — Anomaly detection on monthly SAR backscatter time series.
 
 **Advanced Modules**
-- SHAP explainability, Optuna hyperparameter tuning, population displacement estimation, building damage assessment, soil moisture integration, urban flood vulnerability index, water quality assessment, multi-year comparison, drought monitoring (SPI + NDVI), spectral indices download (NDVI/NDWI/MNDWI/NDBI/SAVI/EVI/BSI with GeoTIFF & cartographic PDF export), 3D terrain visualization, timelapse animation, real-time rainfall alerts, multi-language UI, FastAPI REST wrapper, SQLite/PostgreSQL backend.
+- SHAP explainability, Optuna hyperparameter tuning, population displacement estimation, building damage assessment, soil moisture integration, urban flood vulnerability index, water quality assessment, multi-year comparison, drought monitoring (SPI + NDVI), spectral indices download (NDVI/NDWI/MNDWI/NDBI/SAVI/EVI/BSI with GeoTIFF & cartographic PDF export), HydroSHEDS watershed delineation, stream network extraction, terrain hydrology analysis, 3D terrain visualization, timelapse animation, real-time rainfall alerts, multi-language UI, FastAPI REST wrapper, SQLite/PostgreSQL backend.
 
 ---
 
@@ -61,7 +61,7 @@ HydroRisk Atlas is a modular geospatial flood intelligence platform with 5 conso
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                        Streamlit Frontend                       │
-│  Sidebar controls  →  Session state  →  5-tab render engine    │
+│  Sidebar controls  →  Session state  →  6-tab render engine    │
 └────────────────────┬──────────────────────┬─────────────────────┘
                      │                      │
     @st.cache_data   │                      │  Tab 5: ML Intelligence
@@ -98,7 +98,7 @@ HydroRisk Atlas is a modular geospatial flood intelligence platform with 5 conso
 
 ```
 flood-predictor/
-├── app.py                            # Streamlit entrypoint — sidebar + 5-tab dispatch
+├── app.py                            # Streamlit entrypoint — sidebar + 6-tab dispatch
 ├── requirements.txt
 ├── Dockerfile                        # Dual-mode: MODE=api (FastAPI) or Streamlit
 ├── pyproject.toml                    # Ruff linting config
@@ -112,7 +112,8 @@ flood-predictor/
 │   ├── tab_ml.py                     # ML — Classifiers / Analytics / Tools (sub-tabs)
 │   ├── tab_multiyear.py              # CLIMATE sub-tab: Multi-year flood comparison
 │   ├── tab_drought.py                # CLIMATE sub-tab: SPI + NDVI anomaly drought monitoring
-│   └── tab_indices.py                # INDICES — Spectral indices (NDVI, NDWI, MNDWI, NDBI, SAVI, EVI, BSI)
+│   ├── tab_indices.py                # INDICES — Spectral indices (NDVI, NDWI, MNDWI, NDBI, SAVI, EVI, BSI)
+│   └── tab_hydrology.py             # HYDROLOGY — Watershed / Streams / Terrain (sub-tabs)
 │
 ├── gee_functions/                    # Google Earth Engine computation modules
 │   ├── core.py                       # EE init, AOI terrain stats
@@ -122,7 +123,7 @@ flood-predictor/
 │   ├── layers.py                     # NDVI, JRC frequency, S2 RGB
 │   ├── infrastructure.py             # OSM infrastructure, roads, GRanD dams
 │   ├── crop.py                       # NDVI-based crop loss
-│   ├── watershed.py                  # HydroSHEDS watershed boundaries
+│   ├── watershed.py                  # HydroSHEDS watershed, stream network, terrain hydrology
 │   ├── population.py                 # WorldPop displacement estimates
 │   ├── buildings.py                  # Google Open Buildings damage assessment
 │   ├── soil_moisture.py              # NASA SMAP soil moisture
@@ -292,7 +293,10 @@ Bayesian hyperparameter optimization for GB and XGBoost with cross-validated F1 
 | NASA SMAP | `NASA/SMAP/SPL3SMP_E/005` | 9 km | Soil moisture |
 | Sentinel-2 SR | `COPERNICUS/S2_SR_HARMONIZED` | 10 m | NDVI, NDWI, MNDWI, NDBI, SAVI, EVI, BSI, true color, water quality |
 | MODIS NDVI | `MODIS/061/MOD13A2` | 1 km | Drought NDVI anomaly |
-| HydroSHEDS Basins | `WWF/HydroSHEDS/v1/Basins/hybas_8` | vector | Watershed delineation |
+| HydroSHEDS Basins | `WWF/HydroSHEDS/v1/Basins/hybas_{6,8,10}` | vector | Watershed delineation |
+| HydroSHEDS Flow Acc | `WWF/HydroSHEDS/03ACC` | ~90 m | Flow accumulation, stream extraction |
+| HydroSHEDS Flow Dir | `WWF/HydroSHEDS/03DIR` | ~90 m | D8 flow direction |
+| HydroSHEDS Cond. DEM | `WWF/HydroSHEDS/03CONDEM` | ~90 m | Hydrologically conditioned DEM |
 | GRanD Dams | `projects/sat-io/open-datasets/GRanD/GRAND_Dams_v1_3` | vector | Dam context (150 km) |
 
 ---
@@ -320,12 +324,18 @@ Bayesian hyperparameter optimization for GB and XGBoost with cross-validated F1 
 - **Drought** — Standardized Precipitation Index (SPI), MODIS NDVI anomaly vs 20-year climatology
 
 ### Tab 5 — INDICES (Spectral Indices Download)
+
 - 7 indices from Sentinel-2 SR at 10 m: **NDVI**, **NDWI**, **MNDWI**, **NDBI**, **SAVI**, **EVI**, **BSI**
 - Classified maps with per-index thresholds and color ramps
 - Interactive folium map with index tile overlay and dynamic legend
 - GeoTIFF download (30 m) for each index
 - Cartographic PDF export with north arrow, coordinate labels, classified legend, statistics, and methodology
 - Info/methodology panel with classification basis and threshold table for each index
+
+### Tab 6 — HYDROLOGY (sub-tabs: Watershed | Streams | Terrain)
+- **Watershed** — Multi-level HydroSHEDS basin hierarchy (Levels 6, 8, 10) with interactive map overlay and per-basin statistics (area, upstream area, mean elevation)
+- **Streams** — Stream network extracted from HydroSHEDS 3 arc-sec flow accumulation with configurable upstream cell threshold (50–500); Strahler order proxy via log10 binning; drainage density computation (km/km²)
+- **Terrain** — Flow accumulation (log scale), D8 flow direction, and hydrologically conditioned DEM visualization from HydroSHEDS
 
 ### Sidebar
 - Place name geocoding → auto AOI
