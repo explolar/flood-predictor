@@ -307,9 +307,12 @@ def get_all_index_tiles(aoi_json, date_start, date_end, cloud_thresh=60):
     return results
 
 
-@st.cache_data(show_spinner=False, ttl=3600)
 def get_index_download_url(aoi_json, index_key, date_start, date_end, cloud_thresh=60):
-    """Generate GeoTIFF download URL for a single index on demand."""
+    """Generate GeoTIFF download URL for a single index on demand.
+
+    Not cached — getDownloadUrl can fail for large AOIs and we don't want
+    to cache None results.
+    """
     try:
         aoi_geom = _make_geometry(aoi_json)
         col, _, _ = _build_s2_collection(aoi_geom, date_start, date_end, cloud_thresh)
@@ -323,8 +326,11 @@ def get_index_download_url(aoi_json, index_key, date_start, date_end, cloud_thre
 
         s2 = col.map(mask_clouds).median().clip(aoi_geom)
         index_img = _compute_index(s2, index_key)
+
+        # Use 30m for download to stay under GEE's download size limit
+        # (a 0.5° × 0.5° AOI at 10m = ~150 MB; at 30m = ~17 MB)
         return index_img.getDownloadUrl({
-            'scale': 10, 'crs': 'EPSG:4326',
+            'scale': 30, 'crs': 'EPSG:4326',
             'format': 'GeoTIFF', 'region': aoi_geom,
         })
     except Exception as e:

@@ -155,13 +155,17 @@ def _render_single_index(index_key, aoi_json, aoi, map_center,
 
         # PDF download
         aoi_coords = _get_aoi_coords(aoi_json)
-        pdf_bytes = generate_index_pdf_bytes(
-            index_key=index_key,
-            index_data=result,
-            aoi_coords=aoi_coords,
-            date_start=date_start,
-            date_end=date_end,
-        )
+        try:
+            pdf_bytes = generate_index_pdf_bytes(
+                index_key=index_key,
+                index_data=result,
+                aoi_coords=aoi_coords,
+                date_start=date_start,
+                date_end=date_end,
+            )
+        except Exception as e:
+            pdf_bytes = None
+            st.caption(f'PDF error: {e}')
         if pdf_bytes:
             st.download_button(
                 label=f'DOWNLOAD {index_key} PDF MAP',
