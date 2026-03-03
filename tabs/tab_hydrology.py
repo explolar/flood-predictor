@@ -49,11 +49,11 @@ def _render_watershed(aoi_json, map_center):
         unsafe_allow_html=True,
     )
 
-    with st.spinner('Loading watershed boundaries...'):
-        basins = get_multi_basin_geojson(aoi_json)
-
-    if basins is None:
-        st.error('Failed to load HydroSHEDS basin data.')
+    try:
+        with st.spinner('Loading watershed boundaries...'):
+            basins = get_multi_basin_geojson(aoi_json)
+    except Exception as e:
+        st.error(f'Failed to load HydroSHEDS basin data — {e}')
         return
 
     # Metrics
@@ -136,8 +136,12 @@ def _render_watershed(aoi_json, map_center):
     # Basin statistics expander
     with st.expander('BASIN STATISTICS (Level 8)', expanded=False):
         if st.button('Load Statistics', key='hydro_stats_btn', use_container_width=True):
-            with st.spinner('Computing per-basin statistics...'):
-                stats = get_basin_statistics(aoi_json)
+            try:
+                with st.spinner('Computing per-basin statistics...'):
+                    stats = get_basin_statistics(aoi_json)
+            except Exception as e:
+                st.warning(f'Basin statistics failed — {e}')
+                stats = []
             if stats:
                 st.dataframe(pd.DataFrame(stats), use_container_width=True, hide_index=True)
             else:
@@ -166,11 +170,11 @@ def _render_streams(aoi_json, map_center):
         key='hydro_stream_thresh',
     )
 
-    with st.spinner('Computing stream network...'):
-        hydro = get_all_hydrology_data(aoi_json, stream_threshold)
-
-    if hydro is None:
-        st.error('Stream network computation failed — check AOI and try again.')
+    try:
+        with st.spinner('Computing stream network...'):
+            hydro = get_all_hydrology_data(aoi_json, stream_threshold)
+    except Exception as e:
+        st.error(f'Stream network computation failed — {e}')
         return
 
     # Metrics
@@ -239,8 +243,12 @@ def _render_streams(aoi_json, map_center):
     # Drainage density expander
     with st.expander('DRAINAGE DENSITY', expanded=False):
         if st.button('Compute Drainage Density', key='hydro_dd_btn', use_container_width=True):
-            with st.spinner('Computing spatial drainage density...'):
-                dd = get_drainage_density(aoi_json, stream_threshold)
+            try:
+                with st.spinner('Computing spatial drainage density...'):
+                    dd = get_drainage_density(aoi_json, stream_threshold)
+            except Exception as e:
+                st.warning(f'Drainage density computation failed — {e}')
+                dd = None
             if dd:
                 dc1, dc2, dc3 = st.columns(3)
                 dc1.metric('Drainage Density', f'{dd["scalar_density"]} km/km\u00b2')
@@ -279,11 +287,11 @@ def _render_terrain(aoi_json, map_center):
         unsafe_allow_html=True,
     )
 
-    with st.spinner('Loading terrain data...'):
-        hydro = get_all_hydrology_data(aoi_json)
-
-    if hydro is None:
-        st.error('Terrain data loading failed — check AOI and try again.')
+    try:
+        with st.spinner('Loading terrain data...'):
+            hydro = get_all_hydrology_data(aoi_json)
+    except Exception as e:
+        st.error(f'Terrain data loading failed — {e}')
         return
 
     # Metrics
