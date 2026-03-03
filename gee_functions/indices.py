@@ -338,6 +338,44 @@ def get_index_download_url(aoi_json, index_key, date_start, date_end, cloud_thre
         return None
 
 
+def get_index_thumb_url(aoi_json, index_key, date_start, date_end, cloud_thresh=60):
+    """Generate a thumbnail URL for embedding in PDF reports."""
+    try:
+        aoi_geom = _make_geometry(aoi_json)
+        col, _, _ = _build_s2_collection(aoi_geom, date_start, date_end, cloud_thresh)
+        if not col:
+            return None
+
+        def mask_clouds(img):
+            scl = img.select('SCL')
+            mask = scl.neq(3).And(scl.neq(8)).And(scl.neq(9)).And(scl.neq(10))
+            return img.updateMask(mask)
+
+        s2 = col.map(mask_clouds).median().clip(aoi_geom)
+        index_img = _compute_index(s2, index_key)
+        meta = INDEX_REGISTRY[index_key]
+
+        # Classified image for visual clarity in PDF
+        classified = ee.Image(0)
+        for i, (lo, hi, color, _label) in enumerate(meta['classes']):
+            classified = classified.where(
+                index_img.gte(lo).And(index_img.lt(hi)), i + 1
+            )
+        classified = classified.updateMask(classified.gt(0))
+
+        palette = [c[2] for c in meta['classes']]
+        return classified.getThumbURL({
+            'min': 1, 'max': len(palette),
+            'palette': palette,
+            'dimensions': 512,
+            'region': aoi_geom,
+            'format': 'png',
+        })
+    except Exception as e:
+        logger.warning(f"get_index_thumb_url({index_key}) failed: {e}")
+        return None
+
+
 def diagnose_s2_access(aoi_json, date_start, date_end, cloud_thresh):
     """Step-by-step diagnostic for S2 collection access. Returns list of dicts."""
     steps = []

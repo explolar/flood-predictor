@@ -21,6 +21,7 @@ from tabs import (
     render_multiyear_tab,
     render_drought_tab,
     render_indices_tab,
+    render_hydrology_tab,
 )
 
 # ==========================================
@@ -208,8 +209,8 @@ with st.expander("METHODOLOGY", expanded=False):
     </div>""", unsafe_allow_html=True)
 
 st.markdown("<br>", unsafe_allow_html=True)
-tab1, tab2, tab3, tab4, tab5 = st.tabs([
-    " RISK ", " SAR ", " ML ", " CLIMATE ", " INDICES "
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+    " RISK ", " SAR ", " ML ", " CLIMATE ", " INDICES ", " HYDROLOGY "
 ])
 
 if st.session_state.aoi:
@@ -245,6 +246,8 @@ if st.session_state.aoi:
             render_drought_tab(_aoi_json, params)
     with tab5:
         render_indices_tab(_aoi_json, params)
+    with tab6:
+        render_hydrology_tab(_aoi_json, params)
 
 else:
     st.markdown("""

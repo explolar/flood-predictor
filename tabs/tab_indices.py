@@ -7,7 +7,7 @@ import pandas as pd
 from folium.plugins import Fullscreen, MiniMap
 from streamlit_folium import folium_static
 
-from gee_functions.indices import INDEX_REGISTRY, get_all_index_tiles, get_index_download_url, diagnose_s2_access
+from gee_functions.indices import INDEX_REGISTRY, get_all_index_tiles, get_index_download_url, get_index_thumb_url, diagnose_s2_access
 from ui_components.legends import get_index_legend
 from ui_components.reports import generate_index_pdf_bytes
 
@@ -153,12 +153,18 @@ def _render_single_index(index_key, aoi_json, aoi, map_center,
 
         st.markdown('<br>', unsafe_allow_html=True)
 
-        # PDF download
+        # PDF download (fetch thumbnail on demand for map image)
         aoi_coords = _get_aoi_coords(aoi_json)
         try:
+            thumb_url = get_index_thumb_url(
+                aoi_json, index_key, date_start, date_end, cloud_thresh
+            )
+            pdf_data = dict(result)
+            if thumb_url:
+                pdf_data['thumb_url'] = thumb_url
             pdf_bytes = generate_index_pdf_bytes(
                 index_key=index_key,
-                index_data=result,
+                index_data=pdf_data,
                 aoi_coords=aoi_coords,
                 date_start=date_start,
                 date_end=date_end,
