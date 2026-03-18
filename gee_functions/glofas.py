@@ -32,7 +32,7 @@ def get_river_discharge_estimate(aoi_json, start_date, end_date):
     """
     aoi_geom = ee.Geometry(json.loads(aoi_json))
 
-    flow_acc = ee.Image("WWF/HydroSHEDS/03ACC").select("b1").clip(aoi_geom)
+    flow_acc = ee.Image("WWF/HydroSHEDS/15ACC").select("b1").clip(aoi_geom)
     # Normalize flow accumulation to 0-1 for weighting
     fa_stats = flow_acc.reduceRegion(
         reducer=ee.Reducer.max(),
@@ -139,7 +139,7 @@ def get_discharge_return_levels(aoi_json, baseline_years=20):
     import math
 
     aoi_geom = ee.Geometry(json.loads(aoi_json))
-    flow_acc = ee.Image("WWF/HydroSHEDS/03ACC").select("b1").clip(aoi_geom)
+    flow_acc = ee.Image("WWF/HydroSHEDS/15ACC").select("b1").clip(aoi_geom)
     fa_stats = flow_acc.reduceRegion(
         reducer=ee.Reducer.max(),
         geometry=aoi_geom,

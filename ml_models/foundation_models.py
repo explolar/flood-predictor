@@ -189,7 +189,7 @@ class FoundationFloodClassifier:
             .addBands(slope.rename("slope"))
             .addBands(jrc.select("occurrence").clip(aoi_geom).rename("jrc_occ"))
             .addBands(jrc.select("seasonality").clip(aoi_geom).rename("jrc_season"))
-            .addBands(jrc.select("transitions").clip(aoi_geom).rename("jrc_transitions"))
+            .addBands(jrc.select("transition").clip(aoi_geom).rename("jrc_transitions"))
             .addBands(ndvi_proxy.rename("ndvi_proxy"))
             .addBands(roughness)
         )

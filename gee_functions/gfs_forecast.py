@@ -42,7 +42,7 @@ def get_gfs_forecast(aoi_json, forecast_hours=168):
         .filter(ee.Filter.lte("forecast_hours", forecast_hours))
         .select(
             [
-                "total_precipitation_surface",
+                "precipitation_rate",
                 "temperature_2m_above_ground",
                 "relative_humidity_2m_above_ground",
                 "u_component_of_wind_10m_above_ground",
@@ -70,7 +70,7 @@ def get_gfs_forecast(aoi_json, forecast_hours=168):
             {
                 "forecast_hour": fh,
                 "creation_time": creation,
-                "precip_mm": stats.get("total_precipitation_surface"),
+                "precip_rate": stats.get("precipitation_rate"),
                 "temp_k": stats.get("temperature_2m_above_ground"),
                 "humidity_pct": stats.get("relative_humidity_2m_above_ground"),
                 "wind_u": stats.get("u_component_of_wind_10m_above_ground"),
@@ -91,7 +91,7 @@ def get_gfs_forecast(aoi_json, forecast_hours=168):
         records.append(
             {
                 "forecast_hour": p.get("forecast_hour", 0),
-                "precip_mm": round(p.get("precip_mm", 0) or 0, 2),
+                "precip_mm": round((p.get("precip_rate", 0) or 0) * 3600, 2),  # kg/m2/s -> mm/hr
                 "temp_c": round((p.get("temp_k", 273.15) or 273.15) - 273.15, 1),
                 "humidity_pct": round(p.get("humidity_pct", 0) or 0, 1),
                 "wind_speed_ms": round(wind_speed, 1),
@@ -120,8 +120,8 @@ def get_gfs_forecast(aoi_json, forecast_hours=168):
     )
     daily.columns = ["Day", "Precip (mm)", "Temp (°C)", "Humidity (%)", "Wind (m/s)"]
 
-    # Total forecast precipitation tile
-    total_precip = col.select("total_precipitation_surface").sum().clip(aoi_geom)
+    # Total forecast precipitation tile (rate * 3600 = mm/hr, sum over hours)
+    total_precip = col.select("precipitation_rate").sum().multiply(3600).clip(aoi_geom)
     precip_tile = total_precip.getMapId(
         {
             "min": 0,

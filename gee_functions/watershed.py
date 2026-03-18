@@ -36,9 +36,9 @@ def get_all_hydrology_data(aoi_json, stream_threshold=100):
     """
     aoi_geom = ee.Geometry(json.loads(aoi_json))
 
-    flow_acc = ee.Image("WWF/HydroSHEDS/03ACC").select("b1").clip(aoi_geom)
-    flow_dir = ee.Image("WWF/HydroSHEDS/03DIR").select("b1").clip(aoi_geom)
-    cond_dem = ee.Image("WWF/HydroSHEDS/03CONDEM").select("b1").clip(aoi_geom)
+    flow_acc = ee.Image("WWF/HydroSHEDS/15ACC").select("b1").clip(aoi_geom)
+    flow_dir = ee.Image("WWF/HydroSHEDS/15DIR").select("b1").clip(aoi_geom)
+    cond_dem = ee.Image("WWF/HydroSHEDS/15CONDEM").select("b1").clip(aoi_geom)
 
     # Stream network from flow accumulation threshold
     streams = flow_acc.gt(stream_threshold).selfMask()
@@ -126,7 +126,7 @@ def get_multi_basin_geojson(aoi_json):
 def get_drainage_density(aoi_json, stream_threshold=100):
     """Compute spatial drainage density (km/km2) and scalar metric."""
     aoi_geom = ee.Geometry(json.loads(aoi_json))
-    flow_acc = ee.Image("WWF/HydroSHEDS/03ACC").select("b1").clip(aoi_geom)
+    flow_acc = ee.Image("WWF/HydroSHEDS/15ACC").select("b1").clip(aoi_geom)
     streams = flow_acc.gt(stream_threshold).selfMask()
 
     # Local density: count stream pixels in 1.5 km radius, normalize
@@ -182,8 +182,8 @@ def get_hand_data(aoi_json, stream_threshold=100, flood_depth_m=None):
     """
     aoi_geom = ee.Geometry(json.loads(aoi_json))
 
-    cond_dem = ee.Image("WWF/HydroSHEDS/03CONDEM").select("b1").clip(aoi_geom)
-    flow_acc = ee.Image("WWF/HydroSHEDS/03ACC").select("b1").clip(aoi_geom)
+    cond_dem = ee.Image("WWF/HydroSHEDS/15CONDEM").select("b1").clip(aoi_geom)
+    flow_acc = ee.Image("WWF/HydroSHEDS/15ACC").select("b1").clip(aoi_geom)
 
     # Drainage network mask
     drainage_mask = flow_acc.gt(stream_threshold)
