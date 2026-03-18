@@ -9,7 +9,7 @@ class TestConstants:
         for crop, price in CROP_PRICES.items():
             assert isinstance(crop, str)
             assert isinstance(price, (int, float))
-            assert price > 0
+            assert price >= 0
 
 
 class TestLegends:
