@@ -79,8 +79,14 @@ def _render_weather(aoi_json, params):
                     st.bar_chart(chart_df["Precip (mm)"], height=250)
                     st.line_chart(chart_df["Temp (°C)"], height=200)
 
-                    # Maps
+                    # Maps (only if tiles available)
                     col_l, col_r = st.columns(2)
+                    _aoi_style_fn = lambda _: {  # noqa: E731
+                        "fillColor": "none",
+                        "color": "#00FFFF",
+                        "weight": 2,
+                        "dashArray": "6 4",
+                    }
                     with col_l:
                         st.markdown(
                             '<div style="font-family:JetBrains Mono,monospace;'
@@ -89,21 +95,14 @@ def _render_weather(aoi_json, params):
                             unsafe_allow_html=True,
                         )
                         pm = folium.Map(location=map_center, zoom_start=9, tiles="CartoDB dark_matter")
-                        folium.TileLayer(
-                            tiles=result["precip_tile_url"],
-                            attr="GEE·GFS",
-                            name="Precipitation",
-                            opacity=0.8,
-                        ).add_to(pm)
-                        folium.GeoJson(
-                            json.loads(aoi_json),
-                            style_function=lambda _: {
-                                "fillColor": "none",
-                                "color": "#00FFFF",
-                                "weight": 2,
-                                "dashArray": "6 4",
-                            },
-                        ).add_to(pm)
+                        if result.get("precip_tile_url"):
+                            folium.TileLayer(
+                                tiles=result["precip_tile_url"],
+                                attr="GEE·GFS",
+                                name="Precipitation",
+                                opacity=0.8,
+                            ).add_to(pm)
+                        folium.GeoJson(json.loads(aoi_json), style_function=_aoi_style_fn).add_to(pm)
                         folium_static(pm, height=350)
 
                     with col_r:
@@ -114,21 +113,14 @@ def _render_weather(aoi_json, params):
                             unsafe_allow_html=True,
                         )
                         tm = folium.Map(location=map_center, zoom_start=9, tiles="CartoDB dark_matter")
-                        folium.TileLayer(
-                            tiles=result["temp_tile_url"],
-                            attr="GEE·GFS",
-                            name="Temperature",
-                            opacity=0.8,
-                        ).add_to(tm)
-                        folium.GeoJson(
-                            json.loads(aoi_json),
-                            style_function=lambda _: {
-                                "fillColor": "none",
-                                "color": "#00FFFF",
-                                "weight": 2,
-                                "dashArray": "6 4",
-                            },
-                        ).add_to(tm)
+                        if result.get("temp_tile_url"):
+                            folium.TileLayer(
+                                tiles=result["temp_tile_url"],
+                                attr="GEE·GFS",
+                                name="Temperature",
+                                opacity=0.8,
+                            ).add_to(tm)
+                        folium.GeoJson(json.loads(aoi_json), style_function=_aoi_style_fn).add_to(tm)
                         folium_static(tm, height=350)
 
                     # Flood alert assessment

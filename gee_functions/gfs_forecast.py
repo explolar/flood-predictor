@@ -14,6 +14,13 @@ import streamlit as st
 
 _GFS_ASSET = "NOAA/GFS0P25"
 
+# Bands that exist on ALL GFS forecast images (not the F000 analysis)
+_TEMP_BAND = "temperature_2m_above_ground"
+_HUMIDITY_BAND = "relative_humidity_2m_above_ground"
+_WIND_U_BAND = "u_component_of_wind_10m_above_ground"
+_WIND_V_BAND = "v_component_of_wind_10m_above_ground"
+_PRECIP_BAND = "precipitation_rate"
+
 
 @st.cache_data(show_spinner=False, ttl=1800)
 def get_gfs_forecast(aoi_json, forecast_hours=168):
@@ -31,29 +38,63 @@ def get_gfs_forecast(aoi_json, forecast_hours=168):
     """
     aoi_geom = ee.Geometry(json.loads(aoi_json))
 
-    # Latest GFS run: filter last 24 hours of initialization times
+    # Latest GFS run: look back up to 48 hours to find data
     now = datetime.utcnow()
-    start = (now - timedelta(hours=24)).strftime("%Y-%m-%dT%H:%M:%S")
+    start = (now - timedelta(hours=48)).strftime("%Y-%m-%dT%H:%M:%S")
 
+    # Filter: skip F000 (analysis hour has fewer bands), keep forecast hours 1+
     col = (
         ee.ImageCollection(_GFS_ASSET)
         .filterBounds(aoi_geom)
         .filterDate(start, now.strftime("%Y-%m-%dT%H:%M:%S"))
+        .filter(ee.Filter.gt("forecast_hours", 0))
         .filter(ee.Filter.lte("forecast_hours", forecast_hours))
-        .select(
-            [
-                "precipitation_rate",
-                "temperature_2m_above_ground",
-                "relative_humidity_2m_above_ground",
-                "u_component_of_wind_10m_above_ground",
-                "v_component_of_wind_10m_above_ground",
-            ]
-        )
     )
 
     count = col.size().getInfo()
     if not count:
         return None
+
+    # Select only bands we need — do this AFTER filtering to avoid
+    # band mismatch errors on images that lack certain bands
+    def safe_select(img):
+        """Select available bands, fill missing with zero."""
+        bands = img.bandNames()
+        precip = ee.Algorithms.If(
+            bands.contains(_PRECIP_BAND),
+            img.select(_PRECIP_BAND),
+            ee.Image.constant(0).rename(_PRECIP_BAND),
+        )
+        temp = ee.Algorithms.If(
+            bands.contains(_TEMP_BAND),
+            img.select(_TEMP_BAND),
+            ee.Image.constant(273.15).rename(_TEMP_BAND),
+        )
+        humidity = ee.Algorithms.If(
+            bands.contains(_HUMIDITY_BAND),
+            img.select(_HUMIDITY_BAND),
+            ee.Image.constant(0).rename(_HUMIDITY_BAND),
+        )
+        wind_u = ee.Algorithms.If(
+            bands.contains(_WIND_U_BAND),
+            img.select(_WIND_U_BAND),
+            ee.Image.constant(0).rename(_WIND_U_BAND),
+        )
+        wind_v = ee.Algorithms.If(
+            bands.contains(_WIND_V_BAND),
+            img.select(_WIND_V_BAND),
+            ee.Image.constant(0).rename(_WIND_V_BAND),
+        )
+        return (
+            ee.Image(precip)
+            .addBands(ee.Image(temp))
+            .addBands(ee.Image(humidity))
+            .addBands(ee.Image(wind_u))
+            .addBands(ee.Image(wind_v))
+            .copyProperties(img, ["forecast_hours", "creation_time", "system:time_start"])
+        )
+
+    col = col.map(safe_select)
 
     # Extract time series
     def extract_step(img):
@@ -62,19 +103,17 @@ def get_gfs_forecast(aoi_json, forecast_hours=168):
             geometry=aoi_geom,
             scale=25000,
             maxPixels=1e8,
+            bestEffort=True,
         )
-        fh = img.get("forecast_hours")
-        creation = img.get("creation_time")
         return ee.Feature(
             None,
             {
-                "forecast_hour": fh,
-                "creation_time": creation,
-                "precip_rate": stats.get("precipitation_rate"),
-                "temp_k": stats.get("temperature_2m_above_ground"),
-                "humidity_pct": stats.get("relative_humidity_2m_above_ground"),
-                "wind_u": stats.get("u_component_of_wind_10m_above_ground"),
-                "wind_v": stats.get("v_component_of_wind_10m_above_ground"),
+                "forecast_hour": img.get("forecast_hours"),
+                "precip_rate": stats.get(_PRECIP_BAND),
+                "temp_k": stats.get(_TEMP_BAND),
+                "humidity_pct": stats.get(_HUMIDITY_BAND),
+                "wind_u": stats.get(_WIND_U_BAND),
+                "wind_v": stats.get(_WIND_V_BAND),
             },
         )
 
@@ -84,14 +123,13 @@ def get_gfs_forecast(aoi_json, forecast_hours=168):
         p = f["properties"]
         if p.get("temp_k") is None:
             continue
-        # Wind speed from u,v components
         u = p.get("wind_u", 0) or 0
         v = p.get("wind_v", 0) or 0
         wind_speed = (u**2 + v**2) ** 0.5
         records.append(
             {
                 "forecast_hour": p.get("forecast_hour", 0),
-                "precip_mm": round((p.get("precip_rate", 0) or 0) * 3600, 2),  # kg/m2/s -> mm/hr
+                "precip_mm": round((p.get("precip_rate", 0) or 0) * 3600, 2),
                 "temp_c": round((p.get("temp_k", 273.15) or 273.15) - 273.15, 1),
                 "humidity_pct": round(p.get("humidity_pct", 0) or 0, 1),
                 "wind_speed_ms": round(wind_speed, 1),
@@ -120,27 +158,31 @@ def get_gfs_forecast(aoi_json, forecast_hours=168):
     )
     daily.columns = ["Day", "Precip (mm)", "Temp (°C)", "Humidity (%)", "Wind (m/s)"]
 
-    # Total forecast precipitation tile (rate * 3600 = mm/hr, sum over hours)
-    total_precip = col.select("precipitation_rate").sum().multiply(3600).clip(aoi_geom)
-    precip_tile = total_precip.getMapId(
-        {
-            "min": 0,
-            "max": 200,
-            "palette": ["f7fbff", "c6dbef", "6baed6", "2171b5", "08306b"],
-        }
-    )["tile_fetcher"].url_format
+    # Total forecast precipitation tile
+    try:
+        total_precip = col.select(_PRECIP_BAND).sum().multiply(3600).clip(aoi_geom)
+        precip_tile = total_precip.getMapId(
+            {
+                "min": 0,
+                "max": 200,
+                "palette": ["f7fbff", "c6dbef", "6baed6", "2171b5", "08306b"],
+            }
+        )["tile_fetcher"].url_format
+    except Exception:
+        precip_tile = None
 
     # Latest temperature tile
-    latest_temp = (
-        col.select("temperature_2m_above_ground").sort("forecast_hours", False).first().subtract(273.15).clip(aoi_geom)
-    )
-    temp_tile = latest_temp.getMapId(
-        {
-            "min": 10,
-            "max": 45,
-            "palette": ["3288bd", "99d594", "e6f598", "fee08b", "fc8d59", "d53e4f"],
-        }
-    )["tile_fetcher"].url_format
+    try:
+        latest_temp = col.select(_TEMP_BAND).sort("system:time_start", False).first().subtract(273.15).clip(aoi_geom)
+        temp_tile = latest_temp.getMapId(
+            {
+                "min": 10,
+                "max": 45,
+                "palette": ["3288bd", "99d594", "e6f598", "fee08b", "fc8d59", "d53e4f"],
+            }
+        )["tile_fetcher"].url_format
+    except Exception:
+        temp_tile = None
 
     # Summary
     total_precip_mm = round(daily["Precip (mm)"].sum(), 1)
@@ -190,8 +232,7 @@ def get_gfs_flood_alert(aoi_json, rp_data=None):
         rp_25 = rp_data.get(25, 999999)
         rp_100 = rp_data.get(100, 999999)
 
-        # Compare 7-day total against monsoon return levels (scaled to weekly)
-        weekly_factor = 7 / 150  # Rough: monsoon is ~150 days
+        weekly_factor = 7 / 150
         if total_7day >= rp_100 * weekly_factor:
             level, color, icon = "EXTREME", "#7b0051", "🔴"
         elif total_7day >= rp_25 * weekly_factor:
@@ -203,7 +244,6 @@ def get_gfs_flood_alert(aoi_json, rp_data=None):
         else:
             level, color, icon = "NORMAL", "#1a9850", "⚪"
     else:
-        # Absolute thresholds
         if max_daily > 150:
             level, color, icon = "EXTREME", "#7b0051", "🔴"
         elif max_daily > 100:
@@ -215,7 +255,6 @@ def get_gfs_flood_alert(aoi_json, rp_data=None):
         else:
             level, color, icon = "NORMAL", "#1a9850", "⚪"
 
-    # Peak day
     peak_idx = daily["Precip (mm)"].idxmax()
     peak_day = int(daily.loc[peak_idx, "Day"])
 

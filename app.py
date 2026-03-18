@@ -20,6 +20,7 @@ from tabs import (
 from ui_components.constants import CROP_PRICES
 from ui_components.reports import generate_pdf_bytes, generate_report
 from ui_components.styles import inject_styles
+from utils.aoi_validation import validate_bbox, validate_geojson_aoi
 from utils.logging_config import setup_logging
 
 setup_logging()
@@ -100,21 +101,39 @@ with st.sidebar:
             max_lon = st.number_input("Max Lon", value=85.30, format="%.4f")
             max_lat = st.number_input("Max Lat", value=25.80, format="%.4f")
         if st.button("INITIALIZE AOI", use_container_width=True):
-            st.session_state.aoi = ee.Geometry.BBox(min_lon, min_lat, max_lon, max_lat)
-            st.session_state._aoi_changed = True
-            st.session_state.map_center = [(min_lat + max_lat) / 2, (min_lon + max_lon) / 2]
+            valid, msg, area = validate_bbox(min_lon, min_lat, max_lon, max_lat)
+            if not valid:
+                st.error(msg)
+            else:
+                if msg:
+                    st.warning(msg)
+                st.session_state.aoi = ee.Geometry.BBox(min_lon, min_lat, max_lon, max_lat)
+                st.session_state._aoi_changed = True
+                st.session_state.map_center = [(min_lat + max_lat) / 2, (min_lon + max_lon) / 2]
     else:
         uploaded_file = st.file_uploader("Upload District GeoJSON", type=["geojson", "json"])
         if uploaded_file:
             data = json.load(uploaded_file)
-            coords = data["features"][0]["geometry"]["coordinates"]
-            st.session_state.aoi = ee.Geometry.Polygon(coords)
-            st.session_state._aoi_changed = True
-            st.session_state.map_center = [coords[0][0][1], coords[0][0][0]]
+            valid, msg = validate_geojson_aoi(data)
+            if not valid:
+                st.error(msg)
+            else:
+                if msg:
+                    st.warning(msg)
+                coords = data["features"][0]["geometry"]["coordinates"]
+                st.session_state.aoi = ee.Geometry.Polygon(coords)
+                st.session_state._aoi_changed = True
+                st.session_state.map_center = [coords[0][0][1], coords[0][0][0]]
 
     if st.session_state.aoi:
+        _area_info = ""
+        if input_method == "Bounding Box":
+            from utils.aoi_validation import estimate_bbox_area_km2
+
+            _a = estimate_bbox_area_km2(min_lon, min_lat, max_lon, max_lat)
+            _area_info = f" · {_a:,.0f} km²"
         st.markdown(
-            '<div class="status-pill" style="margin-top:8px;font-size:0.65rem;"><span class="status-dot"></span>AOI ACTIVE</div>',
+            f'<div class="status-pill" style="margin-top:8px;font-size:0.65rem;"><span class="status-dot"></span>AOI ACTIVE{_area_info}</div>',
             unsafe_allow_html=True,
         )
 
