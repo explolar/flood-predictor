@@ -26,14 +26,11 @@ fpdf2
 fastapi
 uvicorn
 pydantic
-sqlalchemy
-bcrypt
 
 # Optional (uncomment as needed)
-# psycopg2-binary    # PostgreSQL
-# geoalchemy2        # PostGIS
-# alembic            # DB migrations
+# torch              # LSTM flood forecaster (falls back to GBM without it)
+# transformers       # Foundation models: Prithvi, Clay, ClimaX (falls back to GBM)
+# huggingface-hub    # Model availability checking
 # sentry-sdk         # Error tracking
-# streamlit-authenticator
 # imageio[ffmpeg]    # Timelapse GIF export
 # pillow

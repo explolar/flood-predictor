@@ -97,6 +97,31 @@ def get_flow_acc_legend(map_name):
     '''
 
 
+def get_hand_legend(map_name):
+    return f'''
+    <script>
+    (function() {{
+        var legend = L.control({{position: 'bottomleft'}});
+        legend.onAdd = function() {{
+            var div = document.createElement('div');
+            div.style.cssText = 'background:rgba(13,27,42,0.93);border:1.5px solid #64B5F6;color:#e0e1dd;font-size:11px;padding:12px 15px;border-radius:10px;backdrop-filter:blur(8px);box-shadow:0 0 20px rgba(100,181,246,0.2);line-height:2.0;min-width:185px;pointer-events:none;';
+            div.innerHTML =
+                '<div style="color:#64B5F6;font-weight:bold;font-size:12px;letter-spacing:1px;border-bottom:1px solid rgba(100,181,246,0.3);padding-bottom:6px;margin-bottom:8px;">&#9672; HAND (m)</div>' +
+                '<span style="display:inline-block;width:12px;height:12px;background:#08306b;border-radius:2px;margin-right:7px;vertical-align:middle;"></span>0 m (Drainage)<br>' +
+                '<span style="display:inline-block;width:12px;height:12px;background:#6baed6;border-radius:2px;margin-right:7px;vertical-align:middle;"></span>1-3 m (High Risk)<br>' +
+                '<span style="display:inline-block;width:12px;height:12px;background:#f7fbff;border-radius:2px;margin-right:7px;vertical-align:middle;"></span>3-6 m (Moderate)<br>' +
+                '<span style="display:inline-block;width:12px;height:12px;background:#fdae6b;border-radius:2px;margin-right:7px;vertical-align:middle;"></span>6-10 m (Lower Risk)<br>' +
+                '<span style="display:inline-block;width:12px;height:12px;background:#a63603;border-radius:2px;margin-right:7px;vertical-align:middle;"></span>&gt;10 m (Safe)<br>' +
+                '<hr style="margin:6px 0;border:0;border-top:1px solid rgba(100,181,246,0.2);">' +
+                '<span style="color:#888;font-style:italic;font-size:9.5px;">HydroSHEDS DEM &middot; ~90 m</span>';
+            return div;
+        }};
+        legend.addTo({map_name});
+    }})();
+    </script>
+    '''
+
+
 def get_index_legend(map_name, index_key):
     """Generate a Leaflet JS legend for a spectral index from INDEX_REGISTRY."""
     from gee_functions.indices import INDEX_REGISTRY

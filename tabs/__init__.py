@@ -5,3 +5,5 @@ from .tab_multiyear import render_multiyear_tab
 from .tab_drought import render_drought_tab
 from .tab_indices import render_indices_tab
 from .tab_hydrology import render_hydrology_tab
+from .tab_projections import render_projections_tab
+from .tab_forecast import render_forecast_tab

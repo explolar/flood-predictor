@@ -22,6 +22,8 @@ from tabs import (
     render_drought_tab,
     render_indices_tab,
     render_hydrology_tab,
+    render_projections_tab,
+    render_forecast_tab,
 )
 
 # ==========================================
@@ -209,8 +211,8 @@ with st.expander("METHODOLOGY", expanded=False):
     </div>""", unsafe_allow_html=True)
 
 st.markdown("<br>", unsafe_allow_html=True)
-tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
-    " RISK ", " SAR ", " ML ", " CLIMATE ", " INDICES ", " HYDROLOGY "
+tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
+    " RISK ", " SAR ", " ML ", " CLIMATE ", " INDICES ", " HYDROLOGY ", " FORECAST "
 ])
 
 if st.session_state.aoi:
@@ -238,16 +240,20 @@ if st.session_state.aoi:
     with tab3:
         render_ml_tab(_aoi_json, params)
     with tab4:
-        # Climate tab: multi-year + drought as sub-tabs
-        climate_t1, climate_t2 = st.tabs(["  MULTI-YEAR  ", "  DROUGHT  "])
+        # Climate tab: multi-year + drought + projections as sub-tabs
+        climate_t1, climate_t2, climate_t3 = st.tabs(["  MULTI-YEAR  ", "  DROUGHT  ", "  PROJECTIONS  "])
         with climate_t1:
             render_multiyear_tab(_aoi_json, params)
         with climate_t2:
             render_drought_tab(_aoi_json, params)
+        with climate_t3:
+            render_projections_tab(_aoi_json, params)
     with tab5:
         render_indices_tab(_aoi_json, params)
     with tab6:
         render_hydrology_tab(_aoi_json, params)
+    with tab7:
+        render_forecast_tab(_aoi_json, params)
 
 else:
     st.markdown("""

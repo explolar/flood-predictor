@@ -1,14 +1,18 @@
-"""Hydrology module — watershed delineation, stream network, flow analysis."""
+"""Hydrology module — watershed delineation, stream network, flow analysis, HAND."""
+
+import json
 
 import ee
-import json
 import streamlit as st
 
 from ui_components.constants import (
-    FLOW_ACC_VIZ, FLOW_DIR_VIZ, STREAM_ORDER_VIZ,
-    COND_DEM_VIZ, DRAINAGE_DENSITY_VIZ,
+    COND_DEM_VIZ,
+    DRAINAGE_DENSITY_VIZ,
+    FLOW_ACC_VIZ,
+    FLOW_DIR_VIZ,
+    HAND_VIZ,
+    STREAM_ORDER_VIZ,
 )
-
 
 # ── Existing: basin boundary lookup ──────────────────────────
 
@@ -139,6 +143,116 @@ def get_drainage_density(aoi_json, stream_threshold=100):
         'total_length_km': round(total_length_km, 1),
         'area_km2': round(area_km2, 1),
     }
+
+
+# ── HAND (Height Above Nearest Drainage) ─────────────────────
+
+@st.cache_data(show_spinner=False, ttl=3600)
+def get_hand_data(aoi_json, stream_threshold=100, flood_depth_m=None):
+    """
+    Compute HAND (Height Above Nearest Drainage) for the AOI.
+
+    Algorithm:
+        1. Identify drainage pixels from HydroSHEDS flow accumulation > threshold
+        2. Assign drainage pixel elevations from the conditioned DEM
+        3. Propagate drainage elevation to all pixels via cost-distance
+           (approximate via focal reduction at expanding radii)
+        4. HAND = pixel_elevation - nearest_drainage_elevation
+
+    When flood_depth_m is provided, also returns a flood extent mask
+    (HAND <= flood_depth_m) and affected area statistics.
+
+    Returns dict with HAND tile URL, stats, and optional flood extent tile.
+    """
+    aoi_geom = ee.Geometry(json.loads(aoi_json))
+
+    cond_dem = ee.Image('WWF/HydroSHEDS/03CONDEM').select('b1').clip(aoi_geom)
+    flow_acc = ee.Image('WWF/HydroSHEDS/03ACC').select('b1').clip(aoi_geom)
+
+    # Drainage network mask
+    drainage_mask = flow_acc.gt(stream_threshold)
+
+    # Elevation at drainage pixels only (masked elsewhere)
+    drainage_elev = cond_dem.updateMask(drainage_mask)
+
+    # Propagate nearest drainage elevation using iterative focal minimum
+    # Each iteration spreads drainage elevation by ~90m (1 pixel)
+    # 20 iterations ≈ 1.8 km reach, 40 ≈ 3.6 km
+    nearest_drainage = drainage_elev
+    for radius in [3, 5, 10, 20, 30, 40]:
+        filled = nearest_drainage.focal_min(
+            radius=radius, kernelType='circle', units='pixels'
+        )
+        nearest_drainage = nearest_drainage.unmask(filled)
+
+    # Final fallback: fill any remaining gaps with the minimum DEM in AOI
+    dem_min = cond_dem.reduceRegion(
+        reducer=ee.Reducer.min(), geometry=aoi_geom,
+        scale=90, bestEffort=True,
+    )
+    nearest_drainage = nearest_drainage.unmask(ee.Number(dem_min.get('b1')))
+
+    # HAND = DEM - nearest drainage elevation (clamped >= 0)
+    hand = cond_dem.subtract(nearest_drainage).max(0).rename('hand')
+
+    # Stats
+    hand_stats = hand.reduceRegion(
+        reducer=ee.Reducer.mean().combine(
+            ee.Reducer.percentile([10, 50, 90]),
+            sharedInputs=True,
+        ),
+        geometry=aoi_geom, scale=90, bestEffort=True,
+    ).getInfo() or {}
+
+    # HAND tile
+    hand_url = hand.getMapId(HAND_VIZ)['tile_fetcher'].url_format
+
+    result = {
+        'hand_url': hand_url,
+        'mean_hand_m': round(hand_stats.get('hand_mean', 0) or 0, 2),
+        'p10_hand_m': round(hand_stats.get('hand_p10', 0) or 0, 2),
+        'p50_hand_m': round(hand_stats.get('hand_p50', 0) or 0, 2),
+        'p90_hand_m': round(hand_stats.get('hand_p90', 0) or 0, 2),
+        'stream_threshold': stream_threshold,
+    }
+
+    # Optional: flood inundation extent at a given water depth
+    if flood_depth_m is not None and flood_depth_m > 0:
+        flood_mask = hand.lte(flood_depth_m).selfMask().rename('flood')
+
+        # Flood area in hectares
+        flood_area = flood_mask.multiply(ee.Image.pixelArea()).reduceRegion(
+            reducer=ee.Reducer.sum(), geometry=aoi_geom,
+            scale=90, bestEffort=True,
+        ).getInfo()
+        flood_ha = round((flood_area.get('flood', 0) or 0) / 10000, 1)
+
+        # Total AOI area
+        aoi_area = ee.Number(aoi_geom.area(maxError=1)).divide(10000).getInfo()
+        pct_inundated = round(flood_ha / max(aoi_area, 0.01) * 100, 1)
+
+        flood_url = flood_mask.getMapId({
+            'min': 0, 'max': 1,
+            'palette': ['00000000', '0077be'],
+        })['tile_fetcher'].url_format
+
+        # Depth proxy within flooded zone: flood_depth_m - HAND
+        depth = ee.Image(flood_depth_m).subtract(hand).max(0).updateMask(flood_mask).rename('depth')
+        depth_url = depth.getMapId({
+            'min': 0, 'max': flood_depth_m,
+            'palette': ['ffffcc', 'fed976', 'fd8d3c', 'f03b20', 'bd0026'],
+        })['tile_fetcher'].url_format
+
+        result.update({
+            'flood_url': flood_url,
+            'depth_url': depth_url,
+            'flood_depth_m': flood_depth_m,
+            'flood_area_ha': flood_ha,
+            'aoi_area_ha': round(aoi_area, 1),
+            'pct_inundated': pct_inundated,
+        })
+
+    return result
 
 
 # ── Basin statistics ─────────────────────────────────────────

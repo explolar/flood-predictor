@@ -1,19 +1,21 @@
 """Tab 6: Hydrology — Watershed Delineation, Stream Network, Terrain Analysis."""
 
 import json
-import streamlit as st
+
 import folium
 import pandas as pd
+import streamlit as st
 from folium.plugins import Fullscreen, MiniMap
 from streamlit_folium import folium_static
 
 from gee_functions.watershed import (
     get_all_hydrology_data,
-    get_multi_basin_geojson,
-    get_drainage_density,
     get_basin_statistics,
+    get_drainage_density,
+    get_hand_data,
+    get_multi_basin_geojson,
 )
-from ui_components.legends import get_stream_order_legend, get_flow_acc_legend
+from ui_components.legends import get_flow_acc_legend, get_hand_legend, get_stream_order_legend
 
 
 def render_hydrology_tab(aoi_json, params):
@@ -27,8 +29,8 @@ def render_hydrology_tab(aoi_json, params):
         unsafe_allow_html=True,
     )
 
-    hydro_sub1, hydro_sub2, hydro_sub3 = st.tabs([
-        "  WATERSHED  ", "  STREAMS  ", "  TERRAIN  "
+    hydro_sub1, hydro_sub2, hydro_sub3, hydro_sub4 = st.tabs([
+        "  WATERSHED  ", "  STREAMS  ", "  TERRAIN  ", "  HAND  "
     ])
     with hydro_sub1:
         _render_watershed(aoi_json, map_center)
@@ -36,6 +38,8 @@ def render_hydrology_tab(aoi_json, params):
         _render_streams(aoi_json, map_center)
     with hydro_sub3:
         _render_terrain(aoi_json, map_center)
+    with hydro_sub4:
+        _render_hand(aoi_json, map_center)
 
 
 # ── Sub-tab 1: Watershed ─────────────────────────────────────
@@ -385,3 +389,173 @@ def _render_terrain(aoi_json, map_center):
             '</div>',
             unsafe_allow_html=True,
         )
+
+
+# ── Sub-tab 4: HAND ─────────────────────────────────────────
+
+def _render_hand(aoi_json, map_center):
+    """Height Above Nearest Drainage — terrain-based flood susceptibility."""
+    st.markdown(
+        '<div style="font-family:\'Inter\',sans-serif;font-size:0.68rem;'
+        'letter-spacing:2px;color:rgba(144,202,249,0.35);margin-bottom:8px;">'
+        'HEIGHT ABOVE NEAREST DRAINAGE · FLOOD INUNDATION · DEPTH PROXY</div>',
+        unsafe_allow_html=True,
+    )
+
+    st.markdown(
+        '<div style="font-family:\'Inter\',sans-serif;font-size:0.78rem;'
+        'color:#90CAF9;margin-bottom:12px;">'
+        'HAND measures each pixel\'s vertical distance above the nearest stream channel. '
+        'Low HAND values indicate areas most susceptible to flooding. '
+        'Set a water depth to simulate flood inundation extent and depth.</div>',
+        unsafe_allow_html=True,
+    )
+
+    # Controls
+    ctrl_c1, ctrl_c2 = st.columns(2)
+    with ctrl_c1:
+        hand_threshold = st.slider(
+            'Stream Threshold (upstream cells)',
+            min_value=50, max_value=500, value=100, step=50,
+            help='Minimum flow accumulation to define drainage channels. '
+                 'Lower = denser stream network, higher = major channels only.',
+            key='hand_stream_thresh',
+        )
+    with ctrl_c2:
+        flood_depth = st.slider(
+            'Simulated Flood Depth (m)',
+            min_value=0.0, max_value=10.0, value=0.0, step=0.5,
+            help='Set > 0 to simulate flood inundation. '
+                 'Pixels with HAND <= this depth are considered flooded.',
+            key='hand_flood_depth',
+        )
+
+    flood_depth_val = flood_depth if flood_depth > 0 else None
+
+    if st.button('COMPUTE HAND', key='hand_btn', use_container_width=True):
+        with st.spinner('Computing Height Above Nearest Drainage...'):
+            try:
+                hand = get_hand_data(aoi_json, stream_threshold=hand_threshold,
+                                     flood_depth_m=flood_depth_val)
+            except Exception as e:
+                st.error(f'HAND computation failed — {e}')
+                return
+
+        if not hand:
+            st.warning('HAND computation returned no results.')
+            return
+
+        # Metrics
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric('Mean HAND', f'{hand["mean_hand_m"]:.1f} m')
+        m2.metric('P10 (Low areas)', f'{hand["p10_hand_m"]:.1f} m')
+        m3.metric('Median HAND', f'{hand["p50_hand_m"]:.1f} m')
+        m4.metric('P90 (High areas)', f'{hand["p90_hand_m"]:.1f} m')
+
+        st.markdown('<br>', unsafe_allow_html=True)
+
+        # Determine which layer to show
+        if flood_depth_val:
+            # Flood simulation mode: show flood metrics + multiple map views
+            fm1, fm2, fm3 = st.columns(3)
+            fm1.metric('Flood Depth', f'{hand["flood_depth_m"]:.1f} m')
+            fm2.metric('Inundated Area', f'{hand["flood_area_ha"]:,.0f} ha')
+            fm3.metric('% Inundated', f'{hand["pct_inundated"]:.1f}%')
+
+            st.markdown('<br>', unsafe_allow_html=True)
+
+            # Map layer selector
+            hand_layer = st.radio(
+                'Map View',
+                ['HAND Surface', 'Flood Extent', 'Flood Depth'],
+                horizontal=True,
+                key='hand_map_view',
+            )
+        else:
+            hand_layer = 'HAND Surface'
+
+        # Controls + Map
+        col_ctrl, col_map = st.columns([1, 3])
+
+        with col_ctrl:
+            st.markdown(
+                '<div style="font-size:0.72rem;color:rgba(144,202,249,0.5);'
+                'font-family:\'Inter\',sans-serif;line-height:1.8;">'
+                '<strong>HAND Method</strong><br>'
+                'Height Above Nearest Drainage (Rennó et al., 2008; Nobre et al., 2011).<br><br>'
+                '<strong>Interpretation:</strong><br>'
+                '<strong>0-1 m</strong> — stream channel / immediate floodplain<br>'
+                '<strong>1-3 m</strong> — high flood susceptibility<br>'
+                '<strong>3-6 m</strong> — moderate susceptibility<br>'
+                '<strong>6-10 m</strong> — low susceptibility<br>'
+                '<strong>&gt;10 m</strong> — generally flood-safe<br><br>'
+                '<strong>Resolution:</strong> ~90 m (HydroSHEDS 3 arc-sec)<br>'
+                f'<strong>Stream threshold:</strong> {hand_threshold} cells'
+                '</div>',
+                unsafe_allow_html=True,
+            )
+
+        with col_map:
+            m = folium.Map(location=map_center, zoom_start=11, tiles='CartoDB dark_matter')
+            folium.GeoJson(
+                json.loads(aoi_json), name='AOI Boundary',
+                style_function=lambda _: {
+                    'fillColor': 'none', 'color': '#00FFFF',
+                    'weight': 2, 'dashArray': '6 4',
+                },
+            ).add_to(m)
+
+            if hand_layer == 'HAND Surface':
+                folium.TileLayer(
+                    tiles=hand['hand_url'], attr='GEE · HydroSHEDS',
+                    name='HAND (m)', opacity=0.85,
+                ).add_to(m)
+                m.get_root().html.add_child(
+                    folium.Element(get_hand_legend(m.get_name()))
+                )
+            elif hand_layer == 'Flood Extent':
+                folium.TileLayer(
+                    tiles=hand['flood_url'], attr='GEE · HAND',
+                    name=f'Flood Extent ({flood_depth_val}m)', opacity=0.8,
+                ).add_to(m)
+            elif hand_layer == 'Flood Depth':
+                folium.TileLayer(
+                    tiles=hand['depth_url'], attr='GEE · HAND',
+                    name=f'Flood Depth (0-{flood_depth_val}m)', opacity=0.85,
+                ).add_to(m)
+
+            Fullscreen(position='topright', force_separate_button=True).add_to(m)
+            MiniMap(tile_layer='CartoDB dark_matter', position='bottomright',
+                    toggle_display=True, zoom_level_offset=-6).add_to(m)
+            folium.LayerControl(position='topright', collapsed=False).add_to(m)
+            folium_static(m, height=500)
+
+        # Methodology
+        with st.expander('HAND METHODOLOGY', expanded=False):
+            st.markdown(
+                '<div style="font-size:0.78rem;color:rgba(144,202,249,0.6);'
+                'font-family:\'Inter\',sans-serif;line-height:1.8;">'
+                '<strong>Height Above Nearest Drainage (HAND)</strong> is a terrain '
+                'descriptor that represents each pixel\'s vertical distance above '
+                'the nearest drainage channel (Rennó et al., 2008).<br><br>'
+                '<strong>Algorithm:</strong><br>'
+                '1. Drainage network extracted from HydroSHEDS flow accumulation '
+                '(pixels &gt; threshold).<br>'
+                '2. Drainage pixel elevations read from the conditioned DEM.<br>'
+                '3. Nearest drainage elevation propagated to all pixels via '
+                'iterative focal minimum expansion.<br>'
+                '4. HAND = pixel_elevation − nearest_drainage_elevation (≥ 0).<br><br>'
+                '<strong>Flood Simulation:</strong><br>'
+                'When a water depth <em>d</em> is specified, pixels with '
+                'HAND ≤ <em>d</em> are classified as inundated. Flood depth at '
+                'each pixel = <em>d</em> − HAND. This is a static, terrain-based '
+                'approximation — it does not account for flow dynamics, '
+                'infiltration, or temporal flood routing.<br><br>'
+                '<strong>References:</strong><br>'
+                '• Rennó, C.D. et al. (2008). HAND, a new terrain descriptor. '
+                '<em>J. Hydrology</em>, 362(3-4), 126-141.<br>'
+                '• Nobre, A.D. et al. (2011). HAND contour: a new proxy predictor '
+                'of inundation extent. <em>Hydrol. Process.</em>, 25(19), 3093-3103.'
+                '</div>',
+                unsafe_allow_html=True,
+            )

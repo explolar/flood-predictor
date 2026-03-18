@@ -31,12 +31,14 @@ def _features_from_info(sample_info, feature_names, label_name=None):
 
 
 @st.cache_data(show_spinner=False, ttl=3600)
-def extract_risk_training_samples(aoi_json, n_points=5000, scale=100):
+def extract_risk_training_samples(aoi_json, n_points=5000, scale=100, include_era5=False):
     """
     Sample pixels within AOI, extracting terrain/climate features and
     JRC-derived flood risk labels for training the Random Forest risk model.
 
-    Features: elevation, slope, annual_rainfall, lulc_class, jrc_occurrence, jrc_max_extent
+    Base features: elevation, slope, annual_rainfall, lulc_class, jrc_occurrence, jrc_max_extent
+    ERA5 features (when include_era5=True): era5_annual_precip, era5_annual_runoff,
+        era5_mean_sm_shallow, era5_mean_sm_deep, era5_mean_temp
     Target: risk_class (1-5, derived from JRC occurrence)
 
     Returns: pandas DataFrame
@@ -71,6 +73,19 @@ def extract_risk_training_samples(aoi_json, n_points=5000, scale=100):
                      .addBands(jrc_max)
                      .addBands(risk_target))
 
+    feature_names = ['elevation', 'slope', 'annual_rainfall',
+                     'lulc_class', 'jrc_occurrence', 'jrc_max_extent']
+
+    # Optionally add ERA5-Land climate features
+    if include_era5:
+        from gee_functions.era5 import get_era5_features_for_ml
+        era5_img = get_era5_features_for_ml(aoi_json, year=2023)
+        feature_stack = feature_stack.addBands(era5_img)
+        feature_names += [
+            'era5_annual_precip', 'era5_annual_runoff',
+            'era5_mean_sm_shallow', 'era5_mean_sm_deep', 'era5_mean_temp',
+        ]
+
     samples = feature_stack.stratifiedSample(
         numPoints=n_points // 5,
         classBand='risk_class',
@@ -81,8 +96,6 @@ def extract_risk_training_samples(aoi_json, n_points=5000, scale=100):
     )
 
     sample_info = samples.getInfo()
-    feature_names = ['elevation', 'slope', 'annual_rainfall',
-                     'lulc_class', 'jrc_occurrence', 'jrc_max_extent']
     return _features_from_info(sample_info, feature_names, label_name='risk_class')
 
 

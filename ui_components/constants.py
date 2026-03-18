@@ -9,6 +9,7 @@ FLOW_DIR_VIZ      = {'min': 1, 'max': 128, 'palette': ['440154','31688e','35b779
 STREAM_ORDER_VIZ  = {'min': 1, 'max': 5,   'palette': ['b3d9ff','66b3ff','3399ff','0066cc','003366']}
 COND_DEM_VIZ      = {'min': 0, 'max': 500, 'palette': ['006837','1a9850','66bd63','d9ef8b','ffffbf','fee08b','fdae61','f46d43','d73027']}
 DRAINAGE_DENSITY_VIZ = {'min': 0, 'max': 5, 'palette': ['ffffcc','c7e9b4','7fcdbb','41b6c4','253494']}
+HAND_VIZ = {'min': 0, 'max': 15, 'palette': ['08306b','2171b5','6baed6','c6dbef','f7fbff','fff5eb','fee6ce','fdae6b','e6550d','a63603']}
 
 CROP_PRICES = {
     'Rice':       40000,

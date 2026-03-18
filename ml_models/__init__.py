@@ -19,3 +19,18 @@ except ImportError:
     pass
 
 from .anomaly_detector import FloodAnomalyDetector
+
+try:
+    from .flood_forecaster import FloodForecaster
+except ImportError:
+    pass
+
+try:
+    from .prithvi_flood import PrithviFloodClassifier
+except ImportError:
+    pass
+
+try:
+    from .foundation_models import FoundationFloodClassifier
+except ImportError:
+    pass
