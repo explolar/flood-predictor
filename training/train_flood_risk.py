@@ -9,18 +9,21 @@ Usage:
 Requires: authenticated GEE session, ~5 minutes.
 """
 
-import sys
 import os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
+import json
 
 import ee
-import json
 import pandas as pd
+
 from ml_models.data_extraction import extract_risk_training_samples
 from ml_models.flood_risk_model import FloodRiskPredictor
 
 # Initialize GEE
-project_id = 'xward-481405'
+project_id = "xward-481405"
 try:
     ee.Initialize(project=project_id)
 except Exception:
@@ -31,17 +34,17 @@ print("GEE initialized successfully.")
 
 # Define training regions (flood-prone areas across India)
 regions = [
-    {"name": "Patna, Bihar",    "bbox": [84.90, 25.50, 85.30, 25.80]},
-    {"name": "Kolkata, WB",     "bbox": [88.20, 22.40, 88.60, 22.70]},
-    {"name": "Chennai, TN",     "bbox": [80.10, 12.80, 80.40, 13.20]},
+    {"name": "Patna, Bihar", "bbox": [84.90, 25.50, 85.30, 25.80]},
+    {"name": "Kolkata, WB", "bbox": [88.20, 22.40, 88.60, 22.70]},
+    {"name": "Chennai, TN", "bbox": [80.10, 12.80, 80.40, 13.20]},
     {"name": "Guwahati, Assam", "bbox": [91.60, 26.10, 91.90, 26.30]},
-    {"name": "Kochi, Kerala",   "bbox": [76.20, 9.90, 76.40, 10.10]},
+    {"name": "Kochi, Kerala", "bbox": [76.20, 9.90, 76.40, 10.10]},
 ]
 
 all_samples = []
 for region in regions:
     print(f"  Extracting samples from {region['name']}...")
-    bbox = region['bbox']
+    bbox = region["bbox"]
     aoi_json = json.dumps(ee.Geometry.BBox(*bbox).getInfo())
     try:
         df = extract_risk_training_samples(aoi_json, n_points=3000, scale=100)

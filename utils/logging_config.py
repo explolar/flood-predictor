@@ -32,6 +32,7 @@ def setup_logging(level=None):
     if sentry_dsn:
         try:
             import sentry_sdk
+
             sentry_sdk.init(
                 dsn=sentry_dsn,
                 traces_sample_rate=float(os.getenv("SENTRY_TRACES_RATE", "0.1")),

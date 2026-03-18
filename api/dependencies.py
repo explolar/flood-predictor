@@ -1,8 +1,9 @@
 """FastAPI dependencies and shared utilities."""
 
-import ee
 import json
 import os
+
+import ee
 
 _ee_initialized = False
 
@@ -13,9 +14,10 @@ def initialize_ee_api():
     if _ee_initialized:
         return
 
-    project_id = os.getenv('GEE_PROJECT', 'xward-481405')
+    project_id = os.getenv("GEE_PROJECT", "xward-481405")
     try:
         from ee import compute_engine
+
         creds = compute_engine.ComputeEngineCredentials()
         ee.Initialize(creds, project=project_id)
     except Exception:

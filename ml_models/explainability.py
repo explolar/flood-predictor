@@ -3,21 +3,25 @@ Feature 4: SHAP Explainability for ML flood models.
 Generates SHAP summary plots and spatial SHAP maps.
 """
 
+import base64
+import io
+
 import numpy as np
 import pandas as pd
-import io
-import base64
 
 try:
     import shap
+
     _SHAP = True
 except ImportError:
     _SHAP = False
 
 try:
     import matplotlib
-    matplotlib.use('Agg')
+
+    matplotlib.use("Agg")
     import matplotlib.pyplot as plt
+
     _MPL = True
 except ImportError:
     _MPL = False
@@ -56,10 +60,10 @@ class SHAPExplainer:
             self.shap_values = self.shap_values[1]  # class 1 = flood
 
         return {
-            'shap_values': self.shap_values,
-            'feature_names': feature_names,
-            'X': X,
-            'n_samples': len(X),
+            "shap_values": self.shap_values,
+            "feature_names": feature_names,
+            "X": X,
+            "n_samples": len(X),
         }
 
     def summary_plot_base64(self, max_display=10):
@@ -70,20 +74,19 @@ class SHAPExplainer:
         fig, ax = plt.subplots(figsize=(8, 5))
         shap.summary_plot(
             self.shap_values,
-            features=self.explainer.data if hasattr(self.explainer, 'data') else None,
+            features=self.explainer.data if hasattr(self.explainer, "data") else None,
             show=False,
             max_display=max_display,
-            plot_type='bar',
-            color='#00FFFF',
+            plot_type="bar",
+            color="#00FFFF",
         )
         plt.tight_layout()
 
         buf = io.BytesIO()
-        plt.savefig(buf, format='png', dpi=120, bbox_inches='tight',
-                    facecolor='#0a0f1a', edgecolor='none')
+        plt.savefig(buf, format="png", dpi=120, bbox_inches="tight", facecolor="#0a0f1a", edgecolor="none")
         plt.close(fig)
         buf.seek(0)
-        return base64.b64encode(buf.read()).decode('utf-8')
+        return base64.b64encode(buf.read()).decode("utf-8")
 
     def get_feature_shap_df(self, feature_names):
         """Return mean absolute SHAP values per feature as a DataFrame."""
@@ -91,10 +94,9 @@ class SHAPExplainer:
             return None
 
         mean_abs = np.abs(self.shap_values).mean(axis=0)
-        df = pd.DataFrame({
-            'Feature': feature_names,
-            'Mean |SHAP|': [round(v, 4) for v in mean_abs]
-        }).sort_values('Mean |SHAP|', ascending=False)
+        df = pd.DataFrame({"Feature": feature_names, "Mean |SHAP|": [round(v, 4) for v in mean_abs]}).sort_values(
+            "Mean |SHAP|", ascending=False
+        )
         return df
 
     def get_spatial_shap(self, feature_df, feature_names, target_feature):
@@ -109,11 +111,13 @@ class SHAPExplainer:
         feat_idx = feature_names.index(target_feature)
         X = feature_df[feature_names].copy().fillna(0)
         if len(X) > len(self.shap_values):
-            X = X.iloc[:len(self.shap_values)]
+            X = X.iloc[: len(self.shap_values)]
 
-        result = pd.DataFrame({
-            'latitude': feature_df['latitude'].iloc[:len(self.shap_values)].values,
-            'longitude': feature_df['longitude'].iloc[:len(self.shap_values)].values,
-            'shap_value': self.shap_values[:, feat_idx],
-        })
+        result = pd.DataFrame(
+            {
+                "latitude": feature_df["latitude"].iloc[: len(self.shap_values)].values,
+                "longitude": feature_df["longitude"].iloc[: len(self.shap_values)].values,
+                "shap_value": self.shap_values[:, feat_idx],
+            }
+        )
         return result

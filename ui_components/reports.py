@@ -1,19 +1,21 @@
 import datetime
 import io
 import logging
+
 import requests as _requests
 
 logger = logging.getLogger(__name__)
 
 try:
     from fpdf import FPDF
+
     _FPDF = True
 except ImportError:
     _FPDF = False
 
 
 def generate_report(aoi_coords, mca_weights, sar_params, results):
-    now = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     return f"""
 ==================================================
 HYDRO-CLIMATIC RISK ATLAS — TECHNICAL REPORT
@@ -23,14 +25,14 @@ INVESTIGATOR : Ankit Kumar
 INSTITUTION  : IIT Kharagpur
 --------------------------------------------------
 1. STUDY AREA (AOI)    : {aoi_coords}
-2. MCA WEIGHTS         : LULC={mca_weights['lulc']}%  Slope={mca_weights['slope']}%  Rain={mca_weights['rain']}%
-3. SAR POLARISATION    : {sar_params.get('polarization','VH')}
-4. SAR WINDOWS (Pre)   : {sar_params['pre_start']} → {sar_params['pre_end']}
-5. SAR WINDOWS (Post)  : {sar_params['f_start']} → {sar_params['f_end']}
-6. THRESHOLD           : {sar_params['threshold']} dB
-7. SPECKLE FILTER      : {'Lee (focal_mean 3×3)' if sar_params.get('speckle') else 'None'}
-8. INUNDATED AREA      : {results['area_ha']} Ha
-9. POPULATION EXPOSED  : {results.get('pop_exposed', 'N/A')}
+2. MCA WEIGHTS         : LULC={mca_weights["lulc"]}%  Slope={mca_weights["slope"]}%  Rain={mca_weights["rain"]}%
+3. SAR POLARISATION    : {sar_params.get("polarization", "VH")}
+4. SAR WINDOWS (Pre)   : {sar_params["pre_start"]} → {sar_params["pre_end"]}
+5. SAR WINDOWS (Post)  : {sar_params["f_start"]} → {sar_params["f_end"]}
+6. THRESHOLD           : {sar_params["threshold"]} dB
+7. SPECKLE FILTER      : {"Lee (focal_mean 3×3)" if sar_params.get("speckle") else "None"}
+8. INUNDATED AREA      : {results["area_ha"]} Ha
+9. POPULATION EXPOSED  : {results.get("pop_exposed", "N/A")}
 ==================================================
 """
 
@@ -44,11 +46,11 @@ def generate_pdf_bytes(aoi_coords, mca_weights, sar_params, results, rp_data=Non
         pdf.add_page()
         pdf.set_margins(20, 20, 20)
 
-        pdf.set_font('Helvetica', 'B', 18)
-        pdf.cell(0, 14, 'HYDRO-CLIMATIC RISK ATLAS', ln=True)
-        pdf.set_font('Helvetica', '', 9)
+        pdf.set_font("Helvetica", "B", 18)
+        pdf.cell(0, 14, "HYDRO-CLIMATIC RISK ATLAS", ln=True)
+        pdf.set_font("Helvetica", "", 9)
         pdf.set_text_color(100, 100, 100)
-        pdf.cell(0, 6, f'IIT Kharagpur  |  {datetime.datetime.now().strftime("%Y-%m-%d %H:%M")}', ln=True)
+        pdf.cell(0, 6, f"IIT Kharagpur  |  {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}", ln=True)
         pdf.ln(4)
         pdf.set_draw_color(0, 200, 200)
         pdf.line(20, pdf.get_y(), 190, pdf.get_y())
@@ -56,54 +58,54 @@ def generate_pdf_bytes(aoi_coords, mca_weights, sar_params, results, rp_data=Non
 
         def section(title):
             pdf.set_text_color(0, 0, 0)
-            pdf.set_font('Helvetica', 'B', 11)
+            pdf.set_font("Helvetica", "B", 11)
             pdf.cell(0, 8, title, ln=True)
-            pdf.set_font('Helvetica', '', 10)
+            pdf.set_font("Helvetica", "", 10)
 
-        section('1. STUDY AREA')
-        pdf.multi_cell(0, 6, f'AOI Coordinates: {aoi_coords}')
+        section("1. STUDY AREA")
+        pdf.multi_cell(0, 6, f"AOI Coordinates: {aoi_coords}")
         pdf.ln(3)
 
-        section('2. MCA ANALYSIS WEIGHTS')
-        pdf.cell(57, 6, f'LULC: {mca_weights["lulc"]}%')
-        pdf.cell(57, 6, f'Slope: {mca_weights["slope"]}%')
-        pdf.cell(57, 6, f'Rainfall: {mca_weights["rain"]}%', ln=True)
+        section("2. MCA ANALYSIS WEIGHTS")
+        pdf.cell(57, 6, f"LULC: {mca_weights['lulc']}%")
+        pdf.cell(57, 6, f"Slope: {mca_weights['slope']}%")
+        pdf.cell(57, 6, f"Rainfall: {mca_weights['rain']}%", ln=True)
         pdf.ln(3)
 
-        section('3. SAR INUNDATION ANALYSIS')
+        section("3. SAR INUNDATION ANALYSIS")
         rows = [
-            ('Polarisation', sar_params.get('polarization','VH')),
-            ('Pre-flood window', f'{sar_params["pre_start"]} → {sar_params["pre_end"]}'),
-            ('Post-flood window', f'{sar_params["f_start"]} → {sar_params["f_end"]}'),
-            ('Change threshold', f'{sar_params["threshold"]} dB'),
-            ('Speckle filter', 'Lee focal_mean 3x3' if sar_params.get('speckle') else 'None'),
+            ("Polarisation", sar_params.get("polarization", "VH")),
+            ("Pre-flood window", f"{sar_params['pre_start']} → {sar_params['pre_end']}"),
+            ("Post-flood window", f"{sar_params['f_start']} → {sar_params['f_end']}"),
+            ("Change threshold", f"{sar_params['threshold']} dB"),
+            ("Speckle filter", "Lee focal_mean 3x3" if sar_params.get("speckle") else "None"),
         ]
         for k, v in rows:
-            pdf.cell(65, 6, k + ':')
+            pdf.cell(65, 6, k + ":")
             pdf.cell(0, 6, _pdf_safe(v), ln=True)
         pdf.ln(3)
 
-        section('4. RESULTS')
-        pdf.cell(65, 6, 'Inundated Area:')
-        pdf.cell(0, 6, f'{results["area_ha"]} Ha', ln=True)
-        pdf.cell(65, 6, 'Population Exposed:')
-        pdf.cell(0, 6, str(results.get('pop_exposed', 'N/A')), ln=True)
+        section("4. RESULTS")
+        pdf.cell(65, 6, "Inundated Area:")
+        pdf.cell(0, 6, f"{results['area_ha']} Ha", ln=True)
+        pdf.cell(65, 6, "Population Exposed:")
+        pdf.cell(0, 6, str(results.get("pop_exposed", "N/A")), ln=True)
         pdf.ln(3)
 
-        if rp_data and rp_data.get('return_periods'):
-            section('5. FLOOD RETURN PERIODS  [Gumbel Distribution]')
-            pdf.cell(65, 6, f'Analysis period: {rp_data.get("n_years",24)} years (2000-2023)', ln=True)
-            pdf.cell(65, 6, f'Mean monsoon rain: {rp_data.get("mean",0)} mm')
-            pdf.cell(0, 6, f'Std dev: {rp_data.get("std",0)} mm', ln=True)
+        if rp_data and rp_data.get("return_periods"):
+            section("5. FLOOD RETURN PERIODS  [Gumbel Distribution]")
+            pdf.cell(65, 6, f"Analysis period: {rp_data.get('n_years', 24)} years (2000-2023)", ln=True)
+            pdf.cell(65, 6, f"Mean monsoon rain: {rp_data.get('mean', 0)} mm")
+            pdf.cell(0, 6, f"Std dev: {rp_data.get('std', 0)} mm", ln=True)
             pdf.ln(2)
-            for T, val in rp_data['return_periods'].items():
-                pdf.cell(65, 6, f'  {T}-year return period:')
-                pdf.cell(0, 6, f'{val:.0f} mm (monsoon total)', ln=True)
+            for T, val in rp_data["return_periods"].items():
+                pdf.cell(65, 6, f"  {T}-year return period:")
+                pdf.cell(0, 6, f"{val:.0f} mm (monsoon total)", ln=True)
             pdf.ln(3)
 
-        pdf.set_font('Helvetica', 'I', 8)
+        pdf.set_font("Helvetica", "I", 8)
         pdf.set_text_color(150, 150, 150)
-        pdf.cell(0, 6, 'Generated by HydroRisk Atlas | IIT Kharagpur | Powered by Google Earth Engine', ln=True)
+        pdf.cell(0, 6, "Generated by HydroRisk Atlas | IIT Kharagpur | Powered by Google Earth Engine", ln=True)
         return bytes(pdf.output())
     except Exception as e:
         logger.warning(f"generate_pdf_bytes failed: {e}")
@@ -112,7 +114,15 @@ def generate_pdf_bytes(aoi_coords, mca_weights, sar_params, results, rp_data=Non
 
 def _pdf_safe(text):
     """Replace Unicode chars that Helvetica (Latin-1) can't render."""
-    return str(text).replace('\u2212', '-').replace('\u2014', '-').replace('\u00d7', 'x').replace('\u2265', '>=').replace('\u2264', '<=').replace('\u2192', '->')
+    return (
+        str(text)
+        .replace("\u2212", "-")
+        .replace("\u2014", "-")
+        .replace("\u00d7", "x")
+        .replace("\u2265", ">=")
+        .replace("\u2264", "<=")
+        .replace("\u2192", "->")
+    )
 
 
 def generate_index_pdf_bytes(index_key, index_data, aoi_coords, date_start, date_end):
@@ -121,23 +131,36 @@ def generate_index_pdf_bytes(index_key, index_data, aoi_coords, date_start, date
         return None
 
     from gee_functions.indices import INDEX_REGISTRY
+
     meta = INDEX_REGISTRY[index_key]
 
     try:
-        pdf = FPDF(orientation='P', unit='mm', format='A4')
+        pdf = FPDF(orientation="P", unit="mm", format="A4")
         pdf.set_auto_page_break(auto=True, margin=15)
         pdf.add_page()
         pdf.set_margins(15, 15, 15)
 
         # ── Title ─────────────────────────────────────
-        pdf.set_font('Helvetica', 'B', 16)
+        pdf.set_font("Helvetica", "B", 16)
         pdf.set_text_color(0, 180, 180)
-        pdf.cell(0, 10, _pdf_safe(f'{index_key} - {meta["label"]}'), ln=True)
+        pdf.cell(0, 10, _pdf_safe(f"{index_key} - {meta['label']}"), ln=True)
 
-        pdf.set_font('Helvetica', '', 8)
+        pdf.set_font("Helvetica", "", 8)
         pdf.set_text_color(120, 120, 120)
-        pdf.cell(0, 5, _pdf_safe(f'Source: {meta["source"]}   |   Period: {date_start} to {date_end}   |   Formula: {meta["formula"]}'), ln=True)
-        pdf.cell(0, 5, f'Generated: {datetime.datetime.now().strftime("%Y-%m-%d %H:%M")}   |   IIT Kharagpur   |   HydroRisk Atlas', ln=True)
+        pdf.cell(
+            0,
+            5,
+            _pdf_safe(
+                f"Source: {meta['source']}   |   Period: {date_start} to {date_end}   |   Formula: {meta['formula']}"
+            ),
+            ln=True,
+        )
+        pdf.cell(
+            0,
+            5,
+            f"Generated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}   |   IIT Kharagpur   |   HydroRisk Atlas",
+            ln=True,
+        )
 
         pdf.set_draw_color(0, 200, 200)
         pdf.line(15, pdf.get_y() + 1, 195, pdf.get_y() + 1)
@@ -145,9 +168,9 @@ def generate_index_pdf_bytes(index_key, index_data, aoi_coords, date_start, date
 
         # ── Map image from GEE thumbnail ──────────────
         map_img_data = None
-        if index_data.get('thumb_url'):
+        if index_data.get("thumb_url"):
             try:
-                resp = _requests.get(index_data['thumb_url'], timeout=30)
+                resp = _requests.get(index_data["thumb_url"], timeout=30)
                 if resp.status_code == 200:
                     map_img_data = io.BytesIO(resp.content)
             except Exception:
@@ -160,25 +183,25 @@ def generate_index_pdf_bytes(index_key, index_data, aoi_coords, date_start, date
             pdf.image(map_img_data, x=map_x, y=map_top_y, w=map_w, h=map_h)
         else:
             pdf.set_fill_color(30, 40, 50)
-            pdf.rect(map_x, map_top_y, map_w, map_h, 'F')
-            pdf.set_font('Helvetica', 'I', 9)
+            pdf.rect(map_x, map_top_y, map_w, map_h, "F")
+            pdf.set_font("Helvetica", "I", 9)
             pdf.set_text_color(100, 100, 100)
             pdf.set_xy(map_x + 35, map_top_y + 48)
-            pdf.cell(60, 5, '[Map image unavailable]')
+            pdf.cell(60, 5, "[Map image unavailable]")
 
         # ── Coordinate labels at corners ──────────────
         if isinstance(aoi_coords, list) and len(aoi_coords) == 4:
             min_lon, min_lat, max_lon, max_lat = aoi_coords
-            pdf.set_font('Helvetica', '', 6)
+            pdf.set_font("Helvetica", "", 6)
             pdf.set_text_color(80, 160, 180)
             pdf.set_xy(map_x, map_top_y + map_h + 1)
-            pdf.cell(35, 4, f'{min_lon:.4f}E, {min_lat:.4f}N')
+            pdf.cell(35, 4, f"{min_lon:.4f}E, {min_lat:.4f}N")
             pdf.set_xy(map_x + map_w - 35, map_top_y + map_h + 1)
-            pdf.cell(35, 4, f'{max_lon:.4f}E, {max_lat:.4f}N', align='R')
+            pdf.cell(35, 4, f"{max_lon:.4f}E, {max_lat:.4f}N", align="R")
             pdf.set_xy(map_x, map_top_y - 4)
-            pdf.cell(35, 4, f'{max_lat:.4f}N')
+            pdf.cell(35, 4, f"{max_lat:.4f}N")
             pdf.set_xy(map_x + map_w - 35, map_top_y - 4)
-            pdf.cell(35, 4, f'{max_lon:.4f}E', align='R')
+            pdf.cell(35, 4, f"{max_lon:.4f}E", align="R")
 
         # ── North arrow ───────────────────────────────
         na_cx = map_x + map_w + 14
@@ -189,10 +212,10 @@ def generate_index_pdf_bytes(index_key, index_data, aoi_coords, date_start, date
         pdf.line(na_cx, na_cy + na_len, na_cx, na_cy - na_len)
         pdf.line(na_cx, na_cy - na_len, na_cx - 3, na_cy - na_len + 6)
         pdf.line(na_cx, na_cy - na_len, na_cx + 3, na_cy - na_len + 6)
-        pdf.set_font('Helvetica', 'B', 9)
+        pdf.set_font("Helvetica", "B", 9)
         pdf.set_text_color(0, 200, 200)
         pdf.set_xy(na_cx - 3, na_cy - na_len - 6)
-        pdf.cell(6, 5, 'N', align='C')
+        pdf.cell(6, 5, "N", align="C")
         pdf.set_draw_color(150, 150, 150)
         pdf.line(na_cx, na_cy + na_len, na_cx - 2, na_cy + na_len - 4)
         pdf.line(na_cx, na_cy + na_len, na_cx + 2, na_cy + na_len - 4)
@@ -202,18 +225,18 @@ def generate_index_pdf_bytes(index_key, index_data, aoi_coords, date_start, date
         leg_y = map_top_y + 36
 
         pdf.set_xy(leg_x, leg_y)
-        pdf.set_font('Helvetica', 'B', 8)
+        pdf.set_font("Helvetica", "B", 8)
         pdf.set_text_color(0, 200, 200)
-        pdf.cell(50, 5, f'{index_key} CLASSES', ln=True)
+        pdf.cell(50, 5, f"{index_key} CLASSES", ln=True)
 
-        for (lo, hi, color, label) in meta['classes']:
+        for lo, hi, color, label in meta["classes"]:
             r = int(color[1:3], 16)
             g = int(color[3:5], 16)
             b = int(color[5:7], 16)
             cur_y = pdf.get_y()
             pdf.set_fill_color(r, g, b)
-            pdf.rect(leg_x, cur_y + 1, 5, 3.5, 'F')
-            pdf.set_font('Helvetica', '', 6.5)
+            pdf.rect(leg_x, cur_y + 1, 5, 3.5, "F")
+            pdf.set_font("Helvetica", "", 6.5)
             pdf.set_text_color(160, 170, 180)
             pdf.set_xy(leg_x + 7, cur_y)
             pdf.cell(43, 5, _pdf_safe(label), ln=True)
@@ -221,25 +244,25 @@ def generate_index_pdf_bytes(index_key, index_data, aoi_coords, date_start, date
 
         # Value ranges
         pdf.ln(1)
-        pdf.set_font('Helvetica', 'I', 5.5)
+        pdf.set_font("Helvetica", "I", 5.5)
         pdf.set_text_color(100, 100, 100)
-        for (lo, hi, color, label) in meta['classes']:
+        for lo, hi, color, label in meta["classes"]:
             pdf.set_xy(leg_x, pdf.get_y())
-            pdf.cell(50, 3.5, f'  {lo:.2f} to {hi:.2f}', ln=True)
+            pdf.cell(50, 3.5, f"  {lo:.2f} to {hi:.2f}", ln=True)
 
         # ── Stats panel ──────────────────────────────
         pdf.set_xy(leg_x, pdf.get_y() + 4)
-        pdf.set_font('Helvetica', 'B', 7)
+        pdf.set_font("Helvetica", "B", 7)
         pdf.set_text_color(0, 200, 200)
-        pdf.cell(50, 5, 'STATISTICS', ln=True)
+        pdf.cell(50, 5, "STATISTICS", ln=True)
         pdf.set_xy(leg_x, pdf.get_y())
-        pdf.set_font('Helvetica', '', 7)
+        pdf.set_font("Helvetica", "", 7)
         pdf.set_text_color(160, 170, 180)
-        pdf.cell(50, 4.5, f'Mean {index_key}: {index_data.get("mean_value", "N/A")}', ln=True)
+        pdf.cell(50, 4.5, f"Mean {index_key}: {index_data.get('mean_value', 'N/A')}", ln=True)
         pdf.set_xy(leg_x, pdf.get_y())
-        pdf.cell(50, 4.5, f'Scenes: {index_data.get("n_scenes", "N/A")}', ln=True)
+        pdf.cell(50, 4.5, f"Scenes: {index_data.get('n_scenes', 'N/A')}", ln=True)
         pdf.set_xy(leg_x, pdf.get_y())
-        pdf.cell(50, 4.5, 'Scale: 10 m', ln=True)
+        pdf.cell(50, 4.5, "Scale: 10 m", ln=True)
 
         # ── Move below map ────────────────────────────
         pdf.set_xy(15, map_top_y + map_h + 10)
@@ -248,18 +271,23 @@ def generate_index_pdf_bytes(index_key, index_data, aoi_coords, date_start, date
         pdf.ln(4)
 
         # ── Methodology ───────────────────────────────
-        pdf.set_font('Helvetica', 'B', 10)
+        pdf.set_font("Helvetica", "B", 10)
         pdf.set_text_color(0, 160, 160)
-        pdf.cell(0, 7, 'METHODOLOGY & CLASSIFICATION BASIS', ln=True)
-        pdf.set_font('Helvetica', '', 9)
+        pdf.cell(0, 7, "METHODOLOGY & CLASSIFICATION BASIS", ln=True)
+        pdf.set_font("Helvetica", "", 9)
         pdf.set_text_color(80, 90, 100)
-        pdf.multi_cell(0, 5.5, _pdf_safe(meta['info']))
+        pdf.multi_cell(0, 5.5, _pdf_safe(meta["info"]))
         pdf.ln(3)
 
         # ── Footer ────────────────────────────────────
-        pdf.set_font('Helvetica', 'I', 7)
+        pdf.set_font("Helvetica", "I", 7)
         pdf.set_text_color(120, 120, 120)
-        pdf.cell(0, 5, 'Generated by HydroRisk Atlas | IIT Kharagpur | Google Earth Engine | Sentinel-2 SR (ESA/Copernicus)', ln=True)
+        pdf.cell(
+            0,
+            5,
+            "Generated by HydroRisk Atlas | IIT Kharagpur | Google Earth Engine | Sentinel-2 SR (ESA/Copernicus)",
+            ln=True,
+        )
 
         return bytes(pdf.output())
     except Exception as e:

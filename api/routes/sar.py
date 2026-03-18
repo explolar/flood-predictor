@@ -1,8 +1,9 @@
 """SAR API routes."""
 
 from fastapi import APIRouter, HTTPException
-from api.schemas import SARRequest, AnalysisResponse
-from api.dependencies import initialize_ee_api, aoi_to_json
+
+from api.dependencies import aoi_to_json, initialize_ee_api
+from api.schemas import AnalysisResponse, SARRequest
 
 router = APIRouter(prefix="/sar", tags=["SAR"])
 
@@ -15,16 +16,25 @@ async def detect_flood(request: SARRequest):
 
     try:
         from gee_functions.sar import get_all_sar_data
+
         result = get_all_sar_data(
-            aoi_json, request.f_start, request.f_end,
-            request.p_start, request.p_end,
-            request.threshold, request.polarization, request.speckle
+            aoi_json,
+            request.f_start,
+            request.f_end,
+            request.p_start,
+            request.p_end,
+            request.threshold,
+            request.polarization,
+            request.speckle,
         )
-        return AnalysisResponse(success=True, data={
-            'area_ha': result['area_ha'],
-            'pop_exposed': result['pop_exposed'],
-            'flood_url': result['flood_url'],
-            'severity_url': result['severity_url'],
-        })
+        return AnalysisResponse(
+            success=True,
+            data={
+                "area_ha": result["area_ha"],
+                "pop_exposed": result["pop_exposed"],
+                "flood_url": result["flood_url"],
+                "severity_url": result["severity_url"],
+            },
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

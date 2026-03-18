@@ -1,5 +1,5 @@
 def get_mca_legend(map_name):
-    return f'''
+    return f"""
     <script>
     (function() {{
         var legend = L.control({{position: 'bottomleft'}});
@@ -18,10 +18,11 @@ def get_mca_legend(map_name):
         legend.addTo({map_name});
     }})();
     </script>
-    '''
+    """
+
 
 def get_sar_legend(map_name):
-    return f'''
+    return f"""
     <script>
     (function() {{
         var legend = L.control({{position: 'bottomleft'}});
@@ -44,11 +45,11 @@ def get_sar_legend(map_name):
         legend.addTo({map_name});
     }})();
     </script>
-    '''
+    """
 
 
 def get_stream_order_legend(map_name):
-    return f'''
+    return f"""
     <script>
     (function() {{
         var legend = L.control({{position: 'bottomleft'}});
@@ -69,11 +70,11 @@ def get_stream_order_legend(map_name):
         legend.addTo({map_name});
     }})();
     </script>
-    '''
+    """
 
 
 def get_flow_acc_legend(map_name):
-    return f'''
+    return f"""
     <script>
     (function() {{
         var legend = L.control({{position: 'bottomleft'}});
@@ -94,11 +95,11 @@ def get_flow_acc_legend(map_name):
         legend.addTo({map_name});
     }})();
     </script>
-    '''
+    """
 
 
 def get_hand_legend(map_name):
-    return f'''
+    return f"""
     <script>
     (function() {{
         var legend = L.control({{position: 'bottomleft'}});
@@ -119,24 +120,25 @@ def get_hand_legend(map_name):
         legend.addTo({map_name});
     }})();
     </script>
-    '''
+    """
 
 
 def get_index_legend(map_name, index_key):
     """Generate a Leaflet JS legend for a spectral index from INDEX_REGISTRY."""
     from gee_functions.indices import INDEX_REGISTRY
+
     meta = INDEX_REGISTRY[index_key]
 
-    rows = ''
-    for (lo, hi, color, label) in meta['classes']:
+    rows = ""
+    for lo, hi, color, label in meta["classes"]:
         rows += (
             f"'<span style=\"display:inline-block;width:12px;height:12px;"
             f"background:{color};border-radius:2px;margin-right:7px;"
             f"vertical-align:middle;\"></span>{label}<br>' + "
         )
-    rows = rows.rstrip(' + ')
+    rows = rows.rstrip(" + ")
 
-    return f'''
+    return f"""
     <script>
     (function() {{
         var legend = L.control({{position: 'bottomleft'}});
@@ -151,4 +153,4 @@ def get_index_legend(map_name, index_key):
         legend.addTo({map_name});
     }})();
     </script>
-    '''
+    """

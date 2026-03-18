@@ -1,8 +1,9 @@
 """MCA API routes."""
 
 from fastapi import APIRouter, HTTPException
-from api.schemas import MCARequest, AnalysisResponse
-from api.dependencies import initialize_ee_api, aoi_to_json
+
+from api.dependencies import aoi_to_json, initialize_ee_api
+from api.schemas import AnalysisResponse, MCARequest
 
 router = APIRouter(prefix="/mca", tags=["MCA"])
 
@@ -17,8 +18,9 @@ async def compute_mca(request: MCARequest):
 
     try:
         from gee_functions.mca import get_mca_tile
+
         tile_url = get_mca_tile(aoi_json, request.w_lulc, request.w_slope, w_rain)
-        return AnalysisResponse(success=True, data={'tile_url': tile_url})
+        return AnalysisResponse(success=True, data={"tile_url": tile_url})
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -31,6 +33,7 @@ async def get_stats(request: MCARequest):
 
     try:
         from gee_functions.core import get_aoi_stats
+
         stats = get_aoi_stats(aoi_json)
         return AnalysisResponse(success=True, data=stats)
     except Exception as e:

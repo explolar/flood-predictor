@@ -3,26 +3,22 @@ XGBoost SAR flood classifier.
 Same interface as SARFloodClassifier but uses XGBoost for potentially better accuracy.
 """
 
-import os
 import json
-import numpy as np
-import pandas as pd
+import os
 
 try:
-    from xgboost import XGBClassifier
     import joblib
+    from xgboost import XGBClassifier
+
     _XGB = True
 except ImportError:
     _XGB = False
 
 
 class XGBFloodClassifier:
-    MODEL_PATH = os.path.join(os.path.dirname(__file__), '..', 'models', 'sar_classifier_xgb.joblib')
+    MODEL_PATH = os.path.join(os.path.dirname(__file__), "..", "models", "sar_classifier_xgb.joblib")
 
-    feature_names = [
-        'pre_sar', 'post_sar', 'sar_diff', 'sar_ratio',
-        'elevation', 'slope', 'jrc_occ', 'jrc_season'
-    ]
+    feature_names = ["pre_sar", "post_sar", "sar_diff", "sar_ratio", "elevation", "slope", "jrc_occ", "jrc_season"]
 
     def __init__(self):
         self.model = None
@@ -33,10 +29,7 @@ class XGBFloodClassifier:
             raise ImportError("xgboost is required. Run: pip install xgboost")
         if os.path.exists(self.MODEL_PATH):
             self.model = joblib.load(self.MODEL_PATH)
-            self.feature_importances_ = dict(zip(
-                self.feature_names,
-                self.model.feature_importances_
-            ))
+            self.feature_importances_ = dict(zip(self.feature_names, self.model.feature_importances_))
             return True
         return False
 
@@ -45,7 +38,7 @@ class XGBFloodClassifier:
             raise ImportError("xgboost is required. Run: pip install xgboost")
 
         X = df[self.feature_names].copy().fillna(0)
-        y = df['flood_label'].astype(int)
+        y = df["flood_label"].astype(int)
 
         self.model = XGBClassifier(
             n_estimators=300,
@@ -56,15 +49,14 @@ class XGBFloodClassifier:
             min_child_weight=10,
             scale_pos_weight=(y == 0).sum() / max((y == 1).sum(), 1),
             random_state=42,
-            eval_metric='logloss',
+            eval_metric="logloss",
             verbosity=0,
         )
         self.model.fit(X, y)
 
-        self.feature_importances_ = dict(zip(
-            self.feature_names,
-            [round(v, 4) for v in self.model.feature_importances_]
-        ))
+        self.feature_importances_ = dict(
+            zip(self.feature_names, [round(v, 4) for v in self.model.feature_importances_])
+        )
         return self
 
     def save(self):
@@ -79,64 +71,58 @@ class XGBFloodClassifier:
         X = feature_df[self.feature_names].copy().fillna(0)
         return self.model.predict_proba(X)[:, 1]
 
-    def classify_for_aoi(self, aoi_json, f_start, f_end, p_start, p_end,
-                          threshold, polarization, speckle,
-                          return_probability=False):
+    def classify_for_aoi(
+        self, aoi_json, f_start, f_end, p_start, p_end, threshold, polarization, speckle, return_probability=False
+    ):
         import ee
-        from ml_models.data_extraction import extract_sar_training_samples, dataframe_to_ee_fc
+
+        from ml_models.data_extraction import dataframe_to_ee_fc, extract_sar_training_samples
 
         pretrained = self.load()
 
         df = extract_sar_training_samples(
-            aoi_json, f_start, f_end, p_start, p_end,
-            threshold, polarization, speckle,
-            n_points=4000, scale=30
+            aoi_json, f_start, f_end, p_start, p_end, threshold, polarization, speckle, n_points=4000, scale=30
         )
 
         if df.empty or len(df) < 100:
             return None
 
-        threshold_flood_count = (df['flood_label'] == 1).sum()
+        threshold_flood_count = (df["flood_label"] == 1).sum()
         total_count = len(df)
 
         if not pretrained:
             self.train(df)
 
         if return_probability:
-            df['ml_pred'] = self.predict_proba(df)
+            df["ml_pred"] = self.predict_proba(df)
         else:
-            df['ml_pred'] = self.predict(df)
+            df["ml_pred"] = self.predict(df)
 
-        ml_flood_count = (df['ml_pred'] >= 0.5).sum() if return_probability else (df['ml_pred'] == 1).sum()
+        ml_flood_count = (df["ml_pred"] >= 0.5).sum() if return_probability else (df["ml_pred"] == 1).sum()
 
         aoi_geom = ee.Geometry(json.loads(aoi_json))
 
         if return_probability:
-            df['ml_pred_int'] = (df['ml_pred'] * 100).astype(int)
-            fc = dataframe_to_ee_fc(df, 'ml_pred_int')
-            flood_image = (fc.reduceToImage(['ml_pred_int'], ee.Reducer.first())
-                          .clip(aoi_geom).divide(100))
-            tile_url = flood_image.getMapId({
-                'min': 0, 'max': 1,
-                'palette': ['000005', '0d1b2a', '1b4f72', '2e86c1', '00FFFF', 'ffffff']
-            })['tile_fetcher'].url_format
+            df["ml_pred_int"] = (df["ml_pred"] * 100).astype(int)
+            fc = dataframe_to_ee_fc(df, "ml_pred_int")
+            flood_image = fc.reduceToImage(["ml_pred_int"], ee.Reducer.first()).clip(aoi_geom).divide(100)
+            tile_url = flood_image.getMapId(
+                {"min": 0, "max": 1, "palette": ["000005", "0d1b2a", "1b4f72", "2e86c1", "00FFFF", "ffffff"]}
+            )["tile_fetcher"].url_format
         else:
-            fc = dataframe_to_ee_fc(df, 'ml_pred')
-            flood_image = (fc.reduceToImage(['ml_pred'], ee.Reducer.first())
-                          .clip(aoi_geom).selfMask())
-            tile_url = flood_image.getMapId({
-                'palette': ['FF6B6B']
-            })['tile_fetcher'].url_format
+            fc = dataframe_to_ee_fc(df, "ml_pred")
+            flood_image = fc.reduceToImage(["ml_pred"], ee.Reducer.first()).clip(aoi_geom).selfMask()
+            tile_url = flood_image.getMapId({"palette": ["FF6B6B"]})["tile_fetcher"].url_format
 
         aoi_ha = aoi_geom.area(maxError=1).getInfo() / 10000
         ml_area_ha = round(aoi_ha * ml_flood_count / total_count, 1)
         threshold_area_ha = round(aoi_ha * threshold_flood_count / total_count, 1)
 
         return {
-            'tile_url': tile_url,
-            'ml_area_ha': ml_area_ha,
-            'threshold_area_ha': threshold_area_ha,
-            'n_samples': total_count,
-            'feature_importance': self.feature_importances_,
-            'model_name': 'XGBoost',
+            "tile_url": tile_url,
+            "ml_area_ha": ml_area_ha,
+            "threshold_area_ha": threshold_area_ha,
+            "n_samples": total_count,
+            "feature_importance": self.feature_importances_,
+            "model_name": "XGBoost",
         }

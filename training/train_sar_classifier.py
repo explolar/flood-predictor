@@ -9,18 +9,21 @@ Usage:
 Requires: authenticated GEE session, ~10 minutes.
 """
 
-import sys
 import os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
+import json
 
 import ee
-import json
 import pandas as pd
+
 from ml_models.data_extraction import extract_sar_training_samples
 from ml_models.sar_classifier import SARFloodClassifier
 
 # Initialize GEE
-project_id = 'xward-481405'
+project_id = "xward-481405"
 try:
     ee.Initialize(project=project_id)
 except Exception:
@@ -54,17 +57,24 @@ events = [
 all_samples = []
 for event in events:
     print(f"  Extracting SAR features from {event['name']}...")
-    bbox = event['bbox']
+    bbox = event["bbox"]
     aoi_json = json.dumps(ee.Geometry.BBox(*bbox).getInfo())
     try:
         df = extract_sar_training_samples(
             aoi_json,
-            f_start=event['post'][0], f_end=event['post'][1],
-            p_start=event['pre'][0], p_end=event['pre'][1],
-            threshold=3.0, polarization='VH', speckle=True,
-            n_points=5000, scale=30
+            f_start=event["post"][0],
+            f_end=event["post"][1],
+            p_start=event["pre"][0],
+            p_end=event["pre"][1],
+            threshold=3.0,
+            polarization="VH",
+            speckle=True,
+            n_points=5000,
+            scale=30,
         )
-        print(f"    Got {len(df)} samples (flood: {(df['flood_label']==1).sum()}, non-flood: {(df['flood_label']==0).sum()})")
+        print(
+            f"    Got {len(df)} samples (flood: {(df['flood_label'] == 1).sum()}, non-flood: {(df['flood_label'] == 0).sum()})"
+        )
         all_samples.append(df)
     except Exception as e:
         print(f"    FAILED: {e}")

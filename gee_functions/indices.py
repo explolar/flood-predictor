@@ -3,9 +3,10 @@ Spectral Indices computation from Sentinel-2 SR.
 Computes NDVI, NDWI, MNDWI, NDBI, SAVI, EVI, BSI with classification.
 """
 
-import ee
 import json
 import logging
+
+import ee
 import streamlit as st
 
 logger = logging.getLogger(__name__)
@@ -16,9 +17,9 @@ INDEX_REGISTRY = {
         "label": "Normalized Difference Vegetation Index",
         "formula": "(B8 − B4) / (B8 + B4)",
         "source": "Sentinel-2 SR (10 m)",
-        "min": -0.2, "max": 0.8,
-        "palette": ["d73027", "f46d43", "fdae61", "fee08b", "ffffbf",
-                     "d9ef8b", "a6d96a", "66bd63", "1a9850"],
+        "min": -0.2,
+        "max": 0.8,
+        "palette": ["d73027", "f46d43", "fdae61", "fee08b", "ffffbf", "d9ef8b", "a6d96a", "66bd63", "1a9850"],
         "classes": [
             (-1.0, 0.00, "#4575b4", "Water / Non-Vegetated"),
             (0.00, 0.20, "#d73027", "Barren / Urban"),
@@ -38,7 +39,8 @@ INDEX_REGISTRY = {
         "label": "Normalized Difference Water Index",
         "formula": "(B3 − B8) / (B3 + B8)",
         "source": "Sentinel-2 SR (10 m)",
-        "min": -0.5, "max": 0.5,
+        "min": -0.5,
+        "max": 0.5,
         "palette": ["d7191c", "fdae61", "ffffbf", "abd9e9", "2c7bb6"],
         "classes": [
             (-1.0, -0.20, "#d7191c", "Non-Water (Dry)"),
@@ -59,7 +61,8 @@ INDEX_REGISTRY = {
         "label": "Modified Normalized Difference Water Index",
         "formula": "(B3 − B11) / (B3 + B11)",
         "source": "Sentinel-2 SR (20 m resampled)",
-        "min": -0.5, "max": 0.7,
+        "min": -0.5,
+        "max": 0.7,
         "palette": ["a50026", "d73027", "fdae61", "ffffbf", "74add1", "313695"],
         "classes": [
             (-1.0, -0.30, "#a50026", "Built-Up / Dry"),
@@ -79,7 +82,8 @@ INDEX_REGISTRY = {
         "label": "Normalized Difference Built-Up Index",
         "formula": "(B11 − B8) / (B11 + B8)",
         "source": "Sentinel-2 SR (20 m resampled)",
-        "min": -0.5, "max": 0.5,
+        "min": -0.5,
+        "max": 0.5,
         "palette": ["1a9850", "91cf60", "ffffbf", "fc8d59", "d73027"],
         "classes": [
             (-1.0, -0.20, "#1a9850", "Dense Vegetation"),
@@ -99,7 +103,8 @@ INDEX_REGISTRY = {
         "label": "Soil-Adjusted Vegetation Index",
         "formula": "1.5 × (B8 − B4) / (B8 + B4 + 0.5)",
         "source": "Sentinel-2 SR (10 m)",
-        "min": -0.3, "max": 0.8,
+        "min": -0.3,
+        "max": 0.8,
         "palette": ["d73027", "f46d43", "fdae61", "d9ef8b", "1a9850"],
         "classes": [
             (-1.0, 0.00, "#d73027", "Bare Soil / Water"),
@@ -119,7 +124,8 @@ INDEX_REGISTRY = {
         "label": "Enhanced Vegetation Index",
         "formula": "2.5 × (B8 − B4) / (B8 + 6×B4 − 7.5×B2 + 1)",
         "source": "Sentinel-2 SR (10 m)",
-        "min": -0.2, "max": 0.8,
+        "min": -0.2,
+        "max": 0.8,
         "palette": ["d73027", "fdae61", "ffffbf", "a6d96a", "1a9850"],
         "classes": [
             (-1.0, 0.00, "#d73027", "Non-Vegetated"),
@@ -140,7 +146,8 @@ INDEX_REGISTRY = {
         "label": "Bare Soil Index",
         "formula": "((B11+B4) − (B8+B2)) / ((B11+B4) + (B8+B2))",
         "source": "Sentinel-2 SR (10/20 m mixed)",
-        "min": -0.5, "max": 0.5,
+        "min": -0.5,
+        "max": 0.5,
         "palette": ["1a9850", "d9ef8b", "ffffbf", "fdae61", "d73027"],
         "classes": [
             (-1.0, -0.20, "#1a9850", "Vegetated"),
@@ -161,39 +168,39 @@ INDEX_REGISTRY = {
 
 def _compute_index(s2, index_key):
     """Compute a single spectral index from a median S2 composite."""
-    b2 = s2.select('B2')
-    b3 = s2.select('B3')
-    b4 = s2.select('B4')
-    b8 = s2.select('B8')
-    b11 = s2.select('B11')
+    b2 = s2.select("B2")
+    s2.select("B3")
+    b4 = s2.select("B4")
+    b8 = s2.select("B8")
+    b11 = s2.select("B11")
     name = index_key.lower()
 
-    if index_key == 'NDVI':
-        return s2.normalizedDifference(['B8', 'B4']).rename(name)
-    elif index_key == 'NDWI':
-        return s2.normalizedDifference(['B3', 'B8']).rename(name)
-    elif index_key == 'MNDWI':
-        return s2.normalizedDifference(['B3', 'B11']).rename(name)
-    elif index_key == 'NDBI':
-        return s2.normalizedDifference(['B11', 'B8']).rename(name)
-    elif index_key == 'SAVI':
+    if index_key == "NDVI":
+        return s2.normalizedDifference(["B8", "B4"]).rename(name)
+    elif index_key == "NDWI":
+        return s2.normalizedDifference(["B3", "B8"]).rename(name)
+    elif index_key == "MNDWI":
+        return s2.normalizedDifference(["B3", "B11"]).rename(name)
+    elif index_key == "NDBI":
+        return s2.normalizedDifference(["B11", "B8"]).rename(name)
+    elif index_key == "SAVI":
         L = 0.5
         numer = b8.subtract(b4).multiply(1 + L)
         denom = b8.add(b4).add(L)
         return numer.divide(denom).rename(name)
-    elif index_key == 'EVI':
+    elif index_key == "EVI":
         b2f = b2.divide(10000)
         b4f = b4.divide(10000)
         b8f = b8.divide(10000)
         numer = b8f.subtract(b4f).multiply(2.5)
         denom = b8f.add(b4f.multiply(6)).subtract(b2f.multiply(7.5)).add(1)
         return numer.divide(denom).rename(name)
-    elif index_key == 'BSI':
+    elif index_key == "BSI":
         a = b11.add(b4)
         b = b8.add(b2)
         return a.subtract(b).divide(a.add(b)).rename(name)
     else:
-        raise ValueError(f'Unknown index: {index_key}')
+        raise ValueError(f"Unknown index: {index_key}")
 
 
 def _make_geometry(aoi_json):
@@ -203,18 +210,18 @@ def _make_geometry(aoi_json):
     but that ee.Geometry() constructor may misinterpret on round-trip.
     """
     geo = json.loads(aoi_json) if isinstance(aoi_json, str) else aoi_json
-    coords = geo.get('coordinates', [])
-    geo_type = geo.get('type', 'Polygon')
-    geodesic = geo.get('geodesic', True)
+    coords = geo.get("coordinates", [])
+    geo_type = geo.get("type", "Polygon")
+    geodesic = geo.get("geodesic", True)
 
-    if geo_type == 'Polygon':
-        return ee.Geometry.Polygon(coords, proj='EPSG:4326', geodesic=geodesic)
-    elif geo_type == 'MultiPolygon':
-        return ee.Geometry.MultiPolygon(coords, proj='EPSG:4326', geodesic=geodesic)
-    elif geo_type == 'Rectangle':
-        return ee.Geometry.Rectangle(coords, proj='EPSG:4326', geodesic=geodesic)
+    if geo_type == "Polygon":
+        return ee.Geometry.Polygon(coords, proj="EPSG:4326", geodesic=geodesic)
+    elif geo_type == "MultiPolygon":
+        return ee.Geometry.MultiPolygon(coords, proj="EPSG:4326", geodesic=geodesic)
+    elif geo_type == "Rectangle":
+        return ee.Geometry.Rectangle(coords, proj="EPSG:4326", geodesic=geodesic)
     else:
-        return ee.Geometry(geo, opt_proj='EPSG:4326')
+        return ee.Geometry(geo, opt_proj="EPSG:4326")
 
 
 def _build_s2_collection(aoi_geom, date_start, date_end, cloud_thresh):
@@ -223,18 +230,20 @@ def _build_s2_collection(aoi_geom, date_start, date_end, cloud_thresh):
     Caps at 40 least-cloudy scenes to keep the GEE computation graph
     under the 50 MB request-size limit.
     """
-    _BANDS = ['B2', 'B3', 'B4', 'B8', 'B11', 'SCL']
+    _BANDS = ["B2", "B3", "B4", "B8", "B11", "SCL"]
     _MAX_SCENES = 40
 
-    for collection_id in ['COPERNICUS/S2_SR_HARMONIZED', 'COPERNICUS/S2_SR']:
-        base = (ee.ImageCollection(collection_id)
-                .filterBounds(aoi_geom)
-                .filterDate(date_start, date_end)
-                .filter(ee.Filter.lte('CLOUDY_PIXEL_PERCENTAGE', cloud_thresh)))
+    for collection_id in ["COPERNICUS/S2_SR_HARMONIZED", "COPERNICUS/S2_SR"]:
+        base = (
+            ee.ImageCollection(collection_id)
+            .filterBounds(aoi_geom)
+            .filterDate(date_start, date_end)
+            .filter(ee.Filter.lte("CLOUDY_PIXEL_PERCENTAGE", cloud_thresh))
+        )
         n_scenes = base.size().getInfo()
         if n_scenes:
             if n_scenes > _MAX_SCENES:
-                base = base.sort('CLOUDY_PIXEL_PERCENTAGE').limit(_MAX_SCENES)
+                base = base.sort("CLOUDY_PIXEL_PERCENTAGE").limit(_MAX_SCENES)
                 logger.info(f"{collection_id}: {n_scenes} scenes found, capped to {_MAX_SCENES} least-cloudy")
             else:
                 logger.info(f"{collection_id}: {n_scenes} scenes found")
@@ -252,9 +261,7 @@ def get_all_index_tiles(aoi_json, date_start, date_end, cloud_thresh=60):
     """
     aoi_geom = _make_geometry(aoi_json)
 
-    col, n_scenes, col_id = _build_s2_collection(
-        aoi_geom, date_start, date_end, cloud_thresh
-    )
+    col, n_scenes, col_id = _build_s2_collection(aoi_geom, date_start, date_end, cloud_thresh)
 
     if not col:
         raise ValueError(
@@ -265,7 +272,7 @@ def get_all_index_tiles(aoi_json, date_start, date_end, cloud_thresh=60):
         )
 
     def mask_clouds(img):
-        scl = img.select('SCL')
+        scl = img.select("SCL")
         mask = scl.neq(3).And(scl.neq(8)).And(scl.neq(9)).And(scl.neq(10))
         return img.updateMask(mask)
 
@@ -276,21 +283,26 @@ def get_all_index_tiles(aoi_json, date_start, date_end, cloud_thresh=60):
     for index_key, meta in INDEX_REGISTRY.items():
         try:
             index_img = _compute_index(s2, index_key)
-            viz = {'min': meta['min'], 'max': meta['max'], 'palette': meta['palette']}
+            viz = {"min": meta["min"], "max": meta["max"], "palette": meta["palette"]}
 
-            tile_url = index_img.getMapId(viz)['tile_fetcher'].url_format
+            tile_url = index_img.getMapId(viz)["tile_fetcher"].url_format
 
-            stats = index_img.reduceRegion(
-                reducer=ee.Reducer.mean(),
-                geometry=aoi_geom, scale=100, maxPixels=1e9,
-                bestEffort=True,
-            ).getInfo() or {}
+            stats = (
+                index_img.reduceRegion(
+                    reducer=ee.Reducer.mean(),
+                    geometry=aoi_geom,
+                    scale=100,
+                    maxPixels=1e9,
+                    bestEffort=True,
+                ).getInfo()
+                or {}
+            )
             mean_val = round(stats.get(index_key.lower(), 0) or 0, 4)
 
             results[index_key] = {
-                'tile_url': tile_url,
-                'mean_value': mean_val,
-                'n_scenes': n_scenes,
+                "tile_url": tile_url,
+                "mean_value": mean_val,
+                "n_scenes": n_scenes,
             }
         except Exception as e:
             logger.warning(f"Index {index_key} failed: {e}")
@@ -300,8 +312,7 @@ def get_all_index_tiles(aoi_json, date_start, date_end, cloud_thresh=60):
     if not results:
         # Raise so @st.cache_data does NOT cache an empty result
         raise ValueError(
-            f"Found {n_scenes} S2 scenes ({col_id}) but all 7 index "
-            f"computations failed: {'; '.join(errors[:3])}"
+            f"Found {n_scenes} S2 scenes ({col_id}) but all 7 index computations failed: {'; '.join(errors[:3])}"
         )
 
     return results
@@ -320,7 +331,7 @@ def get_index_download_url(aoi_json, index_key, date_start, date_end, cloud_thre
             return None
 
         def mask_clouds(img):
-            scl = img.select('SCL')
+            scl = img.select("SCL")
             mask = scl.neq(3).And(scl.neq(8)).And(scl.neq(9)).And(scl.neq(10))
             return img.updateMask(mask)
 
@@ -329,10 +340,14 @@ def get_index_download_url(aoi_json, index_key, date_start, date_end, cloud_thre
 
         # Use 30m for download to stay under GEE's download size limit
         # (a 0.5° × 0.5° AOI at 10m = ~150 MB; at 30m = ~17 MB)
-        return index_img.getDownloadUrl({
-            'scale': 30, 'crs': 'EPSG:4326',
-            'format': 'GeoTIFF', 'region': aoi_geom,
-        })
+        return index_img.getDownloadUrl(
+            {
+                "scale": 30,
+                "crs": "EPSG:4326",
+                "format": "GeoTIFF",
+                "region": aoi_geom,
+            }
+        )
     except Exception as e:
         logger.warning(f"get_index_download_url({index_key}) failed: {e}")
         return None
@@ -347,7 +362,7 @@ def get_index_thumb_url(aoi_json, index_key, date_start, date_end, cloud_thresh=
             return None
 
         def mask_clouds(img):
-            scl = img.select('SCL')
+            scl = img.select("SCL")
             mask = scl.neq(3).And(scl.neq(8)).And(scl.neq(9)).And(scl.neq(10))
             return img.updateMask(mask)
 
@@ -357,20 +372,21 @@ def get_index_thumb_url(aoi_json, index_key, date_start, date_end, cloud_thresh=
 
         # Classified image for visual clarity in PDF
         classified = ee.Image(0)
-        for i, (lo, hi, color, _label) in enumerate(meta['classes']):
-            classified = classified.where(
-                index_img.gte(lo).And(index_img.lt(hi)), i + 1
-            )
+        for i, (lo, hi, color, _label) in enumerate(meta["classes"]):
+            classified = classified.where(index_img.gte(lo).And(index_img.lt(hi)), i + 1)
         classified = classified.updateMask(classified.gt(0))
 
-        palette = [c[2] for c in meta['classes']]
-        return classified.getThumbURL({
-            'min': 1, 'max': len(palette),
-            'palette': palette,
-            'dimensions': 512,
-            'region': aoi_geom,
-            'format': 'png',
-        })
+        palette = [c[2] for c in meta["classes"]]
+        return classified.getThumbURL(
+            {
+                "min": 1,
+                "max": len(palette),
+                "palette": palette,
+                "dimensions": 512,
+                "region": aoi_geom,
+                "format": "png",
+            }
+        )
     except Exception as e:
         logger.warning(f"get_index_thumb_url({index_key}) failed: {e}")
         return None
@@ -381,45 +397,58 @@ def diagnose_s2_access(aoi_json, date_start, date_end, cloud_thresh):
     steps = []
     try:
         aoi_geom = _make_geometry(aoi_json)
-        centroid = aoi_geom.centroid(1).getInfo()['coordinates']
-        steps.append({'step': 'Geometry', 'status': 'OK',
-                      'detail': f'Centroid: [{centroid[0]:.4f}, {centroid[1]:.4f}]'})
+        centroid = aoi_geom.centroid(1).getInfo()["coordinates"]
+        steps.append(
+            {"step": "Geometry", "status": "OK", "detail": f"Centroid: [{centroid[0]:.4f}, {centroid[1]:.4f}]"}
+        )
     except Exception as e:
-        steps.append({'step': 'Geometry', 'status': 'FAIL', 'detail': str(e)})
+        steps.append({"step": "Geometry", "status": "FAIL", "detail": str(e)})
         return steps
 
-    for col_id in ['COPERNICUS/S2_SR_HARMONIZED', 'COPERNICUS/S2_SR']:
+    for col_id in ["COPERNICUS/S2_SR_HARMONIZED", "COPERNICUS/S2_SR"]:
         try:
             # Date only (no location filter)
-            n_date = (ee.ImageCollection(col_id)
-                      .filterDate(date_start, date_end)
-                      .limit(1).size().getInfo())
-            steps.append({'step': f'{col_id.split("/")[-1]} (date only)',
-                          'status': 'OK' if n_date else 'EMPTY',
-                          'detail': f'{n_date} image(s)'})
+            n_date = ee.ImageCollection(col_id).filterDate(date_start, date_end).limit(1).size().getInfo()
+            steps.append(
+                {
+                    "step": f"{col_id.split('/')[-1]} (date only)",
+                    "status": "OK" if n_date else "EMPTY",
+                    "detail": f"{n_date} image(s)",
+                }
+            )
 
             # Date + bounds
-            n_bounds = (ee.ImageCollection(col_id)
-                        .filterBounds(aoi_geom)
-                        .filterDate(date_start, date_end)
-                        .size().getInfo())
-            steps.append({'step': f'{col_id.split("/")[-1]} (date+AOI)',
-                          'status': 'OK' if n_bounds else 'EMPTY',
-                          'detail': f'{n_bounds} scene(s)'})
+            n_bounds = (
+                ee.ImageCollection(col_id).filterBounds(aoi_geom).filterDate(date_start, date_end).size().getInfo()
+            )
+            steps.append(
+                {
+                    "step": f"{col_id.split('/')[-1]} (date+AOI)",
+                    "status": "OK" if n_bounds else "EMPTY",
+                    "detail": f"{n_bounds} scene(s)",
+                }
+            )
 
             # Date + bounds + cloud
-            n_full = (ee.ImageCollection(col_id)
-                      .filterBounds(aoi_geom)
-                      .filterDate(date_start, date_end)
-                      .filter(ee.Filter.lte('CLOUDY_PIXEL_PERCENTAGE', cloud_thresh))
-                      .size().getInfo())
-            steps.append({'step': f'{col_id.split("/")[-1]} (date+AOI+cloud≤{cloud_thresh}%)',
-                          'status': 'OK' if n_full else 'EMPTY',
-                          'detail': f'{n_full} scene(s)'})
+            n_full = (
+                ee.ImageCollection(col_id)
+                .filterBounds(aoi_geom)
+                .filterDate(date_start, date_end)
+                .filter(ee.Filter.lte("CLOUDY_PIXEL_PERCENTAGE", cloud_thresh))
+                .size()
+                .getInfo()
+            )
+            steps.append(
+                {
+                    "step": f"{col_id.split('/')[-1]} (date+AOI+cloud≤{cloud_thresh}%)",
+                    "status": "OK" if n_full else "EMPTY",
+                    "detail": f"{n_full} scene(s)",
+                }
+            )
 
             if n_full:
                 return steps
         except Exception as e:
-            steps.append({'step': col_id, 'status': 'ERROR', 'detail': str(e)})
+            steps.append({"step": col_id, "status": "ERROR", "detail": str(e)})
 
     return steps

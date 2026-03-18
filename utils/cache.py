@@ -7,6 +7,7 @@ import functools
 
 try:
     import streamlit as st
+
     _HAS_STREAMLIT = True
 except ImportError:
     _HAS_STREAMLIT = False

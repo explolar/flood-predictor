@@ -9,7 +9,7 @@ Usage:
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from api.routes import mca, sar, ml
+from api.routes import mca, ml, sar
 
 app = FastAPI(
     title="HydroRisk Atlas API",
@@ -35,8 +35,7 @@ async def root():
     return {
         "service": "HydroRisk Atlas API",
         "version": "2.0.0",
-        "endpoints": ["/mca/risk-map", "/mca/stats", "/sar/flood-detection",
-                       "/ml/classify", "/ml/risk-prediction"],
+        "endpoints": ["/mca/risk-map", "/mca/stats", "/sar/flood-detection", "/ml/classify", "/ml/risk-prediction"],
     }
 
 

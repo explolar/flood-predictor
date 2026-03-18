@@ -1,17 +1,17 @@
 """Shared fixtures for HydroRisk Atlas test suite."""
 
 import json
-import pytest
+from unittest.mock import MagicMock
+
 import numpy as np
 import pandas as pd
-from unittest.mock import MagicMock, patch
-
+import pytest
 
 # ── AOI Fixtures ──────────────────────────────────────
 
 PATNA_BBOX = {
     "type": "Polygon",
-    "coordinates": [[[84.90, 25.50], [85.30, 25.50], [85.30, 25.80], [84.90, 25.80], [84.90, 25.50]]]
+    "coordinates": [[[84.90, 25.50], [85.30, 25.50], [85.30, 25.80], [84.90, 25.80], [84.90, 25.50]]],
 }
 
 
@@ -28,6 +28,7 @@ def aoi_geojson():
 
 
 # ── Mock ee module ────────────────────────────────────
+
 
 @pytest.fixture(autouse=True)
 def mock_ee(monkeypatch):
@@ -56,13 +57,10 @@ def mock_ee(monkeypatch):
     mock_image.unmask.return_value = mock_image
     mock_image.selfMask.return_value = mock_image
     mock_image.getMapId.return_value = {
-        'tile_fetcher': MagicMock(url_format='https://earthengine.googleapis.com/map/test/{z}/{x}/{y}')
+        "tile_fetcher": MagicMock(url_format="https://earthengine.googleapis.com/map/test/{z}/{x}/{y}")
     }
     mock_image.reduceRegion.return_value = MagicMock(
-        getInfo=MagicMock(return_value={
-            'elev_min': 30, 'elev_max': 120, 'elev_mean': 55,
-            'slope_mean': 2.3
-        })
+        getInfo=MagicMock(return_value={"elev_min": 30, "elev_max": 120, "elev_mean": 55, "slope_mean": 2.3})
     )
     mock.Image.return_value = mock_image
     mock.Image.side_effect = lambda *a, **kw: mock_image
@@ -96,28 +94,31 @@ def mock_ee(monkeypatch):
     mock.Reducer.mean.return_value = MagicMock()
     mock.Reducer.first.return_value = MagicMock()
 
-    monkeypatch.setitem(__import__('sys').modules, 'ee', mock)
+    monkeypatch.setitem(__import__("sys").modules, "ee", mock)
     return mock
 
 
 # ── Sample Data Fixtures ──────────────────────────────
+
 
 @pytest.fixture
 def sample_risk_df():
     """Fake training data for FloodRiskPredictor."""
     rng = np.random.RandomState(42)
     n = 500
-    return pd.DataFrame({
-        'elevation': rng.uniform(20, 150, n),
-        'slope': rng.uniform(0, 15, n),
-        'annual_rainfall': rng.uniform(800, 2000, n),
-        'lulc_class': rng.choice([10, 20, 30, 40, 50, 60], n),
-        'jrc_occurrence': rng.uniform(0, 100, n),
-        'jrc_max_extent': rng.choice([0, 1], n),
-        'risk_class': rng.choice([1, 2, 3, 4, 5], n),
-        'latitude': rng.uniform(25.5, 25.8, n),
-        'longitude': rng.uniform(84.9, 85.3, n),
-    })
+    return pd.DataFrame(
+        {
+            "elevation": rng.uniform(20, 150, n),
+            "slope": rng.uniform(0, 15, n),
+            "annual_rainfall": rng.uniform(800, 2000, n),
+            "lulc_class": rng.choice([10, 20, 30, 40, 50, 60], n),
+            "jrc_occurrence": rng.uniform(0, 100, n),
+            "jrc_max_extent": rng.choice([0, 1], n),
+            "risk_class": rng.choice([1, 2, 3, 4, 5], n),
+            "latitude": rng.uniform(25.5, 25.8, n),
+            "longitude": rng.uniform(84.9, 85.3, n),
+        }
+    )
 
 
 @pytest.fixture
@@ -125,18 +126,18 @@ def sample_sar_df():
     """Fake training data for SARFloodClassifier."""
     rng = np.random.RandomState(42)
     n = 600
-    return pd.DataFrame({
-        'pre_sar': rng.uniform(-25, -5, n),
-        'post_sar': rng.uniform(-30, -5, n),
-        'sar_diff': rng.uniform(-10, 10, n),
-        'sar_ratio': rng.uniform(0.5, 2.0, n),
-        'elevation': rng.uniform(20, 150, n),
-        'slope': rng.uniform(0, 15, n),
-        'jrc_occ': rng.uniform(0, 100, n),
-        'jrc_season': rng.uniform(0, 12, n),
-        'flood_label': rng.choice([0, 1], n, p=[0.7, 0.3]),
-        'latitude': rng.uniform(25.5, 25.8, n),
-        'longitude': rng.uniform(84.9, 85.3, n),
-    })
-
-
+    return pd.DataFrame(
+        {
+            "pre_sar": rng.uniform(-25, -5, n),
+            "post_sar": rng.uniform(-30, -5, n),
+            "sar_diff": rng.uniform(-10, 10, n),
+            "sar_ratio": rng.uniform(0.5, 2.0, n),
+            "elevation": rng.uniform(20, 150, n),
+            "slope": rng.uniform(0, 15, n),
+            "jrc_occ": rng.uniform(0, 100, n),
+            "jrc_season": rng.uniform(0, 12, n),
+            "flood_label": rng.choice([0, 1], n, p=[0.7, 0.3]),
+            "latitude": rng.uniform(25.5, 25.8, n),
+            "longitude": rng.uniform(84.9, 85.3, n),
+        }
+    )

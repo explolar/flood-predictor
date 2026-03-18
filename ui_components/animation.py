@@ -18,8 +18,8 @@ def generate_timelapse_html(tile_urls, map_center, labels, zoom=11):
         HTML string for embedding via st.components.html().
     """
     # Build JS array of tile URLs
-    urls_js = ', '.join(f'"{u}"' for u in tile_urls)
-    labels_js = ', '.join(f'"{l}"' for l in labels)
+    urls_js = ", ".join(f'"{u}"' for u in tile_urls)
+    labels_js = ", ".join(f'"{lbl}"' for lbl in labels)
 
     html = f"""
     <!DOCTYPE html>
