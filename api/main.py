@@ -9,12 +9,12 @@ Usage:
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from api.routes import mca, ml, sar
+from api.routes import drought, forecast, geocode, hydrology, indices, mca, ml, multiyear, projections, sar
 
 app = FastAPI(
     title="HydroRisk Atlas API",
     description="REST API for SAR-based flood risk analysis using Google Earth Engine",
-    version="2.0.0",
+    version="3.0.0",
 )
 
 app.add_middleware(
@@ -28,14 +28,34 @@ app.add_middleware(
 app.include_router(mca.router)
 app.include_router(sar.router)
 app.include_router(ml.router)
+app.include_router(indices.router)
+app.include_router(drought.router)
+app.include_router(hydrology.router)
+app.include_router(multiyear.router)
+app.include_router(forecast.router)
+app.include_router(projections.router)
+app.include_router(geocode.router)
 
 
 @app.get("/")
 async def root():
     return {
         "service": "HydroRisk Atlas API",
-        "version": "2.0.0",
-        "endpoints": ["/mca/risk-map", "/mca/stats", "/sar/flood-detection", "/ml/classify", "/ml/risk-prediction"],
+        "version": "3.0.0",
+        "endpoints": [
+            "/mca/risk-map",
+            "/mca/stats",
+            "/sar/flood-detection",
+            "/ml/classify",
+            "/ml/risk-prediction",
+            "/indices/tiles",
+            "/drought/analysis",
+            "/hydrology/analysis",
+            "/multiyear/comparison",
+            "/forecast/weather",
+            "/projections/analysis",
+            "/geocode",
+        ],
     }
 
 

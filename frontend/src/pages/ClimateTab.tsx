@@ -1,0 +1,154 @@
+import { useState } from "react";
+import { TileMap } from "../components/map/TileMap";
+import { LoadingOverlay } from "../components/common/LoadingOverlay";
+import { ErrorBanner } from "../components/common/ErrorBanner";
+import { useAnalysis } from "../hooks/useAnalysis";
+import { multiyearComparison, droughtAnalysis, projectionsAnalysis } from "../api/endpoints";
+import type { SidebarParams } from "../components/layout/Sidebar";
+import type { TileData, ChartPoint } from "../types/api";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
+
+interface Props {
+  geojson: GeoJSON.Geometry;
+  center: [number, number];
+  params: SidebarParams;
+}
+
+type SubTab = "multiyear" | "drought" | "projections";
+
+export function ClimateTab({ geojson, center, params }: Props) {
+  const [subTab, setSubTab] = useState<SubTab>("multiyear");
+  const [years] = useState([2019, 2020, 2021, 2022, 2023, 2024]);
+  const [droughtYear, setDroughtYear] = useState(2024);
+  const [scenario, setScenario] = useState("ssp245");
+
+  const multiyear = useAnalysis<any, { chart: ChartPoint[]; tiles: TileData[] }>(multiyearComparison);
+  const drought = useAnalysis<any, { spi: TileData; ndvi_anomaly: TileData }>(droughtAnalysis);
+  const projections = useAnalysis<any>(projectionsAnalysis);
+
+  return (
+    <div className="tab-content">
+      <nav className="sub-tab-bar">
+        <button className={`tab-item ${subTab === "multiyear" ? "tab-active" : ""}`} onClick={() => setSubTab("multiyear")}>MULTI-YEAR</button>
+        <button className={`tab-item ${subTab === "drought" ? "tab-active" : ""}`} onClick={() => setSubTab("drought")}>DROUGHT</button>
+        <button className={`tab-item ${subTab === "projections" ? "tab-active" : ""}`} onClick={() => setSubTab("projections")}>PROJECTIONS</button>
+      </nav>
+
+      {subTab === "multiyear" && (
+        <>
+          <div className="tab-header">
+            <h2>Multi-Year Monsoon Comparison</h2>
+            <button
+              className="btn btn-primary"
+              onClick={() =>
+                multiyear.run({
+                  geojson,
+                  years,
+                  polarization: params.polarization,
+                  threshold: params.threshold,
+                })
+              }
+              disabled={multiyear.isLoading}
+            >
+              {multiyear.isLoading ? "Loading..." : "COMPARE YEARS"}
+            </button>
+          </div>
+          {multiyear.isLoading && <LoadingOverlay message="Comparing monsoon years..." />}
+          {multiyear.error && <ErrorBanner message={multiyear.error} />}
+
+          {multiyear.data?.chart && (
+            <div className="chart-container">
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={multiyear.data.chart}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+                  <XAxis dataKey="label" stroke="#aaa" />
+                  <YAxis stroke="#aaa" />
+                  <Tooltip />
+                  <Bar dataKey="value" fill="#42A5F5" name="Flood Area (ha)" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </>
+      )}
+
+      {subTab === "drought" && (
+        <>
+          <div className="tab-header">
+            <h2>SPI / NDVI Anomaly</h2>
+            <div className="tab-actions">
+              <select className="select" value={droughtYear} onChange={(e) => setDroughtYear(+e.target.value)}>
+                {[2019, 2020, 2021, 2022, 2023, 2024].map((y) => (
+                  <option key={y} value={y}>{y}</option>
+                ))}
+              </select>
+              <button
+                className="btn btn-primary"
+                onClick={() => drought.run({ geojson, year: droughtYear })}
+                disabled={drought.isLoading}
+              >
+                ANALYZE
+              </button>
+            </div>
+          </div>
+          {drought.isLoading && <LoadingOverlay message="Computing drought indices..." />}
+          {drought.error && <ErrorBanner message={drought.error} />}
+
+          {drought.data && (
+            <div className="map-grid">
+              <div>
+                <h3 className="map-title">SPI Index</h3>
+                <TileMap center={center} tileUrl={drought.data.spi?.tile_url} tileName="SPI" height="400px" />
+              </div>
+              <div>
+                <h3 className="map-title">NDVI Anomaly</h3>
+                <TileMap center={center} tileUrl={drought.data.ndvi_anomaly?.tile_url} tileName="NDVI Anomaly" height="400px" />
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {subTab === "projections" && (
+        <>
+          <div className="tab-header">
+            <h2>Climate Projections (CMIP6)</h2>
+            <div className="tab-actions">
+              <select className="select" value={scenario} onChange={(e) => setScenario(e.target.value)}>
+                <option value="ssp126">SSP1-2.6</option>
+                <option value="ssp245">SSP2-4.5</option>
+                <option value="ssp370">SSP3-7.0</option>
+                <option value="ssp585">SSP5-8.5</option>
+              </select>
+              <button
+                className="btn btn-primary"
+                onClick={() =>
+                  projections.run({
+                    geojson,
+                    scenario,
+                    model: "GFDL-ESM4",
+                    start_year: 2030,
+                    end_year: 2050,
+                  })
+                }
+                disabled={projections.isLoading}
+              >
+                PROJECT
+              </button>
+            </div>
+          </div>
+          {projections.isLoading && <LoadingOverlay message="Running climate projections..." />}
+          {projections.error && <ErrorBanner message={projections.error} />}
+        </>
+      )}
+    </div>
+  );
+}
