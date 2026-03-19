@@ -2,9 +2,9 @@ import datetime
 import json
 
 import ee
-import streamlit as st
 
 from ui_components.constants import DEPTH_VIZ, DIFF_VIZ, SAR_VIZ, SEV_VIZ
+from utils.cache import cache_data
 
 
 def _make_flood_mask(pre, post, threshold, aoi_geom, dem=None, elev_p40=None):
@@ -48,7 +48,7 @@ def _make_flood_mask(pre, post, threshold, aoi_geom, dem=None, elev_p40=None):
     return flood, dem
 
 
-@st.cache_data(show_spinner=False, ttl=3600)
+@cache_data(ttl=3600)
 def get_all_sar_data(aoi_json, f_start, f_end, p_start, p_end, threshold, polarization, speckle):
     """Compute all SAR layers and stats; return serializable dict for caching."""
     aoi_geom = ee.Geometry(json.loads(aoi_json))
@@ -123,7 +123,7 @@ def get_all_sar_data(aoi_json, f_start, f_end, p_start, p_end, threshold, polari
     }
 
 
-@st.cache_data(show_spinner=False, ttl=3600)
+@cache_data(ttl=3600)
 def get_month_sar_tile(aoi_json, year, month_num, polarization, threshold, speckle):
     try:
         aoi_geom = ee.Geometry(json.loads(aoi_json))
@@ -145,7 +145,7 @@ def get_month_sar_tile(aoi_json, year, month_num, polarization, threshold, speck
         return None
 
 
-@st.cache_data(show_spinner=False, ttl=3600)
+@cache_data(ttl=3600)
 def get_flood_depth_tile(aoi_json, f_start, f_end, p_start, p_end, threshold, polarization, speckle):
     """Estimate water depth per pixel using DEM + flood mask."""
     try:
@@ -204,7 +204,7 @@ def get_flood_depth_tile(aoi_json, f_start, f_end, p_start, p_end, threshold, po
         return None
 
 
-@st.cache_data(show_spinner=False, ttl=3600)
+@cache_data(ttl=3600)
 def get_recession_data(aoi_json, f_end_str, p_start_str, p_end_str, polarization, threshold, speckle):
     """Compute flood extent (ha) at T=0, +12d, +24d, +36d after flood end using SAR."""
     try:

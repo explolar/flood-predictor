@@ -7,7 +7,8 @@ import json
 import logging
 
 import ee
-import streamlit as st
+
+from utils.cache import cache_data
 
 logger = logging.getLogger(__name__)
 
@@ -252,7 +253,7 @@ def _build_s2_collection(aoi_geom, date_start, date_end, cloud_thresh):
     return None, 0, None
 
 
-@st.cache_data(show_spinner=False, ttl=3600)
+@cache_data(ttl=3600)
 def get_all_index_tiles(aoi_json, date_start, date_end, cloud_thresh=60):
     """
     Compute ALL 7 indices from a single S2 composite (one GEE collection fetch).
@@ -310,7 +311,7 @@ def get_all_index_tiles(aoi_json, date_start, date_end, cloud_thresh=60):
             continue
 
     if not results:
-        # Raise so @st.cache_data does NOT cache an empty result
+        # Raise so @cache_data does NOT cache an empty result
         raise ValueError(
             f"Found {n_scenes} S2 scenes ({col_id}) but all 7 index computations failed: {'; '.join(errors[:3])}"
         )

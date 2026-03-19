@@ -6,10 +6,11 @@ Standardized Precipitation Index (SPI) from CHIRPS + NDVI anomaly from MODIS.
 import json
 
 import ee
-import streamlit as st
+
+from utils.cache import cache_data
 
 
-@st.cache_data(show_spinner=False, ttl=3600)
+@cache_data(ttl=3600)
 def get_spi_index(aoi_json, target_year=2024, baseline_years=20):
     """
     Compute Standardized Precipitation Index (SPI) for target year.
@@ -82,7 +83,7 @@ def get_spi_index(aoi_json, target_year=2024, baseline_years=20):
     }
 
 
-@st.cache_data(show_spinner=False, ttl=3600)
+@cache_data(ttl=3600)
 def get_ndvi_anomaly(aoi_json, target_year=2024, baseline_years=20):
     """
     Compute NDVI anomaly from MODIS compared to 20-year climatology.

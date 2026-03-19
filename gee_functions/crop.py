@@ -1,10 +1,11 @@
 import json
 
 import ee
-import streamlit as st
+
+from utils.cache import cache_data
 
 
-@st.cache_data(show_spinner=False, ttl=3600)
+@cache_data(ttl=3600)
 def get_crop_loss_data(aoi_json, p_start, p_end, f_start, f_end, crop_price_per_ha, ndvi_threshold=0.10):
     """Quantify crop damage within flooded agricultural pixels."""
     try:

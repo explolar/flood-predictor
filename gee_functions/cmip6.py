@@ -10,7 +10,8 @@ import json
 
 import ee
 import pandas as pd
-import streamlit as st
+
+from utils.cache import cache_data
 
 _CMIP6_ASSET = "NASA/GDDP-CMIP6"
 
@@ -40,7 +41,7 @@ def _get_cmip6_collection(aoi_geom, scenario, model, start_year, end_year):
     )
 
 
-@st.cache_data(show_spinner=False, ttl=7200)
+@cache_data(ttl=7200)
 def get_cmip6_projections(aoi_json, scenario="ssp245", model="ACCESS-CM2", start_year=2030, end_year=2050):
     """
     Mean annual precipitation and temperature projections for a future period.
@@ -89,7 +90,7 @@ def get_cmip6_projections(aoi_json, scenario="ssp245", model="ACCESS-CM2", start
     }
 
 
-@st.cache_data(show_spinner=False, ttl=7200)
+@cache_data(ttl=7200)
 def get_cmip6_scenario_comparison(aoi_json, model="ACCESS-CM2", periods=None):
     """
     Compare SSP245 vs SSP585 across multiple time periods.
@@ -180,7 +181,7 @@ def get_cmip6_risk_feature_stack(aoi_json, scenario="ssp245", model="ACCESS-CM2"
     )
 
 
-@st.cache_data(show_spinner=False, ttl=7200)
+@cache_data(ttl=7200)
 def get_cmip6_precip_change(aoi_json, scenario="ssp245", model="ACCESS-CM2", future_start=2040, future_end=2060):
     """
     Percentage change in mean annual precipitation relative to historical baseline (2015-2025).

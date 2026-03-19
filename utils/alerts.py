@@ -3,9 +3,10 @@ Feature 17: Real-Time Alerts.
 Checks recent CHIRPS rainfall against return period thresholds.
 """
 
+import logging
 from datetime import datetime, timedelta
 
-import streamlit as st
+logger = logging.getLogger(__name__)
 
 
 class AlertManager:
@@ -95,32 +96,14 @@ class AlertManager:
         return messages.get(level, "")
 
     def render_alert_banner(self, alert):
-        """Render an alert banner in Streamlit."""
+        """Log an alert banner."""
         if alert["level"] == "NORMAL":
             return
 
-        color = alert["color"]
-        icon = alert["icon"]
-        st.markdown(
-            f"""
-            <div style="background:rgba({self._hex_to_rgb(color)},0.1);
-                        border:1px solid {color};border-radius:8px;
-                        padding:12px 20px;margin-bottom:16px;
-                        display:flex;align-items:center;gap:12px;">
-                <div style="font-size:1.5rem;">{icon}</div>
-                <div>
-                    <div style="font-family:'Rajdhani',sans-serif;font-size:0.9rem;
-                                font-weight:700;color:{color};letter-spacing:2px;">
-                        FLOOD ALERT: {alert["level"]}</div>
-                    <div style="font-family:'JetBrains Mono',monospace;font-size:0.72rem;
-                                color:#5a7a8a;margin-top:2px;">{alert["message"]}</div>
-                </div>
-            </div>
-        """,
-            unsafe_allow_html=True,
-        )
-
-    @staticmethod
-    def _hex_to_rgb(hex_color):
-        h = hex_color.lstrip("#")
-        return ",".join(str(int(h[i : i + 2], 16)) for i in (0, 2, 4))
+        msg = f"FLOOD ALERT: {alert['level']} - {alert['message']}"
+        if alert["level"] in ("EXTREME", "SEVERE"):
+            logger.error(msg)
+        elif alert["level"] == "WARNING":
+            logger.warning(msg)
+        else:
+            logger.info(msg)

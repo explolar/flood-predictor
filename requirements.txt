@@ -1,8 +1,5 @@
 # Core
-streamlit
 earthengine-api
-folium
-streamlit-folium
 pandas
 numpy
 requests
@@ -15,9 +12,6 @@ lightgbm
 optuna
 shap
 matplotlib
-
-# Visualization
-pydeck
 
 # Reports
 fpdf2

@@ -13,7 +13,8 @@ import json
 import os
 
 import ee
-import streamlit as st
+
+from utils.cache import cache_data
 
 try:
     import torch
@@ -184,7 +185,7 @@ class PrithviFloodClassifier:
         joblib.dump(self.model, self.MODEL_PATH)
         return True
 
-    @st.cache_data(show_spinner=False, ttl=3600)
+    @cache_data(ttl=3600)
     def predict_for_aoi(
         _self, aoi_json, f_start, f_end, p_start, p_end, threshold, polarization, speckle, return_probability=False
     ):

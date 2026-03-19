@@ -6,10 +6,11 @@ Cross-references Google Open Buildings with flood depth for damage categorizatio
 import json
 
 import ee
-import streamlit as st
+
+from utils.cache import cache_data
 
 
-@st.cache_data(show_spinner=False, ttl=3600)
+@cache_data(ttl=3600)
 def get_building_damage(aoi_json, f_start, f_end, p_start, p_end, threshold, polarization, speckle):
     """
     Assess building damage by crossing Open Buildings with flood depth.

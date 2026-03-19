@@ -7,10 +7,11 @@ import json
 
 import ee
 import pandas as pd
-import streamlit as st
+
+from utils.cache import cache_data
 
 
-@st.cache_data(show_spinner=False, ttl=7200)
+@cache_data(ttl=7200)
 def get_sar_monthly_stats(aoi_json, start_year=2018, end_year=2024, polarization="VH"):
     """
     Compute monthly SAR backscatter statistics for anomaly detection.

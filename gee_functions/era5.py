@@ -10,7 +10,8 @@ import json
 
 import ee
 import pandas as pd
-import streamlit as st
+
+from utils.cache import cache_data
 
 _ERA5_ASSET = "ECMWF/ERA5_LAND/DAILY_AGGR"
 
@@ -29,7 +30,7 @@ _CLIMATE_BANDS = [
 ]
 
 
-@st.cache_data(show_spinner=False, ttl=3600)
+@cache_data(ttl=3600)
 def get_era5_climate_summary(aoi_json, year=2023):
     """
     Annual climate summary from ERA5-Land for a given year.
@@ -100,7 +101,7 @@ def get_era5_climate_summary(aoi_json, year=2023):
     }
 
 
-@st.cache_data(show_spinner=False, ttl=3600)
+@cache_data(ttl=3600)
 def get_era5_timeseries(aoi_json, start_date, end_date, variable="total_precipitation_sum"):
     """
     Daily time-series for a single ERA5-Land variable.
@@ -146,7 +147,7 @@ def get_era5_timeseries(aoi_json, start_date, end_date, variable="total_precipit
     return {"timeseries": df, "variable": variable, "n_observations": len(df)}
 
 
-@st.cache_data(show_spinner=False, ttl=3600)
+@cache_data(ttl=3600)
 def get_era5_monsoon_profile(aoi_json, year=2023):
     """
     Monthly monsoon profile (Jun-Oct) for precipitation, runoff,

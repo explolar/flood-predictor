@@ -3,10 +3,11 @@ import math
 
 import ee
 import pandas as pd
-import streamlit as st
+
+from utils.cache import cache_data
 
 
-@st.cache_data(show_spinner=False, ttl=3600)
+@cache_data(ttl=3600)
 def get_chirps_series(aoi_json, start_str, end_str):
     aoi_geom = ee.Geometry(json.loads(aoi_json))
     chirps = ee.ImageCollection("UCSB-CHG/CHIRPS/DAILY").filterDate(start_str, end_str).filterBounds(aoi_geom)
@@ -30,7 +31,7 @@ def get_chirps_series(aoi_json, start_str, end_str):
     return df.sort_values("date").set_index("date")
 
 
-@st.cache_data(show_spinner=False, ttl=7200)
+@cache_data(ttl=7200)
 def get_return_period(aoi_json):
     try:
         aoi_geom = ee.Geometry(json.loads(aoi_json))
@@ -74,7 +75,7 @@ def get_return_period(aoi_json):
         return None
 
 
-@st.cache_data(show_spinner=False, ttl=7200)
+@cache_data(ttl=7200)
 def get_progression_stats(aoi_json, year):
     try:
         aoi_geom = ee.Geometry(json.loads(aoi_json))

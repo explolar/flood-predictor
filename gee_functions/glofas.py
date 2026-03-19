@@ -11,7 +11,8 @@ import json
 
 import ee
 import pandas as pd
-import streamlit as st
+
+from utils.cache import cache_data
 
 _FORECAST_ASSET = "ECMWF/ERA5_LAND/DAILY_AGGR"  # GloFAS uses ERA5 routing
 _GLOFAS_FC = "ECMWF/ERA5_LAND/DAILY_AGGR"
@@ -21,7 +22,7 @@ _GLOFAS_FC = "ECMWF/ERA5_LAND/DAILY_AGGR"
 # This approach: ERA5 surface_runoff * upstream_area ≈ discharge proxy
 
 
-@st.cache_data(show_spinner=False, ttl=3600)
+@cache_data(ttl=3600)
 def get_river_discharge_estimate(aoi_json, start_date, end_date):
     """
     Estimate river discharge using ERA5-Land runoff and HydroSHEDS flow accumulation.
@@ -128,7 +129,7 @@ def get_river_discharge_estimate(aoi_json, start_date, end_date):
     }
 
 
-@st.cache_data(show_spinner=False, ttl=3600)
+@cache_data(ttl=3600)
 def get_discharge_return_levels(aoi_json, baseline_years=20):
     """
     Compute discharge return levels from ERA5 annual max runoff.
@@ -197,7 +198,7 @@ def get_discharge_return_levels(aoi_json, baseline_years=20):
     }
 
 
-@st.cache_data(show_spinner=False, ttl=3600)
+@cache_data(ttl=3600)
 def get_flood_exceedance_forecast(aoi_json, forecast_days=7):
     """
     Compare GFS-derived runoff forecast against discharge return levels.

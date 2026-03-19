@@ -1,9 +1,0 @@
-from .tab_drought import render_drought_tab as render_drought_tab
-from .tab_forecast import render_forecast_tab as render_forecast_tab
-from .tab_hydrology import render_hydrology_tab as render_hydrology_tab
-from .tab_indices import render_indices_tab as render_indices_tab
-from .tab_mca import render_mca_tab as render_mca_tab
-from .tab_ml import render_ml_tab as render_ml_tab
-from .tab_multiyear import render_multiyear_tab as render_multiyear_tab
-from .tab_projections import render_projections_tab as render_projections_tab
-from .tab_sar import render_sar_tab as render_sar_tab

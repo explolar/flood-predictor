@@ -6,10 +6,11 @@ Uses WorldPop age/sex demographics to estimate affected and displaced population
 import json
 
 import ee
-import streamlit as st
+
+from utils.cache import cache_data
 
 
-@st.cache_data(show_spinner=False, ttl=3600)
+@cache_data(ttl=3600)
 def get_displacement_estimate(aoi_json, flood_mask_threshold=3.0):
     """
     Estimate population displacement using WorldPop data crossed with flood extent.

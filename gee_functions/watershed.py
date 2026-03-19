@@ -3,7 +3,6 @@
 import json
 
 import ee
-import streamlit as st
 
 from ui_components.constants import (
     COND_DEM_VIZ,
@@ -13,11 +12,12 @@ from ui_components.constants import (
     HAND_VIZ,
     STREAM_ORDER_VIZ,
 )
+from utils.cache import cache_data
 
 # ── Existing: basin boundary lookup ──────────────────────────
 
 
-@st.cache_data(show_spinner=False, ttl=7200)
+@cache_data(ttl=7200)
 def get_watershed_geojson(aoi_json):
     aoi_geom = ee.Geometry(json.loads(aoi_json))
     hydrobasins = ee.FeatureCollection("WWF/HydroSHEDS/v1/Basins/hybas_8")
@@ -28,11 +28,11 @@ def get_watershed_geojson(aoi_json):
 # ── Batch hydrology computation ──────────────────────────────
 
 
-@st.cache_data(show_spinner=False, ttl=3600)
+@cache_data(ttl=3600)
 def get_all_hydrology_data(aoi_json, stream_threshold=100):
     """Compute flow accumulation, stream network, flow direction tiles and stats.
 
-    Raises on failure so st.cache_data does NOT cache error results.
+    Raises on failure so cache_data does NOT cache error results.
     """
     aoi_geom = ee.Geometry(json.loads(aoi_json))
 
@@ -105,7 +105,7 @@ def get_all_hydrology_data(aoi_json, stream_threshold=100):
 # ── Multi-level basin hierarchy ──────────────────────────────
 
 
-@st.cache_data(show_spinner=False, ttl=7200)
+@cache_data(ttl=7200)
 def get_multi_basin_geojson(aoi_json):
     """Return GeoJSON for HydroSHEDS basin levels 6, 8, 10."""
     aoi_geom = ee.Geometry(json.loads(aoi_json))
@@ -122,7 +122,7 @@ def get_multi_basin_geojson(aoi_json):
 # ── Drainage density ─────────────────────────────────────────
 
 
-@st.cache_data(show_spinner=False, ttl=3600)
+@cache_data(ttl=3600)
 def get_drainage_density(aoi_json, stream_threshold=100):
     """Compute spatial drainage density (km/km2) and scalar metric."""
     aoi_geom = ee.Geometry(json.loads(aoi_json))
@@ -163,7 +163,7 @@ def get_drainage_density(aoi_json, stream_threshold=100):
 # ── HAND (Height Above Nearest Drainage) ─────────────────────
 
 
-@st.cache_data(show_spinner=False, ttl=3600)
+@cache_data(ttl=3600)
 def get_hand_data(aoi_json, stream_threshold=100, flood_depth_m=None):
     """
     Compute HAND (Height Above Nearest Drainage) for the AOI.
@@ -293,7 +293,7 @@ def get_hand_data(aoi_json, stream_threshold=100, flood_depth_m=None):
 # ── Basin statistics ─────────────────────────────────────────
 
 
-@st.cache_data(show_spinner=False, ttl=3600)
+@cache_data(ttl=3600)
 def get_basin_statistics(aoi_json):
     """Per-basin stats at hybas_8 level: area, upstream area, mean elevation."""
     aoi_geom = ee.Geometry(json.loads(aoi_json))

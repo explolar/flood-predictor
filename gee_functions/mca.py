@@ -1,7 +1,8 @@
 import json
 
 import ee
-import streamlit as st
+
+from utils.cache import cache_data
 
 
 def calculate_flood_risk(aoi_geom, w_lulc=0.40, w_slope=0.30, w_rain=0.30):
@@ -21,7 +22,7 @@ def calculate_flood_risk(aoi_geom, w_lulc=0.40, w_slope=0.30, w_rain=0.30):
     )
 
 
-@st.cache_data(show_spinner=False, ttl=3600)
+@cache_data(ttl=3600)
 def get_mca_tile(aoi_json, w_lulc, w_slope, w_rain):
     aoi_geom = ee.Geometry(json.loads(aoi_json))
     risk = calculate_flood_risk(aoi_geom, w_lulc, w_slope, w_rain)

@@ -3,7 +3,8 @@ import math
 
 import ee
 import requests
-import streamlit as st
+
+from utils.cache import cache_data
 
 
 def _haversine_km(lat1, lon1, lat2, lon2):
@@ -14,7 +15,7 @@ def _haversine_km(lat1, lon1, lat2, lon2):
     return R * 2 * math.asin(math.sqrt(a))
 
 
-@st.cache_data(show_spinner=False, ttl=3600)
+@cache_data(ttl=3600)
 def get_osm_infrastructure(aoi_json):
     try:
         aoi_geom = ee.Geometry(json.loads(aoi_json))
@@ -42,7 +43,7 @@ out center 100;"""
         return []
 
 
-@st.cache_data(show_spinner=False, ttl=3600)
+@cache_data(ttl=3600)
 def get_osm_roads(aoi_json):
     """Fetch road network from OSM Overpass."""
     try:
@@ -90,7 +91,7 @@ out geom 500;"""
         return None
 
 
-@st.cache_data(show_spinner=False, ttl=7200)
+@cache_data(ttl=7200)
 def get_dam_data(aoi_json):
     """Return dams/reservoirs within 150 km of AOI from GRanD v1.3."""
     try:

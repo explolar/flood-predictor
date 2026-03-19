@@ -10,7 +10,8 @@ from datetime import datetime, timedelta
 
 import ee
 import pandas as pd
-import streamlit as st
+
+from utils.cache import cache_data
 
 _GFS_ASSET = "NOAA/GFS0P25"
 
@@ -22,7 +23,7 @@ _WIND_V_BAND = "v_component_of_wind_10m_above_ground"
 _PRECIP_BAND = "precipitation_rate"
 
 
-@st.cache_data(show_spinner=False, ttl=1800)
+@cache_data(ttl=1800)
 def get_gfs_forecast(aoi_json, forecast_hours=168):
     """
     Retrieve GFS weather forecast for the AOI.
@@ -205,7 +206,7 @@ def get_gfs_forecast(aoi_json, forecast_hours=168):
     }
 
 
-@st.cache_data(show_spinner=False, ttl=1800)
+@cache_data(ttl=1800)
 def get_gfs_flood_alert(aoi_json, rp_data=None):
     """
     Evaluate flood alert level based on GFS forecast precipitation

@@ -7,10 +7,11 @@ import json
 
 import ee
 import pandas as pd
-import streamlit as st
+
+from utils.cache import cache_data
 
 
-@st.cache_data(show_spinner=False, ttl=7200)
+@cache_data(ttl=7200)
 def get_multiyear_flood_comparison(aoi_json, years=None, polarization="VH", threshold=3.0, speckle=True):
     """
     Compute SAR-based flood area for multiple monsoon seasons.

@@ -1,12 +1,16 @@
 import json
+import logging
 
 import ee
-import streamlit as st
+
+from utils.cache import cache_data, cache_resource
+
+logger = logging.getLogger(__name__)
 
 project_id = "xward-481405"
 
 
-@st.cache_resource
+@cache_resource()
 def _init_ee_core():
     try:
         from ee import compute_engine
@@ -21,18 +25,12 @@ def _init_ee_core():
 def initialize_ee():
     try:
         _init_ee_core()
-        st.markdown(
-            '<div class="status-pill"><span class="status-dot"></span>GEE SATELLITE LINK · STABLE</div>',
-            unsafe_allow_html=True,
-        )
+        logger.info("GEE SATELLITE LINK · STABLE")
     except Exception as e:
-        st.markdown(
-            f'<div class="status-pill-err"><span style="width:7px;height:7px;background:#ff4444;border-radius:50%;box-shadow:0 0 8px #ff4444;display:inline-block;"></span>LINK FAILED · {str(e)[:60]}</div>',
-            unsafe_allow_html=True,
-        )
+        logger.error("GEE LINK FAILED · %s", str(e)[:60])
 
 
-@st.cache_data(show_spinner=False, ttl=3600)
+@cache_data(ttl=3600)
 def get_aoi_stats(aoi_json):
     aoi_geom = ee.Geometry(json.loads(aoi_json))
     dem = ee.Image("USGS/SRTMGL1_003").select("elevation").clip(aoi_geom)

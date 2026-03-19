@@ -1,10 +1,11 @@
 import json
 
 import ee
-import streamlit as st
+
+from utils.cache import cache_data
 
 
-@st.cache_data(show_spinner=False, ttl=3600)
+@cache_data(ttl=3600)
 def get_ndvi_tile(aoi_json, p_start, p_end, f_start, f_end):
     try:
         aoi_geom = ee.Geometry(json.loads(aoi_json))
@@ -32,7 +33,7 @@ def get_ndvi_tile(aoi_json, p_start, p_end, f_start, f_end):
         return None
 
 
-@st.cache_data(show_spinner=False, ttl=3600)
+@cache_data(ttl=3600)
 def get_jrc_freq_tile(aoi_json):
     try:
         aoi_geom = ee.Geometry(json.loads(aoi_json))
@@ -42,7 +43,7 @@ def get_jrc_freq_tile(aoi_json):
         return None
 
 
-@st.cache_data(show_spinner=False, ttl=3600)
+@cache_data(ttl=3600)
 def get_s2_rgb_tile(aoi_json):
     try:
         aoi_geom = ee.Geometry(json.loads(aoi_json))
@@ -60,7 +61,7 @@ def get_s2_rgb_tile(aoi_json):
         return None
 
 
-@st.cache_data(show_spinner=False, ttl=3600)
+@cache_data(ttl=3600)
 def get_s2_rgb_tiles(aoi_json, pre_start, pre_end, post_start, post_end):
     """Return pre- and post-flood Sentinel-2 true-color tile URLs."""
     try:
@@ -90,7 +91,7 @@ def get_s2_rgb_tiles(aoi_json, pre_start, pre_end, post_start, post_end):
         return None
 
 
-@st.cache_data(show_spinner=False, ttl=7200)
+@cache_data(ttl=7200)
 def get_jrc_flood_history(aoi_json):
     """Return dict {year: flood_months} for 1984-2021 using JRC Monthly Water History."""
     try:

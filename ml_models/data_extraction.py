@@ -7,7 +7,8 @@ import json
 
 import ee
 import pandas as pd
-import streamlit as st
+
+from utils.cache import cache_data
 
 
 def _features_from_info(sample_info, feature_names, label_name=None):
@@ -30,7 +31,7 @@ def _features_from_info(sample_info, feature_names, label_name=None):
     return df
 
 
-@st.cache_data(show_spinner=False, ttl=3600)
+@cache_data(ttl=3600)
 def extract_risk_training_samples(aoi_json, n_points=5000, scale=100, include_era5=False):
     """
     Sample pixels within AOI, extracting terrain/climate features and
@@ -103,7 +104,7 @@ def extract_risk_training_samples(aoi_json, n_points=5000, scale=100, include_er
     return _features_from_info(sample_info, feature_names, label_name="risk_class")
 
 
-@st.cache_data(show_spinner=False, ttl=3600)
+@cache_data(ttl=3600)
 def extract_sar_training_samples(
     aoi_json, f_start, f_end, p_start, p_end, threshold, polarization, speckle, n_points=4000, scale=30
 ):

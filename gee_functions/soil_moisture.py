@@ -7,10 +7,11 @@ import json
 
 import ee
 import pandas as pd
-import streamlit as st
+
+from utils.cache import cache_data
 
 
-@st.cache_data(show_spinner=False, ttl=3600)
+@cache_data(ttl=3600)
 def get_soil_moisture_data(aoi_json, start_date, end_date):
     """
     Get soil moisture time-series from NASA SMAP SPL3SMP_E (9km resolution).
@@ -73,7 +74,7 @@ def get_soil_moisture_data(aoi_json, start_date, end_date):
     }
 
 
-@st.cache_data(show_spinner=False, ttl=3600)
+@cache_data(ttl=3600)
 def get_smap_tile(aoi_json, target_date=None):
     """Get a single SMAP soil moisture tile for a specific date."""
     try:

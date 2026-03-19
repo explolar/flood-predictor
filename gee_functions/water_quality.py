@@ -6,10 +6,11 @@ Uses Sentinel-2 for turbidity (NDTI) and chlorophyll-a proxy mapping.
 import json
 
 import ee
-import streamlit as st
+
+from utils.cache import cache_data
 
 
-@st.cache_data(show_spinner=False, ttl=3600)
+@cache_data(ttl=3600)
 def get_turbidity_map(aoi_json, start_date, end_date):
     """
     Compute turbidity map using Sentinel-2 NDTI = (Red - Green) / (Red + Green).
