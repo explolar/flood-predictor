@@ -51,11 +51,11 @@ export function SARTab({ geojson, center, params }: Props) {
       <div className="map-grid">
         <div>
           <h3 className="map-title">Flood Mask</h3>
-          <TileMap center={center} tileUrl={sar.data?.flood_url} tileName="Flood Mask" height="400px" />
+          <TileMap center={center} tileUrl={sar.data?.flood_url} tileName="Flood Mask" height="460px" />
         </div>
         <div>
           <h3 className="map-title">Severity Zones</h3>
-          <TileMap center={center} tileUrl={sar.data?.severity_url} tileName="Severity" height="400px" />
+          <TileMap center={center} tileUrl={sar.data?.severity_url} tileName="Severity" height="460px" />
         </div>
       </div>
     </div>

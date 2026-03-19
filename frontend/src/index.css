@@ -264,19 +264,32 @@ html, body, #root {
 
 .select {
   padding: 8px 14px;
-  background: var(--bg-input);
+  background: var(--bg-elevated);
   border: 1px solid var(--border-light);
   border-radius: var(--radius);
   color: var(--text-primary);
   font-size: 0.8rem;
   cursor: pointer;
   transition: all var(--duration) var(--ease);
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%238896b8' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 32px;
 }
 
 .select:focus {
   outline: none;
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.select option {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  padding: 8px;
 }
 
 input[type="range"] {
@@ -371,10 +384,34 @@ input[type="date"] { color-scheme: dark; }
 }
 
 .checkbox-label input[type="checkbox"] {
-  accent-color: var(--accent);
-  width: 14px;
-  height: 14px;
-  border-radius: 3px;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border: 1.5px solid var(--border-light);
+  border-radius: 4px;
+  background: var(--bg-input);
+  cursor: pointer;
+  position: relative;
+  transition: all var(--duration) var(--ease);
+}
+
+.checkbox-label input[type="checkbox"]:checked {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.checkbox-label input[type="checkbox"]:checked::after {
+  content: "";
+  position: absolute;
+  left: 4.5px;
+  top: 1.5px;
+  width: 5px;
+  height: 9px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
 }
 
 /* ═══════════════════
@@ -606,6 +643,14 @@ input[type="date"] { color-scheme: dark; }
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 20px;
+}
+
+.map-grid > div {
+  background: var(--bg-glass);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 16px;
 }
 
 .map-title {

@@ -76,11 +76,11 @@ export function MLTab({ geojson, center, params }: Props) {
       <div className="map-grid">
         <div>
           <h3 className="map-title">Classification ({MODELS.find((m) => m.id === model)?.label})</h3>
-          <TileMap center={center} tileUrl={classify.data?.tile_url} tileName="ML Classification" height="400px" />
+          <TileMap center={center} tileUrl={classify.data?.tile_url} tileName="ML Classification" height="460px" />
         </div>
         <div>
           <h3 className="map-title">Risk Prediction</h3>
-          <TileMap center={center} tileUrl={risk.data?.tile_url} tileName="Risk Prediction" height="400px" />
+          <TileMap center={center} tileUrl={risk.data?.tile_url} tileName="Risk Prediction" height="460px" />
         </div>
       </div>
     </div>
