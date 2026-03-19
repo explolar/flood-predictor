@@ -1,5 +1,8 @@
 import { useState, type FormEvent } from "react";
-import { Search, MapPin, Sliders, Satellite, ChevronDown, ChevronUp } from "lucide-react";
+import {
+  Search, MapPin, Sliders, Satellite, ChevronDown, ChevronUp,
+  Navigation, X, Upload,
+} from "lucide-react";
 import type { BBox } from "../../hooks/useAOI";
 
 interface SidebarProps {
@@ -7,15 +10,17 @@ interface SidebarProps {
   onSetBBox: (bbox: BBox) => void;
   onFileUpload: (geojson: GeoJSON.Geometry) => void;
   isAOIActive: boolean;
+  aoiName: string;
   params: SidebarParams;
   onParamsChange: (params: Partial<SidebarParams>) => void;
+  onClearAOI: () => void;
+  collapsed: boolean;
+  onToggleCollapse: () => void;
 }
 
 export interface SidebarParams {
-  // MCA weights
   w_lulc: number;
   w_slope: number;
-  // SAR
   p_start: string;
   p_end: string;
   f_start: string;
@@ -23,14 +28,11 @@ export interface SidebarParams {
   polarization: "VH" | "VV";
   threshold: number;
   speckle: boolean;
-  // Imagery
   img_start: string;
   img_end: string;
   cloud_thresh: number;
-  // Crop
   crop_type: string;
   crop_price: number;
-  // Progression
   prog_year: number;
 }
 
@@ -52,13 +54,26 @@ export const DEFAULT_PARAMS: SidebarParams = {
   prog_year: 2024,
 };
 
+const QUICK_LOCATIONS = [
+  { name: "Patna", query: "Patna, Bihar" },
+  { name: "Mumbai", query: "Mumbai, Maharashtra" },
+  { name: "Chennai", query: "Chennai, Tamil Nadu" },
+  { name: "Kolkata", query: "Kolkata, West Bengal" },
+  { name: "Assam", query: "Guwahati, Assam" },
+  { name: "Kerala", query: "Kochi, Kerala" },
+];
+
 export function Sidebar({
   onSearchPlace,
   onSetBBox,
   onFileUpload,
   isAOIActive,
+  aoiName,
   params,
   onParamsChange,
+  onClearAOI,
+  collapsed,
+  onToggleCollapse,
 }: SidebarProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [inputMode, setInputMode] = useState<"bbox" | "geojson">("bbox");
@@ -81,8 +96,6 @@ export function Sidebar({
     if (searchQuery.trim()) onSearchPlace(searchQuery.trim());
   };
 
-  const handleInitBBox = () => onSetBBox(bbox);
-
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -99,34 +112,75 @@ export function Sidebar({
     reader.readAsText(file);
   };
 
+  if (collapsed) {
+    return (
+      <aside className="sidebar sidebar-collapsed">
+        <button className="sidebar-expand-btn" onClick={onToggleCollapse} title="Expand sidebar">
+          <ChevronDown size={16} style={{ transform: "rotate(-90deg)" }} />
+        </button>
+      </aside>
+    );
+  }
+
   return (
     <aside className="sidebar">
-      {/* Brand */}
+      {/* Brand + collapse */}
       <div className="sidebar-brand">
-        <img
-          src="https://upload.wikimedia.org/wikipedia/en/1/1c/IIT_Kharagpur_Logo.png"
-          alt="IIT KGP"
-          width={48}
-        />
+        <div className="brand-row">
+          <img
+            src="https://upload.wikimedia.org/wikipedia/en/1/1c/IIT_Kharagpur_Logo.png"
+            alt="IIT KGP"
+            width={42}
+          />
+          <button className="sidebar-collapse-btn" onClick={onToggleCollapse} title="Collapse sidebar">
+            <ChevronDown size={14} style={{ transform: "rotate(90deg)" }} />
+          </button>
+        </div>
         <div className="brand-title">HYDRORISK</div>
         <div className="brand-sub">IIT Kharagpur &middot; GEE</div>
       </div>
 
+      {/* AOI Status Bar */}
+      {isAOIActive && (
+        <div className="aoi-status-bar">
+          <Navigation size={12} />
+          <span className="aoi-name">{aoiName || "Custom AOI"}</span>
+          <button className="aoi-clear" onClick={onClearAOI} title="Clear AOI">
+            <X size={12} />
+          </button>
+        </div>
+      )}
+
       {/* Location Search */}
       <SectionHeader title="Location Search" icon={<Search size={14} />} open={expandedSections.location} onToggle={() => toggle("location")} />
       {expandedSections.location && (
-        <form onSubmit={handleSearch} className="sidebar-section">
-          <input
-            type="text"
-            placeholder="e.g. Patna, Bihar"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="input"
-          />
-          <button type="submit" className="btn btn-primary btn-full">
-            SEARCH &amp; SET AOI
-          </button>
-        </form>
+        <div className="sidebar-section">
+          <form onSubmit={handleSearch} className="search-row">
+            <input
+              type="text"
+              placeholder="Search any location..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="input"
+            />
+            <button type="submit" className="btn btn-primary btn-icon" title="Search">
+              <Search size={14} />
+            </button>
+          </form>
+
+          <div className="quick-locations">
+            {QUICK_LOCATIONS.map((loc) => (
+              <button
+                key={loc.name}
+                className="quick-loc-btn"
+                onClick={() => onSearchPlace(loc.query)}
+              >
+                <MapPin size={10} />
+                {loc.name}
+              </button>
+            ))}
+          </div>
+        </div>
       )}
 
       <hr className="sidebar-hr" />
@@ -142,7 +196,7 @@ export function Sidebar({
             </label>
             <label>
               <input type="radio" checked={inputMode === "geojson"} onChange={() => setInputMode("geojson")} />
-              Upload GeoJSON
+              GeoJSON
             </label>
           </div>
 
@@ -166,18 +220,16 @@ export function Sidebar({
                   <input type="number" step="0.0001" value={bbox.maxLat} onChange={(e) => setBBox((b) => ({ ...b, maxLat: +e.target.value }))} className="input" />
                 </div>
               </div>
-              <button type="button" className="btn btn-primary btn-full" onClick={handleInitBBox}>
+              <button type="button" className="btn btn-primary btn-full" onClick={() => onSetBBox(bbox)}>
                 INITIALIZE AOI
               </button>
             </>
           ) : (
-            <input type="file" accept=".geojson,.json" onChange={handleFileUpload} className="input" />
-          )}
-
-          {isAOIActive && (
-            <div className="status-pill">
-              <span className="status-dot" /> AOI ACTIVE
-            </div>
+            <label className="file-upload-area">
+              <Upload size={20} />
+              <span>Drop GeoJSON or click to browse</span>
+              <input type="file" accept=".geojson,.json" onChange={handleFileUpload} hidden />
+            </label>
           )}
         </div>
       )}
@@ -256,6 +308,11 @@ export function Sidebar({
           <input type="range" min={10} max={100} step={5} value={params.cloud_thresh} onChange={(e) => onParamsChange({ cloud_thresh: +e.target.value })} />
         </div>
       )}
+
+      {/* Keyboard shortcuts hint */}
+      <div className="sidebar-footer">
+        <span className="kbd-hint">Press <kbd>1</kbd>-<kbd>7</kbd> to switch tabs</span>
+      </div>
     </aside>
   );
 }

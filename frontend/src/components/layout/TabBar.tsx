@@ -4,16 +4,18 @@ interface Tab {
   id: string;
   label: string;
   icon: React.ReactNode;
+  shortcut: string;
+  desc: string;
 }
 
 const TABS: Tab[] = [
-  { id: "risk", label: "RISK", icon: <Shield size={13} /> },
-  { id: "sar", label: "SAR", icon: <Radar size={13} /> },
-  { id: "ml", label: "ML", icon: <Brain size={13} /> },
-  { id: "climate", label: "CLIMATE", icon: <Cloud size={13} /> },
-  { id: "indices", label: "INDICES", icon: <Layers size={13} /> },
-  { id: "hydrology", label: "HYDRO", icon: <Droplets size={13} /> },
-  { id: "forecast", label: "FORECAST", icon: <CloudRain size={13} /> },
+  { id: "risk", label: "RISK", icon: <Shield size={13} />, shortcut: "1", desc: "Multi-criteria flood risk" },
+  { id: "sar", label: "SAR", icon: <Radar size={13} />, shortcut: "2", desc: "Sentinel-1 flood detection" },
+  { id: "ml", label: "ML", icon: <Brain size={13} />, shortcut: "3", desc: "ML classification models" },
+  { id: "climate", label: "CLIMATE", icon: <Cloud size={13} />, shortcut: "4", desc: "Multi-year & drought" },
+  { id: "indices", label: "INDICES", icon: <Layers size={13} />, shortcut: "5", desc: "Spectral indices" },
+  { id: "hydrology", label: "HYDRO", icon: <Droplets size={13} />, shortcut: "6", desc: "Watershed analysis" },
+  { id: "forecast", label: "FORECAST", icon: <CloudRain size={13} />, shortcut: "7", desc: "Weather forecast" },
 ];
 
 interface TabBarProps {
@@ -29,9 +31,11 @@ export function TabBar({ activeTab, onTabChange }: TabBarProps) {
           key={tab.id}
           className={`tab-item ${activeTab === tab.id ? "tab-active" : ""}`}
           onClick={() => onTabChange(tab.id)}
+          title={`${tab.desc} (${tab.shortcut})`}
         >
           {tab.icon}
-          <span style={{ marginLeft: 6 }}>{tab.label}</span>
+          <span className="tab-label">{tab.label}</span>
+          <kbd className="tab-kbd">{tab.shortcut}</kbd>
         </button>
       ))}
     </nav>

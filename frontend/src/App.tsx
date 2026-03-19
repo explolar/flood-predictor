@@ -5,10 +5,11 @@ import { Sidebar, DEFAULT_PARAMS, type SidebarParams } from "./components/layout
 import { TabBar } from "./components/layout/TabBar";
 import { useAOI } from "./hooks/useAOI";
 import { LoadingOverlay } from "./components/common/LoadingOverlay";
+import { ToastContainer, toast } from "./components/common/Toast";
 import { geocode } from "./api/endpoints";
+import { MapPin, Radar, Shield } from "lucide-react";
 import "./index.css";
 
-// Lazy load all tab pages — each gets its own chunk
 const RiskTab = lazy(() => import("./pages/RiskTab").then((m) => ({ default: m.RiskTab })));
 const SARTab = lazy(() => import("./pages/SARTab").then((m) => ({ default: m.SARTab })));
 const MLTab = lazy(() => import("./pages/MLTab").then((m) => ({ default: m.MLTab })));
@@ -17,6 +18,8 @@ const IndicesTab = lazy(() => import("./pages/IndicesTab").then((m) => ({ defaul
 const HydrologyTab = lazy(() => import("./pages/HydrologyTab").then((m) => ({ default: m.HydrologyTab })));
 const ForecastTab = lazy(() => import("./pages/ForecastTab").then((m) => ({ default: m.ForecastTab })));
 
+const TAB_IDS = ["risk", "sar", "ml", "climate", "indices", "hydrology", "forecast"];
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: { retry: 1, staleTime: 5 * 60_000 },
@@ -24,9 +27,10 @@ const queryClient = new QueryClient({
 });
 
 function AppInner() {
-  const { aoi, setFromBBox, setFromGeoJSON, isActive } = useAOI();
+  const { aoi, setFromBBox, setFromGeoJSON, clear, isActive } = useAOI();
   const [activeTab, setActiveTab] = useState("risk");
   const [params, setParams] = useState<SidebarParams>(DEFAULT_PARAMS);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   const handleParamsChange = useCallback(
     (patch: Partial<SidebarParams>) => setParams((p) => ({ ...p, ...patch })),
@@ -36,6 +40,7 @@ function AppInner() {
   const handleSearch = useCallback(
     async (query: string) => {
       try {
+        toast("info", `Searching "${query}"...`);
         const result = await geocode(query);
         const d = 0.25;
         setFromBBox(
@@ -47,12 +52,28 @@ function AppInner() {
           },
           result.display_name
         );
+        toast("success", `AOI set: ${result.display_name.split(",").slice(0, 2).join(",")}`);
       } catch (err: any) {
-        alert(`Search failed: ${err.message}`);
+        toast("error", `Search failed: ${err.message}`);
       }
     },
     [setFromBBox]
   );
+
+  // Keyboard shortcuts: 1-7 for tabs, Esc to toggle sidebar
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) return;
+      const num = parseInt(e.key);
+      if (num >= 1 && num <= 7) {
+        setActiveTab(TAB_IDS[num - 1]);
+      } else if (e.key === "Escape") {
+        setSidebarCollapsed((c) => !c);
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
 
   // Prefetch all tab chunks in parallel once AOI is set
   useEffect(() => {
@@ -79,11 +100,24 @@ function AppInner() {
     <div className="app-layout">
       <Sidebar
         onSearchPlace={handleSearch}
-        onSetBBox={setFromBBox}
-        onFileUpload={(geom) => setFromGeoJSON(geom)}
+        onSetBBox={(bbox) => {
+          setFromBBox(bbox);
+          toast("success", "AOI initialized from bounding box");
+        }}
+        onFileUpload={(geom) => {
+          setFromGeoJSON(geom);
+          toast("success", "AOI loaded from GeoJSON");
+        }}
         isAOIActive={isActive}
+        aoiName={aoi.name}
         params={params}
         onParamsChange={handleParamsChange}
+        onClearAOI={() => {
+          clear();
+          toast("info", "AOI cleared");
+        }}
+        collapsed={sidebarCollapsed}
+        onToggleCollapse={() => setSidebarCollapsed((c) => !c)}
       />
       <main className="main-content">
         <Header />
@@ -103,14 +137,43 @@ function AppInner() {
           </div>
         ) : (
           <div className="empty-state">
-            <div className="empty-icon">&#128752;</div>
-            <div className="empty-title">NO STUDY AREA DEFINED</div>
+            <div className="empty-icon">&#127758;</div>
+            <div className="empty-title">SELECT A STUDY AREA</div>
             <div className="empty-text">
-              Use the sidebar to search a location or define a bounding box, then click <strong>INITIALIZE AOI</strong>
+              Search a location or set coordinates to begin flood risk analysis
+            </div>
+            <div className="quick-start-grid">
+              <button className="quick-start-card" onClick={() => handleSearch("Patna, Bihar")}>
+                <MapPin size={18} />
+                <div>
+                  <strong>Patna, Bihar</strong>
+                  <span>Flood-prone Gangetic plain</span>
+                </div>
+              </button>
+              <button className="quick-start-card" onClick={() => handleSearch("Guwahati, Assam")}>
+                <MapPin size={18} />
+                <div>
+                  <strong>Guwahati, Assam</strong>
+                  <span>Brahmaputra basin floods</span>
+                </div>
+              </button>
+              <button className="quick-start-card" onClick={() => handleSearch("Kochi, Kerala")}>
+                <MapPin size={18} />
+                <div>
+                  <strong>Kochi, Kerala</strong>
+                  <span>Monsoon & coastal flooding</span>
+                </div>
+              </button>
+            </div>
+            <div className="empty-features">
+              <div className="feature-pill"><Shield size={12} /> Multi-Criteria Risk</div>
+              <div className="feature-pill"><Radar size={12} /> SAR Flood Detection</div>
+              <div className="feature-pill"><MapPin size={12} /> 10-30m Resolution</div>
             </div>
           </div>
         )}
       </main>
+      <ToastContainer />
     </div>
   );
 }
