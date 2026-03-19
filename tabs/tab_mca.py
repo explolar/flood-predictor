@@ -142,6 +142,7 @@ def render_mca_tab(aoi_json, params):
                         )
                         fol.GeoJson(
                             json.loads(aoi_json),
+                            name="AOI Boundary",
                             style_function=lambda _: {
                                 "fillColor": "none",
                                 "color": "#00FFFF",
