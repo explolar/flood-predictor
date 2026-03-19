@@ -31,8 +31,9 @@ COPY nginx.conf /etc/nginx/conf.d/default.conf
 RUN rm -f /etc/nginx/sites-enabled/default
 
 COPY start.sh /app/start.sh
-RUN chmod +x /app/start.sh
+RUN sed -i 's/\r$//' /app/start.sh && chmod +x /app/start.sh
+RUN sed -i 's/\r$//' /etc/nginx/conf.d/default.conf
 
 EXPOSE 8080
 
-CMD ["/app/start.sh"]
+CMD ["/bin/sh", "/app/start.sh"]
