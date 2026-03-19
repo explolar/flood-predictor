@@ -1,5 +1,7 @@
 """ML API routes."""
 
+import asyncio
+
 from fastapi import APIRouter, HTTPException
 
 from api.dependencies import aoi_to_json, initialize_ee_api
@@ -32,7 +34,8 @@ async def classify_flood(request: MLRequest):
 
             classifier = SARFloodClassifier()
 
-        result = classifier.classify_for_aoi(
+        result = await asyncio.to_thread(
+            classifier.classify_for_aoi,
             aoi_json,
             request.f_start,
             request.f_end,
@@ -61,7 +64,7 @@ async def predict_risk(request: MLRequest):
         from ml_models.flood_risk_model import FloodRiskPredictor
 
         predictor = FloodRiskPredictor()
-        result = predictor.predict_for_aoi(aoi_json)
+        result = await asyncio.to_thread(predictor.predict_for_aoi, aoi_json)
 
         if result:
             return AnalysisResponse(success=True, data=result)

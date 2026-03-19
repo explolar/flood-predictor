@@ -1,5 +1,7 @@
 """Spectral indices API routes."""
 
+import asyncio
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
@@ -25,7 +27,9 @@ async def compute_indices(request: IndicesRequest):
     try:
         from gee_functions.indices import get_all_index_tiles
 
-        tiles = get_all_index_tiles(aoi_json, request.date_start, request.date_end, request.cloud_thresh)
+        tiles = await asyncio.to_thread(
+            get_all_index_tiles, aoi_json, request.date_start, request.date_end, request.cloud_thresh
+        )
         return AnalysisResponse(success=True, data={"indices": tiles})
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

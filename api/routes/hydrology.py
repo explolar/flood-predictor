@@ -1,5 +1,6 @@
 """Hydrology API routes."""
 
+import asyncio
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException
@@ -26,7 +27,7 @@ async def hydrology_analysis(request: HydrologyRequest):
     try:
         from gee_functions.watershed import get_all_hydrology_data
 
-        result = get_all_hydrology_data(aoi_json, request.stream_threshold)
+        result = await asyncio.to_thread(get_all_hydrology_data, aoi_json, request.stream_threshold)
         return AnalysisResponse(success=True, data=result)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

@@ -1,5 +1,7 @@
 """Drought analysis API routes."""
 
+import asyncio
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
@@ -23,8 +25,8 @@ async def drought_analysis(request: DroughtRequest):
     try:
         from gee_functions.drought import get_ndvi_anomaly, get_spi_index
 
-        spi = get_spi_index(aoi_json, request.year)
-        ndvi = get_ndvi_anomaly(aoi_json, request.year)
+        spi = await asyncio.to_thread(get_spi_index, aoi_json, request.year)
+        ndvi = await asyncio.to_thread(get_ndvi_anomaly, aoi_json, request.year)
         return AnalysisResponse(
             success=True,
             data={

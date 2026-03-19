@@ -1,5 +1,7 @@
 """SAR API routes."""
 
+import asyncio
+
 from fastapi import APIRouter, HTTPException
 
 from api.dependencies import aoi_to_json, initialize_ee_api
@@ -17,7 +19,8 @@ async def detect_flood(request: SARRequest):
     try:
         from gee_functions.sar import get_all_sar_data
 
-        result = get_all_sar_data(
+        result = await asyncio.to_thread(
+            get_all_sar_data,
             aoi_json,
             request.f_start,
             request.f_end,

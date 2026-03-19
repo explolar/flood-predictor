@@ -1,5 +1,6 @@
 """Multi-year comparison API routes."""
 
+import asyncio
 from typing import List
 
 from fastapi import APIRouter, HTTPException
@@ -27,7 +28,9 @@ async def multiyear_comparison(request: MultiyearRequest):
     try:
         from gee_functions.multiyear import get_multiyear_flood_comparison
 
-        result = get_multiyear_flood_comparison(aoi_json, request.years, request.polarization, request.threshold)
+        result = await asyncio.to_thread(
+            get_multiyear_flood_comparison, aoi_json, request.years, request.polarization, request.threshold
+        )
         return AnalysisResponse(success=True, data=result)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

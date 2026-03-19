@@ -1,5 +1,6 @@
 """Forecast API routes."""
 
+import asyncio
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException
@@ -25,7 +26,7 @@ async def forecast_weather(request: ForecastRequest):
     try:
         from gee_functions.gfs_forecast import get_gfs_forecast
 
-        result = get_gfs_forecast(aoi_json, request.forecast_days)
+        result = await asyncio.to_thread(get_gfs_forecast, aoi_json, request.forecast_days)
         return AnalysisResponse(success=True, data=result)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

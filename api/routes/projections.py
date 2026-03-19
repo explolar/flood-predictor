@@ -1,5 +1,7 @@
 """Climate projections API routes."""
 
+import asyncio
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
@@ -26,7 +28,9 @@ async def projections_analysis(request: ProjectionsRequest):
     try:
         from gee_functions.cmip6 import get_cmip6_projections
 
-        result = get_cmip6_projections(aoi_json, request.scenario, request.model, request.start_year, request.end_year)
+        result = await asyncio.to_thread(
+            get_cmip6_projections, aoi_json, request.scenario, request.model, request.start_year, request.end_year
+        )
         return AnalysisResponse(success=True, data=result)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

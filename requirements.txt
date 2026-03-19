@@ -21,6 +21,7 @@ fastapi
 uvicorn
 pydantic
 httpx
+cachetools
 
 # Optional (uncomment as needed)
 # torch              # LSTM flood forecaster (falls back to GBM without it)
