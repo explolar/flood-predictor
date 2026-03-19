@@ -5,7 +5,7 @@ interface MetricCardProps {
   color?: string;
 }
 
-export function MetricCard({ label, value, unit, color = "#64B5F6" }: MetricCardProps) {
+export function MetricCard({ label, value, unit, color = "#6ba3ff" }: MetricCardProps) {
   return (
     <div className="metric-card">
       <div className="metric-value" style={{ color }}>

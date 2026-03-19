@@ -15,11 +15,13 @@ function OverlayLayer({ url, name }: { url: string; name: string }) {
   useEffect(() => {
     const layer = (window as any).L.tileLayer(url, {
       attribution: name,
-      opacity: 0.7,
+      opacity: 0.8,
       maxZoom: 18,
     });
     layer.addTo(map);
-    return () => { map.removeLayer(layer); };
+    return () => {
+      map.removeLayer(layer);
+    };
   }, [url, name, map]);
   return null;
 }
@@ -27,15 +29,27 @@ function OverlayLayer({ url, name }: { url: string; name: string }) {
 function MapUpdater({ center }: { center: [number, number] }) {
   const map = useMap();
   useEffect(() => {
-    map.setView(center, map.getZoom());
+    map.flyTo(center, map.getZoom(), { duration: 1.0 });
   }, [center, map]);
   return null;
 }
 
-export function TileMap({ center, zoom = 10, tileUrl, tileName = "Analysis", height = "500px" }: TileMapProps) {
+export function TileMap({
+  center,
+  zoom = 10,
+  tileUrl,
+  tileName = "Analysis",
+  height = "480px",
+}: TileMapProps) {
   return (
-    <div style={{ height, width: "100%", borderRadius: "8px", overflow: "hidden" }}>
-      <MapContainer center={center} zoom={zoom} style={{ height: "100%", width: "100%" }} scrollWheelZoom>
+    <div style={{ height, width: "100%" }}>
+      <MapContainer
+        center={center}
+        zoom={zoom}
+        style={{ height: "100%", width: "100%", borderRadius: 16 }}
+        scrollWheelZoom
+        zoomControl={true}
+      >
         <TileLayer
           attribution='&copy; <a href="https://carto.com/">CARTO</a>'
           url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"

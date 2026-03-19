@@ -43,8 +43,8 @@ export function SARTab({ geojson, center, params }: Props) {
 
       {sar.data && (
         <div className="metrics-grid">
-          <MetricCard label="Flooded Area" value={sar.data.area_ha.toFixed(1)} unit="ha" color="#ef5350" />
-          <MetricCard label="Population Exposed" value={sar.data.pop_exposed} color="#ffa726" />
+          <MetricCard label="Flooded Area" value={sar.data.area_ha.toFixed(1)} unit="ha" color="#ff6b81" />
+          <MetricCard label="Population Exposed" value={sar.data.pop_exposed} color="#ffc554" />
         </div>
       )}
 
