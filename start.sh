@@ -1,11 +1,8 @@
 #!/bin/sh
-# Start FastAPI in background
-uvicorn api.main:app \
+PORT="${PORT:-8080}"
+exec uvicorn api.main:app \
     --host 0.0.0.0 \
-    --port 8000 \
+    --port "$PORT" \
     --workers 2 \
     --timeout-keep-alive 30 \
-    --limit-max-requests 2000 &
-
-# Start nginx in foreground (port 8080)
-nginx -g "daemon off;"
+    --limit-max-requests 2000

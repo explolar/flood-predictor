@@ -6,8 +6,11 @@ Usage:
     MODE=api uvicorn api.main:app --host 0.0.0.0 --port 8080
 """
 
+from pathlib import Path
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from api.routes import drought, forecast, geocode, hydrology, indices, mca, ml, multiyear, projections, sar
 
@@ -62,3 +65,25 @@ async def root():
 @app.get("/health")
 async def health():
     return {"status": "ok"}
+
+
+# Serve static frontend in production (when /var/www/html exists from Docker build)
+_static_dir = Path("/var/www/html")
+if _static_dir.is_dir():
+    from fastapi.responses import FileResponse
+
+    # Serve static assets
+    app.mount("/assets", StaticFiles(directory=_static_dir / "assets"), name="assets")
+
+    # Serve favicon and other root static files
+    @app.get("/favicon.svg")
+    async def favicon():
+        return FileResponse(_static_dir / "favicon.svg")
+
+    # SPA fallback — serve index.html for all unmatched routes
+    @app.get("/{path:path}")
+    async def spa_fallback(path: str):
+        file_path = _static_dir / path
+        if file_path.is_file():
+            return FileResponse(file_path)
+        return FileResponse(_static_dir / "index.html")
