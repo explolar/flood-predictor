@@ -6,6 +6,7 @@ import { ErrorBanner } from "../components/common/ErrorBanner";
 import { useAnalysis } from "../hooks/useAnalysis";
 import { forecastWeather } from "../api/endpoints";
 import type { SidebarParams } from "../components/layout/Sidebar";
+import type { ForecastData } from "../types/api";
 import {
   BarChart,
   Bar,
@@ -15,24 +16,6 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-
-interface DailyRecord {
-  date: string;
-  precip_mm: number;
-  temp_c: number;
-}
-
-interface ForecastData {
-  precip_tile_url: string;
-  temp_tile_url: string;
-  total_precip_mm: number;
-  max_daily_precip_mm: number;
-  mean_temp_c: number;
-  max_wind_ms: number;
-  forecast_days: number;
-  n_steps: number;
-  daily_df: DailyRecord[];
-}
 
 interface Props {
   geojson: GeoJSON.Geometry;

@@ -14,10 +14,12 @@ import type {
   ForecastRequest,
   MultiyearRequest,
   ProjectionsRequest,
-  IndexTile,
   TileData,
   ChartPoint,
   TimeseriesPoint,
+  ForecastData,
+  HydrologyData,
+  IndicesData,
 } from "../types/api";
 
 // ── MCA (AHP-MCDM) ──
@@ -55,7 +57,7 @@ export const mlRiskPrediction = (req: MLRequest) =>
 
 // ── Indices ──
 export const indicesTiles = (req: IndicesRequest) =>
-  api.post<AnalysisResponse<{ indices: IndexTile[] }>>("/indices/tiles", req).then((r) => r.data);
+  api.post<AnalysisResponse<IndicesData>>("/indices/tiles", req).then((r) => r.data);
 
 // ── Drought ──
 export const droughtAnalysis = (req: DroughtRequest) =>
@@ -63,7 +65,7 @@ export const droughtAnalysis = (req: DroughtRequest) =>
 
 // ── Hydrology ──
 export const hydrologyAnalysis = (req: HydrologyRequest) =>
-  api.post<AnalysisResponse>("/hydrology/analysis", req).then((r) => r.data);
+  api.post<AnalysisResponse<HydrologyData>>("/hydrology/analysis", req).then((r) => r.data);
 
 // ── Multiyear ──
 export const multiyearComparison = (req: MultiyearRequest) =>
@@ -71,7 +73,7 @@ export const multiyearComparison = (req: MultiyearRequest) =>
 
 // ── Forecast ──
 export const forecastWeather = (req: ForecastRequest) =>
-  api.post<AnalysisResponse>("/forecast/weather", req).then((r) => r.data);
+  api.post<AnalysisResponse<ForecastData>>("/forecast/weather", req).then((r) => r.data);
 
 // ── Projections ──
 export const projectionsAnalysis = (req: ProjectionsRequest) =>

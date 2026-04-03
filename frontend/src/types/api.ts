@@ -115,3 +115,32 @@ export interface TimeseriesPoint {
   date: string;
   value: number;
 }
+
+export interface ForecastData {
+  precip_tile_url: string;
+  temp_tile_url: string;
+  total_precip_mm: number;
+  max_daily_precip_mm: number;
+  mean_temp_c: number;
+  max_wind_ms: number;
+  forecast_days: number;
+  n_steps: number;
+  daily_df: { date: string; precip_mm: number; temp_c: number }[];
+}
+
+export interface HydrologyData {
+  flow_acc_url: string;
+  flow_dir_url: string;
+  stream_url: string;
+  cond_dem_url: string;
+  stream_length_km: number;
+  max_accumulation: number;
+  mean_accumulation: number;
+  dem_min: number;
+  dem_max: number;
+  dem_mean: number;
+}
+
+export interface IndicesData {
+  indices: Record<string, { tile_url: string; mean_value: number; n_scenes: number }>;
+}

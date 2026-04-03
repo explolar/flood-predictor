@@ -6,19 +6,7 @@ import { ErrorBanner } from "../components/common/ErrorBanner";
 import { useAnalysis } from "../hooks/useAnalysis";
 import { hydrologyAnalysis } from "../api/endpoints";
 import type { SidebarParams } from "../components/layout/Sidebar";
-
-interface HydrologyData {
-  flow_acc_url: string;
-  flow_dir_url: string;
-  stream_url: string;
-  cond_dem_url: string;
-  stream_length_km: number;
-  max_accumulation: number;
-  mean_accumulation: number;
-  dem_min: number;
-  dem_max: number;
-  dem_mean: number;
-}
+import type { HydrologyData } from "../types/api";
 
 interface Props {
   geojson: GeoJSON.Geometry;

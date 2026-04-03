@@ -6,6 +6,7 @@ import { ErrorBanner } from "../components/common/ErrorBanner";
 import { useAnalysis } from "../hooks/useAnalysis";
 import { indicesTiles } from "../api/endpoints";
 import type { SidebarParams } from "../components/layout/Sidebar";
+import type { IndicesData } from "../types/api";
 
 interface Props {
   geojson: GeoJSON.Geometry;
@@ -17,7 +18,7 @@ const INDEX_NAMES = ["NDVI", "NDWI", "MNDWI", "NDBI", "BSI", "SAVI", "EVI"];
 
 export function IndicesTab({ geojson, center, params }: Props) {
   const [activeIndex, setActiveIndex] = useState(0);
-  const indices = useAnalysis<any, { indices: Record<string, { tile_url: string; mean_value: number; n_scenes: number }> }>(indicesTiles);
+  const indices = useAnalysis<any, IndicesData>(indicesTiles);
 
   const handleRun = () => {
     indices.run({
