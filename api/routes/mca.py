@@ -6,7 +6,7 @@ import json
 from fastapi import APIRouter, HTTPException
 
 from api.dependencies import aoi_to_json, initialize_ee_api
-from api.schemas import AnalysisResponse, MCARequest, AOIRequest
+from api.schemas import AnalysisResponse, AOIRequest, MCARequest
 
 router = APIRouter(prefix="/mca", tags=["MCA"])
 
