@@ -1,8 +1,8 @@
-# HydroRisk Atlas
+# FluviaAI
 
-Satellite-powered flood risk intelligence platform built with FastAPI, React, and Google Earth Engine.
+Satellite-powered flood risk intelligence platform built with FastAPI, React, and Google Earth Engine. Powered by [WeatherEx](https://weatherex.ai/).
 
-HydroRisk Atlas combines geospatial processing, machine learning, and climate analytics to deliver flood susceptibility mapping, SAR flood detection, drought monitoring, hydrology workflows, climate projections, and short-term weather forecast insights — all from a single web application.
+FluviaAI combines geospatial processing, machine learning, and climate analytics to deliver AHP-MCDM flood susceptibility mapping, SAR flood detection, drought monitoring, hydrology workflows, climate projections, and short-term weather forecast insights — all from a single web application.
 
 ---
 
@@ -24,6 +24,7 @@ HydroRisk Atlas combines geospatial processing, machine learning, and climate an
 - [CI/CD Pipeline](#cicd-pipeline)
 - [Caching Strategy](#caching-strategy)
 - [Notes](#notes)
+- [Citation](#citation)
 - [License](#license)
 
 ---
@@ -1225,6 +1226,39 @@ Cached functions include: AOI stats, MCA tiles, SAR flood data, drought indices,
 - Some advanced ML/foundation-model functionality is optional and degrades gracefully if extra packages (`torch`, `transformers`, `huggingface-hub`) are not installed.
 - The platform works globally — no hard-coded regional restrictions.
 - **Read timeout** for GEE-backed endpoints is 120 seconds via nginx to accommodate complex computations.
+
+---
+
+## Citation
+
+If you use FluviaAI in your research or publication, please cite:
+
+### BibTeX
+
+```bibtex
+@software{fluviaai2026,
+  title        = {FluviaAI: Satellite-Powered Flood Risk Intelligence Platform with AHP-MCDM},
+  author       = {WeatherEx Team},
+  year         = {2026},
+  url          = {https://github.com/explolar/flood-predictor},
+  note         = {Powered by WeatherEx (https://weatherex.ai/)},
+  keywords     = {flood susceptibility, AHP, MCDM, Google Earth Engine, SAR, remote sensing, machine learning}
+}
+```
+
+### APA
+
+WeatherEx Team (2026). *FluviaAI: Satellite-Powered Flood Risk Intelligence Platform with AHP-MCDM* [Computer software]. https://github.com/explolar/flood-predictor
+
+### Methodology Citation
+
+The AHP-MCDM flood susceptibility module implements a 10-factor Analytic Hierarchy Process with Saaty pairwise comparison (CR = 0.0225). If citing the methodology, please also reference:
+
+> Saaty, T.L. (1980). *The Analytic Hierarchy Process*. McGraw-Hill, New York.
+>
+> Tehrany, M.S., Pradhan, B., & Jebur, M.N. (2014). Flood susceptibility mapping using a novel ensemble weights-of-evidence and support vector machine models in GIS. *Journal of Hydrology*, 512, 332–343.
+>
+> Khosravi, K., Pham, B.T., Chapi, K. et al. (2018). A comparative assessment of flood susceptibility modeling using multi-criteria decision-making analysis and machine learning methods. *Science of the Total Environment*, 644, 903–914.
 
 ---
 
