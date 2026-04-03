@@ -121,7 +121,7 @@ def get_gfs_forecast(aoi_json, forecast_hours=168):
     fc = col.map(extract_step).getInfo()
     records = []
     for f in fc.get("features", []):
-        p = f["properties"]
+        p = f.get("properties", {})
         if p.get("temp_k") is None:
             continue
         u = p.get("wind_u", 0) or 0

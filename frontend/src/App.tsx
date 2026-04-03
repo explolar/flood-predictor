@@ -124,17 +124,15 @@ function AppInner() {
         <TabBar activeTab={activeTab} onTabChange={setActiveTab} />
 
         {isActive ? (
-          <div className="tab-panel">
-            <Suspense fallback={<LoadingOverlay message="Loading module..." />}>
-              {activeTab === "risk" && <RiskTab {...tabProps} />}
-              {activeTab === "sar" && <SARTab {...tabProps} />}
-              {activeTab === "ml" && <MLTab {...tabProps} />}
-              {activeTab === "climate" && <ClimateTab {...tabProps} />}
-              {activeTab === "indices" && <IndicesTab {...tabProps} />}
-              {activeTab === "hydrology" && <HydrologyTab {...tabProps} />}
-              {activeTab === "forecast" && <ForecastTab {...tabProps} />}
-            </Suspense>
-          </div>
+          <Suspense fallback={<div className="tab-panel"><LoadingOverlay message="Loading module..." /></div>}>
+            <div className="tab-panel" style={{ display: activeTab === "risk" ? undefined : "none" }}><RiskTab {...tabProps} /></div>
+            <div className="tab-panel" style={{ display: activeTab === "sar" ? undefined : "none" }}><SARTab {...tabProps} /></div>
+            <div className="tab-panel" style={{ display: activeTab === "ml" ? undefined : "none" }}><MLTab {...tabProps} /></div>
+            <div className="tab-panel" style={{ display: activeTab === "climate" ? undefined : "none" }}><ClimateTab {...tabProps} /></div>
+            <div className="tab-panel" style={{ display: activeTab === "indices" ? undefined : "none" }}><IndicesTab {...tabProps} /></div>
+            <div className="tab-panel" style={{ display: activeTab === "hydrology" ? undefined : "none" }}><HydrologyTab {...tabProps} /></div>
+            <div className="tab-panel" style={{ display: activeTab === "forecast" ? undefined : "none" }}><ForecastTab {...tabProps} /></div>
+          </Suspense>
         ) : (
           <div className="empty-state">
             <Droplets size={40} color="var(--accent)" strokeWidth={1.5} />
