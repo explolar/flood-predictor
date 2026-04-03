@@ -7,7 +7,7 @@ import { useAOI } from "./hooks/useAOI";
 import { LoadingOverlay } from "./components/common/LoadingOverlay";
 import { ToastContainer, toast } from "./components/common/Toast";
 import { geocode } from "./api/endpoints";
-import { MapPin, Radar, Shield } from "lucide-react";
+import { Droplets, MapPin } from "lucide-react";
 import "./index.css";
 
 const RiskTab = lazy(() => import("./pages/RiskTab").then((m) => ({ default: m.RiskTab })));
@@ -137,8 +137,10 @@ function AppInner() {
           </div>
         ) : (
           <div className="empty-state">
-            <div className="empty-icon">&#127758;</div>
-            <div className="empty-title">SELECT A STUDY AREA</div>
+            <div className="empty-icon" style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Droplets size={48} color="#1a73e8" strokeWidth={1.5} />
+            </div>
+            <div className="empty-title">Select a Study Area</div>
             <div className="empty-text">
               Search a location or set coordinates to begin flood risk analysis
             </div>
@@ -165,10 +167,8 @@ function AppInner() {
                 </div>
               </button>
             </div>
-            <div className="empty-features">
-              <div className="feature-pill"><Shield size={12} /> Multi-Criteria Risk</div>
-              <div className="feature-pill"><Radar size={12} /> SAR Flood Detection</div>
-              <div className="feature-pill"><MapPin size={12} /> 10-30m Resolution</div>
+            <div style={{ marginTop: 20, fontSize: 11, opacity: 0.45, letterSpacing: "0.03em" }}>
+              Powered by WeatherEx
             </div>
           </div>
         )}

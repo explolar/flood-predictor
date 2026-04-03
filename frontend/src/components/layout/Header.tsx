@@ -1,4 +1,4 @@
-import { Activity } from "lucide-react";
+import { Droplets } from "lucide-react";
 
 export function Header() {
   return (
@@ -10,15 +10,15 @@ export function Header() {
         alignItems: "center",
         justifyContent: "center",
         borderRadius: 10,
-        background: "rgba(79, 143, 247, 0.12)",
-        border: "1px solid rgba(79, 143, 247, 0.15)",
+        background: "rgba(26, 115, 232, 0.12)",
+        border: "1px solid rgba(26, 115, 232, 0.18)",
       }}>
-        <Activity size={18} color="#4f8ff7" strokeWidth={2.5} />
+        <Droplets size={18} color="#1a73e8" strokeWidth={2.5} />
       </div>
       <div className="header-content">
-        <h1 className="header-title">HYDRORISK ATLAS</h1>
+        <h1 className="header-title">HydroRisk Atlas</h1>
         <p className="header-subtitle">
-          Sentinel-1 SAR &middot; Sentinel-2 SR &middot; CHIRPS &middot; SRTM DEM &middot; 10&ndash;30 m
+          Satellite-Powered Flood Intelligence &middot; Powered by WeatherEx
         </p>
       </div>
     </header>

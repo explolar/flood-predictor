@@ -94,6 +94,27 @@ const QUICK_LOCATIONS = [
   { name: "Kerala", query: "Kochi, Kerala" },
 ];
 
+function BrandLogo() {
+  return (
+    <svg width="36" height="40" viewBox="0 0 36 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+      {/* Hexagon outline */}
+      <path
+        d="M18 2 L32 10 L32 26 L18 34 L4 26 L4 10 Z"
+        fill="rgba(26, 115, 232, 0.10)"
+        stroke="#1a73e8"
+        strokeWidth="1.5"
+        strokeLinejoin="round"
+      />
+      {/* Water drop */}
+      <path
+        d="M18 11 C18 11 12 19 12 22.5 C12 25.8 14.7 28.5 18 28.5 C21.3 28.5 24 25.8 24 22.5 C24 19 18 11 18 11Z"
+        fill="#1a73e8"
+        opacity="0.85"
+      />
+    </svg>
+  );
+}
+
 export function Sidebar({
   onSearchPlace,
   onSetBBox,
@@ -155,20 +176,21 @@ export function Sidebar({
 
   return (
     <aside className="sidebar">
-      {/* Brand + collapse */}
-      <div className="sidebar-brand">
-        <div className="brand-row">
-          <img
-            src="https://upload.wikimedia.org/wikipedia/en/1/1c/IIT_Kharagpur_Logo.png"
-            alt="IIT KGP"
-            width={42}
-          />
-          <button className="sidebar-collapse-btn" onClick={onToggleCollapse} title="Collapse sidebar">
-            <ChevronDown size={14} style={{ transform: "rotate(90deg)" }} />
-          </button>
+      {/* Brand */}
+      <div className="sidebar-brand" style={{ display: "flex", alignItems: "center", gap: 10, position: "relative" }}>
+        <BrandLogo />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div className="brand-title" style={{ fontWeight: 700, fontSize: 16, letterSpacing: "0.02em" }}>HydroRisk</div>
+          <div className="brand-sub" style={{ fontSize: 10, opacity: 0.55, marginTop: 1 }}>Powered by WeatherEx</div>
         </div>
-        <div className="brand-title">HYDRORISK</div>
-        <div className="brand-sub">IIT Kharagpur &middot; GEE</div>
+        <button
+          className="sidebar-collapse-btn"
+          onClick={onToggleCollapse}
+          title="Collapse sidebar"
+          style={{ position: "absolute", top: 4, right: 4 }}
+        >
+          <ChevronDown size={14} style={{ transform: "rotate(90deg)" }} />
+        </button>
       </div>
 
       {/* AOI Status Bar */}
