@@ -13,15 +13,20 @@ interface TileMapProps {
 function OverlayLayer({ url, name }: { url: string; name: string }) {
   const map = useMap();
   useEffect(() => {
-    const layer = (window as any).L.tileLayer(url, {
-      attribution: name,
-      opacity: 0.8,
-      maxZoom: 18,
-    });
-    layer.addTo(map);
-    return () => {
-      map.removeLayer(layer);
-    };
+    if (!url) return;
+    try {
+      const layer = (window as any).L.tileLayer(url, {
+        attribution: name,
+        opacity: 0.8,
+        maxZoom: 18,
+      });
+      layer.addTo(map);
+      return () => {
+        map.removeLayer(layer);
+      };
+    } catch (e) {
+      console.error("[TileMap] Failed to add overlay layer:", e);
+    }
   }, [url, name, map]);
   return null;
 }

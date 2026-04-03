@@ -1353,6 +1353,31 @@ kbd {
 }
 
 /* ═══════════════════
+   ERROR BOUNDARY
+   ═══════════════════ */
+.error-boundary-fallback {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 48px 24px;
+  text-align: center;
+  color: var(--text-secondary, #64748b);
+}
+.error-boundary-fallback h3 {
+  color: var(--text-primary, #1e293b);
+  font-size: 18px;
+  font-weight: 600;
+}
+.error-boundary-fallback p {
+  font-size: 13px;
+  max-width: 400px;
+  word-break: break-word;
+  color: #dc2626;
+}
+
+/* ═══════════════════
    RESPONSIVE
    ═══════════════════ */
 

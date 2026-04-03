@@ -5,6 +5,7 @@ import { Sidebar, DEFAULT_PARAMS, type SidebarParams } from "./components/layout
 import { TabBar } from "./components/layout/TabBar";
 import { useAOI } from "./hooks/useAOI";
 import { LoadingOverlay } from "./components/common/LoadingOverlay";
+import { ErrorBoundary } from "./components/common/ErrorBoundary";
 import { ToastContainer, toast } from "./components/common/Toast";
 import { geocode } from "./api/endpoints";
 import { Droplets, MapPin } from "lucide-react";
@@ -124,15 +125,29 @@ function AppInner() {
         <TabBar activeTab={activeTab} onTabChange={setActiveTab} />
 
         {isActive ? (
-          <Suspense fallback={<div className="tab-panel"><LoadingOverlay message="Loading module..." /></div>}>
-            <div className="tab-panel" style={{ display: activeTab === "risk" ? undefined : "none" }}><RiskTab {...tabProps} /></div>
-            <div className="tab-panel" style={{ display: activeTab === "sar" ? undefined : "none" }}><SARTab {...tabProps} /></div>
-            <div className="tab-panel" style={{ display: activeTab === "ml" ? undefined : "none" }}><MLTab {...tabProps} /></div>
-            <div className="tab-panel" style={{ display: activeTab === "climate" ? undefined : "none" }}><ClimateTab {...tabProps} /></div>
-            <div className="tab-panel" style={{ display: activeTab === "indices" ? undefined : "none" }}><IndicesTab {...tabProps} /></div>
-            <div className="tab-panel" style={{ display: activeTab === "hydrology" ? undefined : "none" }}><HydrologyTab {...tabProps} /></div>
-            <div className="tab-panel" style={{ display: activeTab === "forecast" ? undefined : "none" }}><ForecastTab {...tabProps} /></div>
-          </Suspense>
+          <ErrorBoundary>
+            <TabPanel id="risk" active={activeTab}>
+              <RiskTab {...tabProps} />
+            </TabPanel>
+            <TabPanel id="sar" active={activeTab}>
+              <SARTab {...tabProps} />
+            </TabPanel>
+            <TabPanel id="ml" active={activeTab}>
+              <MLTab {...tabProps} />
+            </TabPanel>
+            <TabPanel id="climate" active={activeTab}>
+              <ClimateTab {...tabProps} />
+            </TabPanel>
+            <TabPanel id="indices" active={activeTab}>
+              <IndicesTab {...tabProps} />
+            </TabPanel>
+            <TabPanel id="hydrology" active={activeTab}>
+              <HydrologyTab {...tabProps} />
+            </TabPanel>
+            <TabPanel id="forecast" active={activeTab}>
+              <ForecastTab {...tabProps} />
+            </TabPanel>
+          </ErrorBoundary>
         ) : (
           <div className="empty-state">
             <Droplets size={40} color="var(--accent)" strokeWidth={1.5} />
@@ -166,6 +181,18 @@ function AppInner() {
         )}
       </main>
       <ToastContainer />
+    </div>
+  );
+}
+
+function TabPanel({ id, active, children }: { id: string; active: string; children: React.ReactNode }) {
+  return (
+    <div className="tab-panel" style={{ display: active === id ? undefined : "none" }}>
+      <ErrorBoundary>
+        <Suspense fallback={<LoadingOverlay message="Loading module..." />}>
+          {children}
+        </Suspense>
+      </ErrorBoundary>
     </div>
   );
 }
