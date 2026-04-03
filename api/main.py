@@ -40,13 +40,15 @@ app.include_router(projections.router)
 app.include_router(geocode.router)
 
 
-@app.get("/")
-async def root():
+@app.get("/api")
+async def api_info():
     return {
-        "service": "HydroRisk Atlas API",
+        "service": "FluviaAI API",
         "version": "3.0.0",
         "endpoints": [
             "/mca/risk-map",
+            "/mca/ahp-weights",
+            "/mca/factor-stats",
             "/mca/stats",
             "/sar/flood-detection",
             "/ml/classify",
@@ -72,15 +74,16 @@ _static_dir = Path("/var/www/html")
 if _static_dir.is_dir():
     from fastapi.responses import FileResponse
 
-    # Serve static assets
     app.mount("/assets", StaticFiles(directory=_static_dir / "assets"), name="assets")
 
-    # Serve favicon and other root static files
     @app.get("/favicon.svg")
     async def favicon():
         return FileResponse(_static_dir / "favicon.svg")
 
-    # SPA fallback — serve index.html for all unmatched routes
+    @app.get("/")
+    async def serve_index():
+        return FileResponse(_static_dir / "index.html")
+
     @app.get("/{path:path}")
     async def spa_fallback(path: str):
         file_path = _static_dir / path
