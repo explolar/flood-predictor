@@ -2,6 +2,7 @@ import { useState } from "react";
 import { TileMap } from "../components/map/TileMap";
 import { LoadingOverlay } from "../components/common/LoadingOverlay";
 import { ErrorBanner } from "../components/common/ErrorBanner";
+import { MetricCard } from "../components/common/MetricCard";
 import { useAnalysis } from "../hooks/useAnalysis";
 import { multiyearComparison, droughtAnalysis, projectionsAnalysis } from "../api/endpoints";
 import type { SidebarParams } from "../components/layout/Sidebar";
@@ -24,6 +25,20 @@ interface Props {
 
 type SubTab = "multiyear" | "drought" | "projections";
 
+interface ProjectionsData {
+  mean_precip_mm_yr?: number;
+  mean_tasmax_c?: number;
+  mean_tasmin_c?: number;
+  precip_tile_url?: string;
+  temp_tile_url?: string;
+  scenario?: string;
+  model?: string;
+  period?: string;
+  // Support scenario-comparison shape as well
+  scenarios?: Record<string, { mean_precip_mm?: number; mean_temp_c?: number }>;
+  baseline?: { mean_precip_mm?: number; mean_temp_c?: number };
+}
+
 export function ClimateTab({ geojson, center, params }: Props) {
   const [subTab, setSubTab] = useState<SubTab>("multiyear");
   const [years] = useState([2019, 2020, 2021, 2022, 2023, 2024]);
@@ -32,7 +47,7 @@ export function ClimateTab({ geojson, center, params }: Props) {
 
   const multiyear = useAnalysis<any, { chart: ChartPoint[]; tiles: TileData[] }>(multiyearComparison);
   const drought = useAnalysis<any, { spi: TileData; ndvi_anomaly: TileData }>(droughtAnalysis);
-  const projections = useAnalysis<any>(projectionsAnalysis);
+  const projections = useAnalysis<any, ProjectionsData>(projectionsAnalysis);
 
   return (
     <div className="tab-content">
@@ -62,17 +77,17 @@ export function ClimateTab({ geojson, center, params }: Props) {
             </button>
           </div>
           {multiyear.isLoading && <LoadingOverlay message="Comparing monsoon years..." />}
-          {multiyear.error && <ErrorBanner message={multiyear.error} />}
+          {multiyear.error && <ErrorBanner message={multiyear.error} onDismiss={multiyear.reset} />}
 
           {multiyear.data?.chart && (
             <div className="chart-container">
               <ResponsiveContainer width="100%" height={300}>
                 <BarChart data={multiyear.data.chart}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                  <XAxis dataKey="label" stroke="#aaa" />
-                  <YAxis stroke="#aaa" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                  <XAxis dataKey="label" stroke="#4a5568" />
+                  <YAxis stroke="#4a5568" />
                   <Tooltip />
-                  <Bar dataKey="value" fill="#42A5F5" name="Flood Area (ha)" />
+                  <Bar dataKey="value" fill="#0891b2" name="Flood Area (ha)" />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -100,7 +115,7 @@ export function ClimateTab({ geojson, center, params }: Props) {
             </div>
           </div>
           {drought.isLoading && <LoadingOverlay message="Computing drought indices..." />}
-          {drought.error && <ErrorBanner message={drought.error} />}
+          {drought.error && <ErrorBanner message={drought.error} onDismiss={drought.reset} />}
 
           {drought.data && (
             <div className="map-grid">
@@ -146,7 +161,124 @@ export function ClimateTab({ geojson, center, params }: Props) {
             </div>
           </div>
           {projections.isLoading && <LoadingOverlay message="Running climate projections..." />}
-          {projections.error && <ErrorBanner message={projections.error} />}
+          {projections.error && <ErrorBanner message={projections.error} onDismiss={projections.reset} />}
+
+          {projections.data && (
+            <div className="projections-results">
+              {/* Header info */}
+              {(projections.data.model || projections.data.period || projections.data.scenario) && (
+                <p className="projections-meta">
+                  Model: <strong>{projections.data.model ?? "N/A"}</strong>
+                  {" | "}Scenario: <strong>{(projections.data.scenario ?? "").toUpperCase()}</strong>
+                  {" | "}Period: <strong>{projections.data.period ?? "N/A"}</strong>
+                </p>
+              )}
+
+              {/* Standard projections response (get_cmip6_projections) */}
+              {(projections.data.mean_precip_mm_yr != null ||
+                projections.data.mean_tasmax_c != null ||
+                projections.data.mean_tasmin_c != null) && (
+                <div className="metric-grid">
+                  {projections.data.mean_precip_mm_yr != null && (
+                    <MetricCard
+                      label="Projected Mean Precipitation"
+                      value={projections.data.mean_precip_mm_yr}
+                      unit="mm/yr"
+                      color="#0891b2"
+                    />
+                  )}
+                  {projections.data.mean_tasmax_c != null && (
+                    <MetricCard
+                      label="Projected Max Temperature"
+                      value={projections.data.mean_tasmax_c}
+                      unit="°C"
+                      color="#dc2626"
+                    />
+                  )}
+                  {projections.data.mean_tasmin_c != null && (
+                    <MetricCard
+                      label="Projected Min Temperature"
+                      value={projections.data.mean_tasmin_c}
+                      unit="°C"
+                      color="#2563eb"
+                    />
+                  )}
+                </div>
+              )}
+
+              {/* Scenario-comparison response (get_cmip6_scenario_comparison) */}
+              {projections.data.baseline && (
+                <div style={{ marginTop: "1rem" }}>
+                  <h3 className="map-title">Baseline</h3>
+                  <div className="metric-grid">
+                    {projections.data.baseline.mean_precip_mm != null && (
+                      <MetricCard
+                        label="Baseline Precipitation"
+                        value={projections.data.baseline.mean_precip_mm}
+                        unit="mm/yr"
+                        color="#4a5568"
+                      />
+                    )}
+                    {projections.data.baseline.mean_temp_c != null && (
+                      <MetricCard
+                        label="Baseline Temperature"
+                        value={projections.data.baseline.mean_temp_c}
+                        unit="°C"
+                        color="#4a5568"
+                      />
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {projections.data.scenarios && (
+                <div style={{ marginTop: "1rem" }}>
+                  <h3 className="map-title">Projected Scenarios</h3>
+                  {Object.entries(projections.data.scenarios).map(([key, vals]) => (
+                    <div key={key} style={{ marginBottom: "0.75rem" }}>
+                      <h4 style={{ marginBottom: "0.25rem", color: "#4a5568" }}>{key.replace(/_/g, " ").toUpperCase()}</h4>
+                      <div className="metric-grid">
+                        {vals.mean_precip_mm != null && (
+                          <MetricCard
+                            label="Projected Precipitation"
+                            value={vals.mean_precip_mm}
+                            unit="mm/yr"
+                            color="#0891b2"
+                          />
+                        )}
+                        {vals.mean_temp_c != null && (
+                          <MetricCard
+                            label="Projected Temperature"
+                            value={vals.mean_temp_c}
+                            unit="°C"
+                            color="#dc2626"
+                          />
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Tile maps if available */}
+              {(projections.data.precip_tile_url || projections.data.temp_tile_url) && (
+                <div className="map-grid" style={{ marginTop: "1rem" }}>
+                  {projections.data.precip_tile_url && (
+                    <div>
+                      <h3 className="map-title">Precipitation</h3>
+                      <TileMap center={center} tileUrl={projections.data.precip_tile_url} tileName="Precipitation" height="400px" />
+                    </div>
+                  )}
+                  {projections.data.temp_tile_url && (
+                    <div>
+                      <h3 className="map-title">Temperature (Max)</h3>
+                      <TileMap center={center} tileUrl={projections.data.temp_tile_url} tileName="Temperature" height="400px" />
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </>
       )}
     </div>

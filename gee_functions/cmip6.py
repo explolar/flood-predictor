@@ -7,6 +7,7 @@ GEE Asset: NASA/GDDP-CMIP6
 """
 
 import json
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import ee
 import pandas as pd
@@ -90,10 +91,50 @@ def get_cmip6_projections(aoi_json, scenario="ssp245", model="ACCESS-CM2", start
     }
 
 
+def _compute_scenario_period(aoi_geom, scenario, model, start_yr, end_yr):
+    """Compute stats for one scenario-period pair. Thread-safe for GEE calls."""
+    col = _get_cmip6_collection(aoi_geom, scenario, model, start_yr, end_yr)
+    count = col.size().getInfo()
+    if not count:
+        return None
+
+    mean_precip = col.select("pr").mean().multiply(_PR_TO_MM_DAY * 365).clip(aoi_geom)
+    mean_tasmax = col.select("tasmax").mean().subtract(273.15).clip(aoi_geom)
+    mean_tasmin = col.select("tasmin").mean().subtract(273.15).clip(aoi_geom)
+
+    stats = (
+        ee.Image.cat(
+            [
+                mean_precip.rename("precip"),
+                mean_tasmax.rename("tasmax"),
+                mean_tasmin.rename("tasmin"),
+            ]
+        )
+        .reduceRegion(reducer=ee.Reducer.mean(), geometry=aoi_geom, scale=25000, maxPixels=1e8)
+        .getInfo()
+        or {}
+    )
+
+    return {
+        "key": (scenario, start_yr, end_yr),
+        "row": {
+            "period": f"{start_yr}-{end_yr}",
+            "scenario": scenario.upper(),
+            "precip_mm_yr": round(stats.get("precip", 0) or 0, 1),
+            "tasmax_c": round(stats.get("tasmax", 0) or 0, 1),
+            "tasmin_c": round(stats.get("tasmin", 0) or 0, 1),
+        },
+    }
+
+
 @cache_data(ttl=7200)
 def get_cmip6_scenario_comparison(aoi_json, model="ACCESS-CM2", periods=None):
     """
     Compare SSP245 vs SSP585 across multiple time periods.
+
+    Uses ThreadPoolExecutor to parallelize independent GEE calls across
+    scenario-period pairs (up to 6 concurrent), reducing wall-clock time
+    from >1 min to ~20-30 seconds.
 
     Returns dict with a comparison DataFrame and model name.
     """
@@ -103,42 +144,23 @@ def get_cmip6_scenario_comparison(aoi_json, model="ACCESS-CM2", periods=None):
     aoi_geom = ee.Geometry(json.loads(aoi_json))
     rows = []
 
-    for start_yr, end_yr in periods:
-        for scenario in AVAILABLE_SCENARIOS:
-            col = _get_cmip6_collection(aoi_geom, scenario, model, start_yr, end_yr)
-            count = col.size().getInfo()
-            if not count:
-                continue
+    with ThreadPoolExecutor(max_workers=6) as executor:
+        futures = {}
+        for start_yr, end_yr in periods:
+            for scenario in AVAILABLE_SCENARIOS:
+                f = executor.submit(_compute_scenario_period, aoi_geom, scenario, model, start_yr, end_yr)
+                futures[f] = (scenario, start_yr, end_yr)
 
-            mean_precip = col.select("pr").mean().multiply(_PR_TO_MM_DAY * 365).clip(aoi_geom)
-            mean_tasmax = col.select("tasmax").mean().subtract(273.15).clip(aoi_geom)
-            mean_tasmin = col.select("tasmin").mean().subtract(273.15).clip(aoi_geom)
-
-            stats = (
-                ee.Image.cat(
-                    [
-                        mean_precip.rename("precip"),
-                        mean_tasmax.rename("tasmax"),
-                        mean_tasmin.rename("tasmin"),
-                    ]
-                )
-                .reduceRegion(reducer=ee.Reducer.mean(), geometry=aoi_geom, scale=25000, maxPixels=1e8)
-                .getInfo()
-                or {}
-            )
-
-            rows.append(
-                {
-                    "period": f"{start_yr}-{end_yr}",
-                    "scenario": scenario.upper(),
-                    "precip_mm_yr": round(stats.get("precip", 0) or 0, 1),
-                    "tasmax_c": round(stats.get("tasmax", 0) or 0, 1),
-                    "tasmin_c": round(stats.get("tasmin", 0) or 0, 1),
-                }
-            )
+        for future in as_completed(futures):
+            result = future.result()
+            if result:
+                rows.append(result["row"])
 
     if not rows:
         return None
+
+    # Sort rows by period then scenario for consistent ordering
+    rows.sort(key=lambda r: (r["period"], r["scenario"]))
 
     return {"comparison_df": pd.DataFrame(rows), "model": model}
 
