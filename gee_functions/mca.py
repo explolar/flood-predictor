@@ -69,16 +69,16 @@ FACTOR_LABELS = {
 _AHP_MATRIX = np.array(
     [
         #  dist   rain  slope  elev  drain   twi   lulc  soil  ndvi  curv
-        [1,     2,    3,     3,    4,      4,    5,    6,    7,    8],     # dist_river
-        [1/2,   1,    2,     2,    3,      3,    4,    5,    6,    7],     # rainfall
-        [1/3,   1/2,  1,     1,    2,      2,    3,    4,    5,    6],     # slope
-        [1/3,   1/2,  1,     1,    2,      2,    3,    3,    5,    5],     # elevation
-        [1/4,   1/3,  1/2,   1/2,  1,      1,    2,    3,    4,    5],     # drain_dens
-        [1/4,   1/3,  1/2,   1/2,  1,      1,    2,    3,    3,    4],     # twi
-        [1/5,   1/4,  1/3,   1/3,  1/2,    1/2,  1,    2,    3,    3],     # lulc
-        [1/6,   1/5,  1/4,   1/3,  1/3,    1/3,  1/2,  1,    2,    3],     # soil
-        [1/7,   1/6,  1/5,   1/5,  1/4,    1/3,  1/3,  1/2,  1,    2],     # ndvi
-        [1/8,   1/7,  1/6,   1/5,  1/5,    1/4,  1/3,  1/3,  1/2,  1],     # curvature
+        [1, 2, 3, 3, 4, 4, 5, 6, 7, 8],  # dist_river
+        [1 / 2, 1, 2, 2, 3, 3, 4, 5, 6, 7],  # rainfall
+        [1 / 3, 1 / 2, 1, 1, 2, 2, 3, 4, 5, 6],  # slope
+        [1 / 3, 1 / 2, 1, 1, 2, 2, 3, 3, 5, 5],  # elevation
+        [1 / 4, 1 / 3, 1 / 2, 1 / 2, 1, 1, 2, 3, 4, 5],  # drain_dens
+        [1 / 4, 1 / 3, 1 / 2, 1 / 2, 1, 1, 2, 3, 3, 4],  # twi
+        [1 / 5, 1 / 4, 1 / 3, 1 / 3, 1 / 2, 1 / 2, 1, 2, 3, 3],  # lulc
+        [1 / 6, 1 / 5, 1 / 4, 1 / 3, 1 / 3, 1 / 3, 1 / 2, 1, 2, 3],  # soil
+        [1 / 7, 1 / 6, 1 / 5, 1 / 5, 1 / 4, 1 / 3, 1 / 3, 1 / 2, 1, 2],  # ndvi
+        [1 / 8, 1 / 7, 1 / 6, 1 / 5, 1 / 5, 1 / 4, 1 / 3, 1 / 3, 1 / 2, 1],  # curvature
     ],
     dtype=np.float64,
 )
@@ -249,13 +249,10 @@ def compute_factor_layers(aoi_geom):
     lulc = ee.ImageCollection("ESA/WorldCover/v200").mosaic().select("Map").clip(aoi_geom)
     # 10=Trees, 20=Shrub, 30=Grass, 40=Cropland, 50=Built-up,
     # 60=Bare, 70=Snow, 80=Water, 90=Wetland, 95=Mangrove, 100=Moss
-    factors["lulc"] = (
-        lulc.remap(
-            [10, 20, 30, 40, 50, 60, 70, 80, 90, 95, 100],
-            [1,  2,  3,  4,  5,  4,  1,  5,  5,  4,  3],
-        )
-        .clip(aoi_geom)
-    )
+    factors["lulc"] = lulc.remap(
+        [10, 20, 30, 40, 50, 60, 70, 80, 90, 95, 100],
+        [1, 2, 3, 4, 5, 4, 1, 5, 5, 4, 3],
+    ).clip(aoi_geom)
 
     # ── 8. Soil Texture ─────────────────────────────────────
     # Clay-rich = poor drainage = high risk; Sandy = low risk
@@ -263,13 +260,10 @@ def compute_factor_layers(aoi_geom):
     # USDA classes: 1=Clay,2=SiltyClay,3=SandyClay,4=ClayLoam,5=SiltyClayLoam,
     #               6=SandyClayLoam,7=Loam,8=SiltLoam,9=SandyLoam,10=Silt,
     #               11=LoamySand,12=Sand
-    factors["soil"] = (
-        soil.remap(
-            [1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12],
-            [5,  5,  4,  4,  4,  3,  3,  3,  2,  4,  2,  1],
-        )
-        .clip(aoi_geom)
-    )
+    factors["soil"] = soil.remap(
+        [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+        [5, 5, 4, 4, 4, 3, 3, 3, 2, 4, 2, 1],
+    ).clip(aoi_geom)
 
     # ── 9. NDVI ─────────────────────────────────────────────
     # Lower NDVI = less vegetation = more runoff = higher risk

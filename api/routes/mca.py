@@ -28,9 +28,7 @@ async def compute_mca(request: MCARequest):
     try:
         from gee_functions.mca import get_mca_tile
 
-        result = await asyncio.to_thread(
-            get_mca_tile, aoi_json, request.method, custom_weights
-        )
+        result = await asyncio.to_thread(get_mca_tile, aoi_json, request.method, custom_weights)
         return AnalysisResponse(success=True, data=result)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
