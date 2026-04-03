@@ -30,9 +30,26 @@ HydroRisk Atlas combines geospatial processing, machine learning, and climate an
 
 ## Features
 
-### Multi-Criteria Flood Susceptibility (MCA)
+### AHP-MCDM Flood Susceptibility
 
-Weighted overlay of land use/land cover (ESA WorldCover), terrain slope (SRTM DEM), and annual rainfall (CHIRPS) to produce a 5-class flood susceptibility map. Users can adjust weights interactively (default: 40 % LULC, 30 % slope, 30 % rainfall) and view AOI terrain summary statistics.
+Paper-grade 10-factor Analytic Hierarchy Process (AHP) flood susceptibility mapping with Saaty pairwise comparison matrix, eigenvector-derived weights, and Consistency Ratio validation (CR < 0.10).
+
+**Conditioning Factors (10):**
+
+| # | Factor | Source | Resolution | Risk Logic |
+|---|--------|--------|------------|------------|
+| 1 | Distance to River | HydroSHEDS flow accumulation | 450 m | Closer = higher risk |
+| 2 | Rainfall | CHIRPS annual precipitation | 5 km | More rain = higher risk |
+| 3 | Slope | SRTM DEM | 30 m | Flat terrain = higher risk |
+| 4 | Elevation | SRTM DEM | 30 m | Low elevation = higher risk |
+| 5 | Drainage Density | HydroSHEDS stream network | 450 m | Denser = higher risk |
+| 6 | TWI | SRTM + HydroSHEDS | 30–450 m | Wetter = higher risk |
+| 7 | LULC | ESA WorldCover v200 | 10 m | Built-up/water = high risk |
+| 8 | Soil Texture | OpenLandMap USDA texture | 250 m | Clay = higher risk |
+| 9 | NDVI | MODIS MOD13A2 | 1 km | Low vegetation = higher risk |
+| 10 | Curvature | SRTM DEM (Laplacian) | 30 m | Concave = higher risk |
+
+Users can choose AHP-automatic weights (Saaty eigenvector method with CR validation) or set custom weights for all 10 factors. Individual factor layers are available as separate tile overlays for paper figures.
 
 ### SAR Flood Detection
 
@@ -140,7 +157,7 @@ flood-predictor/
 │   ├── schemas.py                #   Pydantic request/response models
 │   ├── dependencies.py           #   EE initialization & shared utilities
 │   └── routes/                   #   Endpoint modules
-│       ├── mca.py                #     Multi-Criteria Assessment
+│       ├── mca.py                #     AHP-MCDM flood susceptibility
 │       ├── sar.py                #     SAR flood detection
 │       ├── ml.py                 #     ML classification & prediction
 │       ├── indices.py            #     Spectral indices
@@ -153,7 +170,7 @@ flood-predictor/
 ├── gee_functions/                # Google Earth Engine processing
 │   ├── core.py                   #   EE init & AOI statistics
 │   ├── sar.py                    #   SAR flood detection logic
-│   ├── mca.py                    #   Multi-criteria analysis
+│   ├── mca.py                    #   AHP-MCDM flood susceptibility (10 factors)
 │   ├── drought.py                #   Drought indices (SPI, NDVI)
 │   ├── indices.py                #   Spectral indices (NDVI, NDBI, etc.)
 │   ├── hydrology.py              #   Watershed & stream analysis
@@ -341,7 +358,9 @@ All POST endpoints accept a JSON body containing a `geojson` field (GeoJSON geom
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/mca/risk-map` | POST | Generate a weighted flood susceptibility map (MCA) |
+| `/mca/risk-map` | POST | AHP-MCDM 10-factor flood susceptibility map with factor tiles and AHP report |
+| `/mca/ahp-weights` | GET | AHP weights, CR, CI, lambda_max (no GEE call) |
+| `/mca/factor-stats` | POST | Per-factor area distribution across risk classes 1–5 |
 | `/mca/stats` | POST | Terrain and summary statistics for the AOI |
 | `/sar/flood-detection` | POST | SAR-based flood extent and severity detection |
 | `/ml/classify` | POST | ML flood classification (supports `gradient_boosting`, `xgboost`, `lightgbm`, `ensemble`) |
@@ -371,9 +390,10 @@ AOIRequest
 └── name: str | null       # Optional area name
 
 MCARequest (extends AOIRequest)
-├── w_lulc: int = 40       # LULC weight (0–100)
-├── w_slope: int = 30      # Slope weight (0–100)
-└── w_rain: int | null     # Rainfall weight (auto-calculated)
+├── method: str = "ahp"           # "ahp" (Saaty automatic) or "custom"
+└── custom_weights: dict | null   # Factor weight dict (sum to 1.0), only for method="custom"
+    Keys: distance_to_river, rainfall, slope, elevation, drainage_density,
+          twi, lulc, soil, ndvi, curvature
 
 SARRequest (extends AOIRequest)
 ├── f_start: str           # Flood period start (YYYY-MM-DD)
@@ -446,7 +466,9 @@ These require `torch`, `transformers`, and `huggingface-hub`. The system automat
 | CMIP6 | Various GCMs | Variable | Climate projections (SSP scenarios) |
 | JRC Global Surface Water | EC-JRC | 30 m | Water occurrence, seasonality, flood frequency |
 | ESA WorldCover | ESA | 10 m | Land use / land cover classification |
-| MODIS | NASA | 250 m–1 km | NDVI anomaly for drought monitoring |
+| OpenLandMap Soil | OpenGeoHub | 250 m | USDA soil texture classification (12 classes) |
+| HydroSHEDS | WWF | 450 m | Flow accumulation, flow direction, conditioned DEM, basin boundaries |
+| MODIS | NASA | 250 m–1 km | NDVI anomaly for drought monitoring, vegetation index for MCDM |
 | WorldPop | WorldPop | 100 m | Population exposure estimates |
 | Microsoft Buildings | Microsoft | Vector | Building footprint analysis in flood zones |
 
@@ -522,50 +544,99 @@ Computed at 50 m scale using `ee.Image.pixelArea()` (projection-aware, accounts 
 
 ---
 
-### Multi-Criteria Analysis (MCA) — Weighted Linear Combination
+### AHP-MCDM Flood Susceptibility — Analytic Hierarchy Process
 
-The flood susceptibility score combines three reclassified layers using a weighted linear combination:
-
-```
-Risk = (slope_r × w_slope/100) + (lulc_r × w_lulc/100) + (rain_r × w_rain/100)
-```
-
-**Default Weights:** LULC = 40%, Slope = 30%, Rainfall = 30%
-
-**Slope Reclassification (SRTM DEM):**
-
-Slope is computed via `ee.Terrain.slope(dem)` (gradient in degrees) and reclassified to a 1–5 risk scale:
+The flood susceptibility index is computed using a 10-factor Weighted Linear Combination (WLC) with weights derived from the Analytic Hierarchy Process (Saaty, 1980):
 
 ```
-Slope > 20°  →  Risk = 1 (very low)    — steep terrain sheds water quickly
-Slope <= 2°  →  Risk = 5 (very high)   — flat terrain pools water
-2° < slope <= 20°: linearly interpolated
+FSI = Σ (w_i × F_i)    for i = 1..10
 ```
 
-Physical basis: steeper gradients produce faster overland flow and less ponding; flat areas accumulate runoff.
+where `w_i` are AHP eigenvector weights and `F_i` are reclassified factor layers (1–5 scale).
 
-**LULC Reclassification (ESA WorldCover v200, 10 m):**
+**AHP Pairwise Comparison Matrix:**
+
+A 10×10 matrix encodes expert-derived relative importance using Saaty's 9-point scale. Weights are extracted via the principal eigenvector method:
+
+```
+A × w = λ_max × w
+w = principal_eigenvector / Σ(principal_eigenvector)
+```
+
+**Consistency Validation (Saaty, 1980):**
+
+```
+CI = (λ_max − n) / (n − 1)
+CR = CI / RI
+```
+
+where RI = 1.49 for n = 10. The matrix is accepted only if CR < 0.10.
+
+**Computed AHP Weights (CR = 0.0225):**
+
+| Factor | Weight | Rank |
+|--------|--------|------|
+| Distance to River | 27.47% | 1 |
+| Rainfall | 19.10% | 2 |
+| Slope | 12.54% | 3 |
+| Elevation | 11.99% | 4 |
+| Drainage Density | 8.01% | 5 |
+| TWI | 7.57% | 6 |
+| LULC | 5.08% | 7 |
+| Soil Texture | 3.69% | 8 |
+| NDVI | 2.58% | 9 |
+| Curvature | 1.97% | 10 |
+
+**Factor Reclassification (1–5 Risk Scale):**
+
+All continuous factors are reclassified into 5 classes using AOI-adaptive percentile thresholds (20th, 40th, 60th, 80th percentiles), eliminating hardcoded breakpoints and ensuring transferability across regions. Categorical factors (LULC, soil) use physically-based lookup tables:
+
+*LULC Reclassification (ESA WorldCover v200, 10 m):*
 
 | WorldCover Class | Code | Risk Score | Rationale |
 |-----------------|------|------------|-----------|
-| Tree cover (closed) | 10 | 1 | High infiltration, canopy interception |
+| Tree cover | 10 | 1 | High infiltration, canopy interception |
 | Shrubland | 20 | 2 | Moderate infiltration |
-| Herbaceous vegetation | 30 | 2 | Moderate infiltration |
-| Herbaceous wetland | 40 | 3 | Naturally saturated soils |
-| Moss and lichen | 50 | 5 | Thin soil, low absorption |
-| Sparse vegetation | 60 | 4 | Low interception, exposed soil |
+| Grassland | 30 | 3 | Moderate runoff |
+| Cropland | 40 | 4 | Reduced infiltration, tilled soil |
+| Built-up | 50 | 5 | Zero infiltration, maximum runoff |
+| Bare/sparse | 60 | 4 | Low interception, exposed soil |
+| Snow/ice | 70 | 1 | Frozen, low immediate runoff |
 | Permanent water | 80 | 5 | Already inundated |
-| Built-up (impervious) | 90 | 5 | Zero infiltration, maximum runoff |
+| Herbaceous wetland | 90 | 5 | Saturated, flood-prone |
+| Mangroves | 95 | 4 | Coastal flood zone |
 
-**Rainfall Reclassification (CHIRPS Annual Total):**
+*Soil Texture Reclassification (OpenLandMap USDA classes):*
+
+| Texture Class | Risk Score | Rationale |
+|--------------|------------|-----------|
+| Clay, Silty Clay | 5 | Very poor drainage, high runoff |
+| Sandy Clay, Clay Loam, Silty Clay Loam, Silt | 4 | Poor drainage |
+| Sandy Clay Loam, Loam, Silt Loam | 3 | Moderate drainage |
+| Sandy Loam, Loamy Sand | 2 | Good drainage |
+| Sand | 1 | Excellent drainage, rapid infiltration |
+
+*TWI — Topographic Wetness Index:*
 
 ```
-< 1860 mm/yr  →  Risk = 1 (dry climate)
->= 1950 mm/yr →  Risk = 5 (extreme rainfall regime)
-1860–1950 mm/yr: linearly interpolated
+TWI = ln(A / tan(β))
 ```
 
-Thresholds are calibrated from 2023 annual totals across South Asian study regions.
+where A = upstream contributing area (from HydroSHEDS flow accumulation × pixel area) and β = slope in radians. Higher TWI indicates flatter terrain with large contributing areas — prone to waterlogging.
+
+*Curvature (Laplacian of DEM):*
+
+```
+∇²z = Σ kernel × DEM,   kernel = [[0,1,0],[1,-4,1],[0,1,0]]
+```
+
+Negative curvature (concave) collects water → higher risk. Positive curvature (convex) sheds water → lower risk.
+
+**References:**
+
+- Saaty, T.L. (1980). *The Analytic Hierarchy Process*. McGraw-Hill.
+- Tehrany, M.S., Pradhan, B., Jebur, M.N. (2014). Flood susceptibility mapping using ensemble weights-of-evidence and SVM. *J. Hydrology*, 512, 332–343.
+- Khosravi, K. et al. (2018). Flood susceptibility mapping using integrated bivariate and multivariate statistical models. *Sci. Total Environ.*, 644, 903–914.
 
 ---
 
@@ -1051,6 +1122,13 @@ Uses `shap.TreeExplainer` for all tree-based models. Computes mean absolute SHAP
 | ERA5-Land resolution | 11 | km | ECMWF native |
 | GFS resolution | 28 | km | NOAA (0.25°) |
 | CMIP6 resolution | 25 | km | NASA NEX-GDDP |
+| AHP Consistency Ratio | 0.0225 | unitless | Computed (threshold: < 0.10) |
+| AHP lambda_max | 10.3019 | unitless | Principal eigenvalue of 10×10 matrix |
+| Random Index (RI, n=10) | 1.49 | unitless | Saaty (1980) |
+| AHP n_factors | 10 | count | Conditioning factors |
+| Stream threshold | 100 | pixels | HydroSHEDS flow acc for stream delineation |
+| Drainage density radius | 1,500 | meters | Neighborhood for local density |
+| OpenLandMap soil classes | 12 | USDA classes | Texture classification |
 | Cache TTL | 3,600 | seconds | 1-hour default |
 | GFS max forecast horizon | 384 | hours | 16-day limit |
 
@@ -1065,6 +1143,10 @@ Uses `shap.TreeExplainer` for all tree-based models. Computes mean absolute SHAP
 5. Huete, A.R. et al. (2002). Overview of the radiometric and biophysical performance of the MODIS vegetation indices. *Remote Sensing of Environment*, 83(1–2), 195–213.
 6. Zha, Y., Gao, J., & Ni, S. (2003). Use of normalized difference built-up index in automatically mapping urban areas from TM imagery. *International Journal of Remote Sensing*, 24(3), 583–594.
 7. Rikimaru, A., Roy, P.S., & Miyatake, S. (2002). Tropical forest cover density mapping. *Tropical Ecology*, 43(1), 39–47.
+8. Saaty, T.L. (1980). *The Analytic Hierarchy Process*. McGraw-Hill, New York.
+9. Tehrany, M.S., Pradhan, B., & Jebur, M.N. (2014). Flood susceptibility mapping using a novel ensemble weights-of-evidence and support vector machine models in GIS. *Journal of Hydrology*, 512, 332–343.
+10. Khosravi, K., Pham, B.T., Chapi, K. et al. (2018). A comparative assessment of flood susceptibility modeling using multi-criteria decision-making analysis and machine learning methods. *Science of the Total Environment*, 644, 903–914.
+11. Malczewski, J. (1999). *GIS and Multicriteria Decision Analysis*. John Wiley & Sons.
 
 ---
 
