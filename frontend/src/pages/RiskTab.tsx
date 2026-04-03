@@ -15,8 +15,6 @@ interface Props {
   params: SidebarParams;
 }
 
-const CR_THRESHOLD = 0.10;
-
 export function RiskTab({ geojson, center, params }: Props) {
   const [activeFactorLayer, setActiveFactorLayer] = useState<string | null>(null);
 
