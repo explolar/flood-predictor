@@ -42,4 +42,4 @@ jobs:
           service: ${{ env.SERVICE }}
           region: ${{ env.REGION }}
           image: ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/cloud-run/${{ env.SERVICE }}:${{ github.ref_name }}
-          flags: "--memory=4Gi --cpu=2 --min-instances=0 --max-instances=3 --allow-unauthenticated --cpu-boost --startup-probe-period=10 --startup-probe-timeout=5 --startup-probe-initial-delay=5 --startup-probe-failure-threshold=30"
+          flags: "--memory=4Gi --cpu=2 --min-instances=0 --max-instances=3 --allow-unauthenticated --cpu-boost"
