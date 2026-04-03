@@ -1231,3 +1231,161 @@ kbd {
   .tab-bar { padding: 6px 12px; overflow-x: auto; }
   .tab-item { padding: 7px 14px; font-size: 0.62rem; }
 }
+
+/* ══════════════════════════════════════════
+   AHP-MCDM Report Styles
+   ══════════════════════════════════════════ */
+
+.ahp-report {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-bottom: 12px;
+}
+
+.ahp-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.ahp-title {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.ahp-badge {
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 20px;
+  letter-spacing: 0.03em;
+}
+
+.ahp-badge-pass {
+  background: rgba(26, 152, 80, 0.2);
+  color: #91cf60;
+  border: 1px solid rgba(26, 152, 80, 0.4);
+}
+
+.ahp-badge-fail {
+  background: rgba(215, 48, 39, 0.2);
+  color: #fc8d59;
+  border: 1px solid rgba(215, 48, 39, 0.4);
+}
+
+.ahp-meta {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  font-size: 0.68rem;
+  color: var(--text-secondary);
+  font-family: "JetBrains Mono", monospace;
+}
+
+/* ── Weight Table ── */
+
+.ahp-weights-table {
+  margin-bottom: 12px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.ahp-weights-table table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.72rem;
+}
+
+.ahp-weights-table th {
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  padding: 8px 12px;
+  text-align: left;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 0.62rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.ahp-weights-table td {
+  padding: 6px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  color: var(--text-primary);
+}
+
+.ahp-weights-table tr:last-child td {
+  border-bottom: none;
+}
+
+.weight-bar-cell {
+  height: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.weight-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #2166ac, #67a9cf);
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+/* ── Factor Layer Toggles ── */
+
+.factor-toggles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.factor-btn {
+  padding: 4px 10px;
+  font-size: 0.65rem;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--bg-input);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.factor-btn:hover {
+  border-color: var(--accent);
+  color: var(--text-primary);
+}
+
+.factor-btn-active {
+  background: rgba(33, 102, 172, 0.2);
+  border-color: #2166ac;
+  color: #67a9cf;
+  font-weight: 600;
+}
+
+/* ── Custom Weights Grid ── */
+
+.custom-weights-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.custom-weights-grid .weight-row {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.custom-weights-grid input[type="range"] {
+  height: 4px;
+}

@@ -6,8 +6,11 @@ export interface AOIRequest {
 }
 
 export interface MCARequest extends AOIRequest {
-  w_lulc: number;
-  w_slope: number;
+  method: "ahp" | "custom";
+  custom_weights?: Record<string, number>;
+  /** @deprecated Legacy fields kept for backward compatibility */
+  w_lulc?: number;
+  w_slope?: number;
   w_rain?: number;
 }
 
@@ -74,6 +77,22 @@ export interface SARData {
   pop_exposed: number;
   flood_url: string;
   severity_url: string;
+}
+
+export interface AHPReport {
+  weights: Record<string, number>;
+  cr: number | null;
+  ci: number | null;
+  lambda_max: number | null;
+  consistent: boolean;
+  ri: number;
+  n_factors: number;
+}
+
+export interface MCAResult {
+  tile_url: string;
+  factor_urls: Record<string, string>;
+  ahp: AHPReport;
 }
 
 export interface MCAStats {

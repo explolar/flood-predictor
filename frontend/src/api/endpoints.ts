@@ -2,6 +2,9 @@ import { api } from "./client";
 import type {
   AnalysisResponse,
   MCARequest,
+  MCAResult,
+  AHPReport,
+  AOIRequest,
   SARRequest,
   SARData,
   MLRequest,
@@ -17,12 +20,18 @@ import type {
   TimeseriesPoint,
 } from "../types/api";
 
-// ── MCA ──
+// ── MCA (AHP-MCDM) ──
 export const mcaRiskMap = (req: MCARequest) =>
-  api.post<AnalysisResponse<TileData>>("/mca/risk-map", req).then((r) => r.data);
+  api.post<AnalysisResponse<MCAResult>>("/mca/risk-map", req).then((r) => r.data);
 
 export const mcaStats = (req: MCARequest) =>
   api.post<AnalysisResponse<Record<string, number>>>("/mca/stats", req).then((r) => r.data);
+
+export const mcaAhpWeights = () =>
+  api.get<AnalysisResponse<AHPReport>>("/mca/ahp-weights").then((r) => r.data);
+
+export const mcaFactorStats = (req: AOIRequest) =>
+  api.post<AnalysisResponse<Record<string, Record<string, number>>>>("/mca/factor-stats", req).then((r) => r.data);
 
 // ── SAR ──
 export const sarFloodDetection = (req: SARRequest) =>

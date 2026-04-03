@@ -18,9 +18,27 @@ interface SidebarProps {
   onToggleCollapse: () => void;
 }
 
+export const FACTOR_NAMES = [
+  "distance_to_river", "rainfall", "slope", "elevation", "drainage_density",
+  "twi", "lulc", "soil", "ndvi", "curvature",
+] as const;
+
+export const FACTOR_LABELS: Record<string, string> = {
+  distance_to_river: "Distance to River",
+  rainfall: "Rainfall",
+  slope: "Slope",
+  elevation: "Elevation",
+  drainage_density: "Drainage Density",
+  twi: "TWI",
+  lulc: "LULC",
+  soil: "Soil Texture",
+  ndvi: "NDVI",
+  curvature: "Curvature",
+};
+
 export interface SidebarParams {
-  w_lulc: number;
-  w_slope: number;
+  mca_method: "ahp" | "custom";
+  custom_weights: Record<string, number>;
   p_start: string;
   p_end: string;
   f_start: string;
@@ -36,9 +54,22 @@ export interface SidebarParams {
   prog_year: number;
 }
 
+const DEFAULT_CUSTOM_WEIGHTS: Record<string, number> = {
+  distance_to_river: 0.25,
+  rainfall: 0.18,
+  slope: 0.13,
+  elevation: 0.11,
+  drainage_density: 0.08,
+  twi: 0.07,
+  lulc: 0.06,
+  soil: 0.05,
+  ndvi: 0.04,
+  curvature: 0.03,
+};
+
 export const DEFAULT_PARAMS: SidebarParams = {
-  w_lulc: 40,
-  w_slope: 30,
+  mca_method: "ahp",
+  custom_weights: { ...DEFAULT_CUSTOM_WEIGHTS },
   p_start: "2024-05-01",
   p_end: "2024-05-30",
   f_start: "2024-08-01",
@@ -86,7 +117,7 @@ export function Sidebar({
     imagery: false,
   });
 
-  const w_rain = Math.max(0, 100 - params.w_lulc - params.w_slope);
+  const customTotal = Object.values(params.custom_weights).reduce((a, b) => a + b, 0);
 
   const toggle = (section: string) =>
     setExpandedSections((s) => ({ ...s, [section]: !s[section] }));
@@ -236,15 +267,52 @@ export function Sidebar({
 
       <hr className="sidebar-hr" />
 
-      {/* MCA Weights */}
-      <SectionHeader title="MCA Weights" icon={<Sliders size={14} />} open={expandedSections.mca} onToggle={() => toggle("mca")} />
+      {/* AHP-MCDM Weights */}
+      <SectionHeader title="AHP-MCDM Weights" icon={<Sliders size={14} />} open={expandedSections.mca} onToggle={() => toggle("mca")} />
       {expandedSections.mca && (
         <div className="sidebar-section">
-          <label className="label">LULC {params.w_lulc}%</label>
-          <input type="range" min={10} max={80} step={5} value={params.w_lulc} onChange={(e) => onParamsChange({ w_lulc: +e.target.value })} />
-          <label className="label">Slope {params.w_slope}%</label>
-          <input type="range" min={10} max={80} step={5} value={params.w_slope} onChange={(e) => onParamsChange({ w_slope: +e.target.value })} />
-          <div className="weight-summary">Rainfall: {w_rain}%</div>
+          <div className="radio-group">
+            <label>
+              <input type="radio" checked={params.mca_method === "ahp"} onChange={() => onParamsChange({ mca_method: "ahp" })} />
+              AHP (Saaty)
+            </label>
+            <label>
+              <input type="radio" checked={params.mca_method === "custom"} onChange={() => onParamsChange({ mca_method: "custom" })} />
+              Custom Weights
+            </label>
+          </div>
+
+          {params.mca_method === "ahp" ? (
+            <div className="weight-summary" style={{ fontSize: "11px", opacity: 0.8, lineHeight: 1.6 }}>
+              10-factor AHP with Saaty pairwise matrix.
+              <br />Weights & CR computed automatically.
+            </div>
+          ) : (
+            <div className="custom-weights-grid">
+              {FACTOR_NAMES.map((name) => (
+                <div key={name} className="weight-row">
+                  <label className="label" style={{ fontSize: "11px" }}>
+                    {FACTOR_LABELS[name]} {Math.round((params.custom_weights[name] || 0) * 100)}%
+                  </label>
+                  <input
+                    type="range"
+                    min={0}
+                    max={50}
+                    step={1}
+                    value={Math.round((params.custom_weights[name] || 0) * 100)}
+                    onChange={(e) => {
+                      const updated = { ...params.custom_weights, [name]: +e.target.value / 100 };
+                      onParamsChange({ custom_weights: updated });
+                    }}
+                  />
+                </div>
+              ))}
+              <div className="weight-summary" style={{ color: Math.abs(customTotal - 1) > 0.01 ? "#fc8d59" : "#91cf60" }}>
+                Total: {(customTotal * 100).toFixed(0)}%
+                {Math.abs(customTotal - 1) > 0.01 && " (must sum to 100%)"}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

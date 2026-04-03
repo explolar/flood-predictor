@@ -28,6 +28,10 @@ from .layers import get_ndvi_tile as get_ndvi_tile
 from .layers import get_s2_rgb_tile as get_s2_rgb_tile
 from .layers import get_s2_rgb_tiles as get_s2_rgb_tiles
 from .mca import calculate_flood_risk as calculate_flood_risk
+from .mca import compute_ahp_weights as compute_ahp_weights
+from .mca import compute_flood_susceptibility as compute_flood_susceptibility
+from .mca import get_ahp_weights as get_ahp_weights
+from .mca import get_factor_stats as get_factor_stats
 from .mca import get_mca_tile as get_mca_tile
 from .sar import _make_flood_mask as _make_flood_mask
 from .sar import get_all_sar_data as get_all_sar_data
