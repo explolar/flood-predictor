@@ -91,7 +91,7 @@ class SARFloodClassifier:
             return None
 
         # Compute threshold-based area for comparison
-        threshold_flood_count = (df["flood_label"] == 1).sum()
+
         total_count = len(df)
 
         if not pretrained:

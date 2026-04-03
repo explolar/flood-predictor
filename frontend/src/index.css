@@ -1378,6 +1378,87 @@ kbd {
 }
 
 /* ═══════════════════
+   MAP LEGEND
+   ═══════════════════ */
+
+.map-legend {
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-radius: 8px;
+  padding: 8px 10px;
+  min-width: 110px;
+  max-width: 200px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.04);
+  font-family: inherit;
+  line-height: 1.35;
+  pointer-events: auto;
+}
+
+.map-legend__title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-primary, #1a202c);
+  margin-bottom: 6px;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Continuous gradient bar ── */
+
+.map-legend__continuous {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.map-legend__gradient {
+  height: 10px;
+  border-radius: 4px;
+  width: 100%;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.map-legend__range {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: var(--text-secondary, #4a5568);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Discrete swatches ── */
+
+.map-legend__discrete {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.map-legend__swatch {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.map-legend__color {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  flex-shrink: 0;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.map-legend__label {
+  font-size: 11px;
+  color: var(--text-secondary, #4a5568);
+  white-space: nowrap;
+}
+
+/* ═══════════════════
    RESPONSIVE
    ═══════════════════ */
 
@@ -1593,4 +1674,74 @@ button:focus:not(:focus-visible),
 input:focus:not(:focus-visible),
 select:focus:not(:focus-visible) {
   outline: none;
+}
+
+/* ═══════════════════
+   DRAWABLE MAP — AOI Draw Mode
+   ═══════════════════ */
+
+.draw-map-container {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.drawable-map-wrapper {
+  border-radius: var(--radius);
+  overflow: hidden;
+  border: 1.5px solid var(--border);
+  box-shadow: var(--shadow-sm);
+}
+
+.draw-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-align: center;
+  line-height: 1.4;
+  padding: 2px 0;
+}
+
+/* Crosshair cursor while drawing */
+.drawable-map-crosshair {
+  cursor: crosshair !important;
+}
+.drawable-map-crosshair * {
+  cursor: crosshair !important;
+}
+
+/* Instruction badge on the map */
+.drawable-map-instructions {
+  background: var(--bg-glass-strong);
+  color: var(--text-secondary);
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 500;
+  padding: 6px 12px;
+  border-radius: var(--radius-xs);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+  pointer-events: none;
+  user-select: none;
+}
+
+/* Reset button on the map */
+.drawable-map-reset-btn {
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 14px;
+  border-radius: var(--radius-xs);
+  border: 1.5px solid var(--border);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  transition: all var(--duration) var(--ease);
+}
+
+.drawable-map-reset-btn:hover {
+  background: var(--accent-soft);
+  border-color: var(--border-accent);
+  color: var(--accent);
+  box-shadow: var(--shadow-md);
 }

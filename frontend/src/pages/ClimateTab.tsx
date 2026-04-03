@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { TileMap } from "../components/map/TileMap";
 import { LoadingOverlay } from "../components/common/LoadingOverlay";
 import { ErrorBanner } from "../components/common/ErrorBanner";
@@ -7,14 +7,17 @@ import { useAnalysis } from "../hooks/useAnalysis";
 import { multiyearComparison, droughtAnalysis, projectionsAnalysis } from "../api/endpoints";
 import type { SidebarParams } from "../components/layout/Sidebar";
 import type { TileData, ChartPoint } from "../types/api";
+import { LEGENDS } from "../config/legends";
 import {
-  BarChart,
+  ComposedChart,
   Bar,
+  Line,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
+  Legend,
 } from "recharts";
 
 interface Props {
@@ -80,17 +83,7 @@ export function ClimateTab({ geojson, center, params }: Props) {
           {multiyear.error && <ErrorBanner message={multiyear.error} onDismiss={multiyear.reset} />}
 
           {multiyear.data?.chart && (
-            <div className="chart-container">
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={multiyear.data.chart}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                  <XAxis dataKey="label" stroke="#4a5568" />
-                  <YAxis stroke="#4a5568" />
-                  <Tooltip />
-                  <Bar dataKey="value" fill="#0891b2" name="Flood Area (ha)" />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
+            <MultiyearChart chart={multiyear.data.chart} />
           )}
         </>
       )}
@@ -121,11 +114,11 @@ export function ClimateTab({ geojson, center, params }: Props) {
             <div className="map-grid">
               <div>
                 <h3 className="map-title">SPI Index</h3>
-                <TileMap center={center} tileUrl={drought.data.spi?.tile_url} tileName="SPI" height="400px" />
+                <TileMap center={center} tileUrl={drought.data.spi?.tile_url} tileName="SPI" height="400px" legend={LEGENDS["SPI"]} />
               </div>
               <div>
                 <h3 className="map-title">NDVI Anomaly</h3>
-                <TileMap center={center} tileUrl={drought.data.ndvi_anomaly?.tile_url} tileName="NDVI Anomaly" height="400px" />
+                <TileMap center={center} tileUrl={drought.data.ndvi_anomaly?.tile_url} tileName="NDVI Anomaly" height="400px" legend={LEGENDS["NDVI Anomaly"]} />
               </div>
             </div>
           )}
@@ -281,6 +274,63 @@ export function ClimateTab({ geojson, center, params }: Props) {
           )}
         </>
       )}
+    </div>
+  );
+}
+
+/* ---------- MultiyearChart with trend line ---------- */
+
+function computeTrend(points: ChartPoint[]): ChartPoint[] {
+  const n = points.length;
+  if (n < 2) return points.map((p) => ({ ...p, value: p.value }));
+
+  // Simple linear regression: y = a + b*x
+  const xs = points.map((_, i) => i);
+  const ys = points.map((p) => p.value);
+  const sumX = xs.reduce((s, x) => s + x, 0);
+  const sumY = ys.reduce((s, y) => s + y, 0);
+  const sumXY = xs.reduce((s, x, i) => s + x * ys[i], 0);
+  const sumX2 = xs.reduce((s, x) => s + x * x, 0);
+  const b = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
+  const a = (sumY - b * sumX) / n;
+
+  return points.map((p, i) => ({
+    label: p.label,
+    value: Math.round((a + b * i) * 100) / 100,
+  }));
+}
+
+function MultiyearChart({ chart }: { chart: ChartPoint[] }) {
+  const dataWithTrend = useMemo(() => {
+    const trend = computeTrend(chart);
+    return chart.map((p, i) => ({
+      label: p.label,
+      value: p.value,
+      trend: trend[i].value,
+    }));
+  }, [chart]);
+
+  return (
+    <div className="chart-container">
+      <ResponsiveContainer width="100%" height={300}>
+        <ComposedChart data={dataWithTrend}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+          <XAxis dataKey="label" stroke="#4a5568" />
+          <YAxis stroke="#4a5568" />
+          <Tooltip />
+          <Legend />
+          <Bar dataKey="value" fill="#0891b2" name="Flood Area (ha)" />
+          <Line
+            dataKey="trend"
+            stroke="#06b6d4"
+            strokeWidth={2}
+            strokeDasharray="6 3"
+            dot={false}
+            name="Trend"
+            type="monotone"
+          />
+        </ComposedChart>
+      </ResponsiveContainer>
     </div>
   );
 }

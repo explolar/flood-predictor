@@ -1,6 +1,8 @@
 import { MapContainer, TileLayer, useMap } from "react-leaflet";
 import { useEffect } from "react";
 import "leaflet/dist/leaflet.css";
+import { MapLegend } from "./MapLegend";
+import type { LegendConfig } from "../../config/legends";
 
 interface TileMapProps {
   center: [number, number];
@@ -8,6 +10,7 @@ interface TileMapProps {
   tileUrl?: string | null;
   tileName?: string;
   height?: string;
+  legend?: LegendConfig;
 }
 
 function OverlayLayer({ url, name }: { url: string; name: string }) {
@@ -47,6 +50,7 @@ export function TileMap({
   tileUrl,
   tileName = "Analysis",
   height = "480px",
+  legend,
 }: TileMapProps) {
   return (
     <div style={{ height, width: "100%" }}>
@@ -63,6 +67,7 @@ export function TileMap({
         />
         <MapUpdater center={center} zoom={zoom} />
         {tileUrl && <OverlayLayer url={tileUrl} name={tileName} />}
+        {legend && <MapLegend config={legend} />}
       </MapContainer>
     </div>
   );

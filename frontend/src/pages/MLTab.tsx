@@ -6,6 +6,7 @@ import { MetricCard } from "../components/common/MetricCard";
 import { useAnalysis } from "../hooks/useAnalysis";
 import { mlClassify } from "../api/endpoints";
 import type { SidebarParams } from "../components/layout/Sidebar";
+import { LEGENDS } from "../config/legends";
 import {
   BarChart,
   Bar,
@@ -96,7 +97,7 @@ export function MLTab({ geojson, center, params }: Props) {
           <h3 className="map-title">
             Classification ({MODELS.find((m) => m.id === model)?.label})
           </h3>
-          <TileMap center={center} tileUrl={data.tile_url} tileName="ML Classification" height="460px" />
+          <TileMap center={center} tileUrl={data.tile_url} tileName="ML Classification" height="460px" legend={LEGENDS["ML Probability"]} />
 
           <div className="metrics-grid">
             {data.ml_area_ha != null && (

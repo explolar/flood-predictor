@@ -109,6 +109,7 @@ function AppInner() {
         }}
         isAOIActive={isActive}
         aoiName={aoi.name}
+        existingGeojson={aoi.geojson}
         params={params}
         onParamsChange={handleParamsChange}
         onClearAOI={() => {

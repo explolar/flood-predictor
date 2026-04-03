@@ -86,7 +86,6 @@ class LGBMFloodClassifier:
         if df.empty or len(df) < 100:
             return None
 
-        threshold_flood_count = (df["flood_label"] == 1).sum()
         total_count = len(df)
 
         if not pretrained:

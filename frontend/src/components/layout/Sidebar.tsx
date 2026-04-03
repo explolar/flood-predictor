@@ -1,9 +1,10 @@
 import { useState, type FormEvent } from "react";
 import {
   Search, MapPin, Sliders, Satellite, ChevronDown, ChevronUp,
-  Navigation, X, Upload,
+  Navigation, X, Upload, PenTool,
 } from "lucide-react";
 import type { BBox } from "../../hooks/useAOI";
+import { DrawableMap } from "../map/DrawableMap";
 
 interface SidebarProps {
   onSearchPlace: (query: string) => void;
@@ -11,6 +12,7 @@ interface SidebarProps {
   onFileUpload: (geojson: GeoJSON.Geometry) => void;
   isAOIActive: boolean;
   aoiName: string;
+  existingGeojson?: GeoJSON.Geometry | null;
   params: SidebarParams;
   onParamsChange: (params: Partial<SidebarParams>) => void;
   onClearAOI: () => void;
@@ -117,6 +119,7 @@ export function Sidebar({
   onFileUpload,
   isAOIActive,
   aoiName,
+  existingGeojson,
   params,
   onParamsChange,
   onClearAOI,
@@ -124,7 +127,7 @@ export function Sidebar({
   onToggleCollapse,
 }: SidebarProps) {
   const [searchQuery, setSearchQuery] = useState("");
-  const [inputMode, setInputMode] = useState<"bbox" | "geojson">("bbox");
+  const [inputMode, setInputMode] = useState<"bbox" | "geojson" | "draw">("bbox");
   const [bbox, setBBox] = useState<BBox>({ minLon: 84.9, minLat: 25.5, maxLon: 85.3, maxLat: 25.8 });
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     location: true,
@@ -247,6 +250,11 @@ export function Sidebar({
               <input type="radio" checked={inputMode === "geojson"} onChange={() => setInputMode("geojson")} />
               GeoJSON
             </label>
+            <label>
+              <input type="radio" checked={inputMode === "draw"} onChange={() => setInputMode("draw")} />
+              <PenTool size={11} style={{ marginRight: 2 }} />
+              Draw
+            </label>
           </div>
 
           {inputMode === "bbox" ? (
@@ -273,12 +281,25 @@ export function Sidebar({
                 INITIALIZE AOI
               </button>
             </>
-          ) : (
+          ) : inputMode === "geojson" ? (
             <label className="file-upload-area">
               <Upload size={20} />
               <span>Drop GeoJSON or click to browse</span>
               <input type="file" accept=".geojson,.json" onChange={handleFileUpload} hidden />
             </label>
+          ) : (
+            <div className="draw-map-container">
+              <DrawableMap
+                onBBoxCreated={(drawnBBox) => {
+                  setBBox(drawnBBox);
+                  onSetBBox(drawnBBox);
+                }}
+                existingGeojson={existingGeojson}
+              />
+              <p className="draw-hint">
+                Click two points on the map to define the AOI rectangle.
+              </p>
+            </div>
           )}
         </div>
       )}
