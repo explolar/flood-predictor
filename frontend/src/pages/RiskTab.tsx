@@ -33,7 +33,6 @@ export function RiskTab({ geojson, center, params }: Props) {
   const ahp = risk.data?.ahp;
   const factorUrls = risk.data?.factor_urls;
 
-  // Determine which tile to show: composite or a specific factor
   const displayTileUrl = activeFactorLayer && factorUrls
     ? factorUrls[activeFactorLayer]
     : risk.data?.tile_url;
@@ -47,34 +46,30 @@ export function RiskTab({ geojson, center, params }: Props) {
       <div className="tab-header">
         <h2>AHP-MCDM Flood Susceptibility</h2>
         <button className="btn btn-primary" onClick={handleRun} disabled={risk.isLoading}>
-          {risk.isLoading ? "Computing..." : "RUN AHP-MCDM"}
+          {risk.isLoading ? "Computing..." : "Run Analysis"}
         </button>
       </div>
 
       {risk.isLoading && <LoadingOverlay message="Computing 10-factor AHP susceptibility map..." />}
       {risk.error && <ErrorBanner message={risk.error} onDismiss={risk.reset} />}
 
-      {/* AHP Consistency Report */}
       {ahp && (
         <div className="ahp-report">
           <div className="ahp-header">
-            <span className="ahp-title">AHP Consistency Report</span>
-            <span
-              className={`ahp-badge ${ahp.consistent ? "ahp-badge-pass" : "ahp-badge-fail"}`}
-            >
-              CR = {ahp.cr?.toFixed(4)} {ahp.consistent ? "< 0.10 PASS" : ">= 0.10 FAIL"}
+            <span className="ahp-title">AHP Consistency</span>
+            <span className={`ahp-badge ${ahp.consistent ? "ahp-badge-pass" : "ahp-badge-fail"}`}>
+              CR = {ahp.cr?.toFixed(4)} {ahp.consistent ? "Pass" : "Fail"}
             </span>
           </div>
           <div className="ahp-meta">
-            <span>n = {ahp.n_factors} factors</span>
-            <span>lambda_max = {ahp.lambda_max?.toFixed(4)}</span>
-            <span>CI = {ahp.ci?.toFixed(4)}</span>
-            <span>RI = {ahp.ri}</span>
+            <span>n={ahp.n_factors}</span>
+            <span>lambda={ahp.lambda_max?.toFixed(4)}</span>
+            <span>CI={ahp.ci?.toFixed(4)}</span>
+            <span>RI={ahp.ri}</span>
           </div>
         </div>
       )}
 
-      {/* AHP Weight Table */}
       {ahp?.weights && (
         <div className="ahp-weights-table">
           <table>
@@ -91,13 +86,10 @@ export function RiskTab({ geojson, center, params }: Props) {
                 .map(([name, weight]) => (
                   <tr key={name}>
                     <td>{FACTOR_LABELS[name] || name}</td>
-                    <td>{(weight * 100).toFixed(1)}%</td>
+                    <td className="weight-value">{(weight * 100).toFixed(1)}%</td>
                     <td>
                       <div className="weight-bar-cell">
-                        <div
-                          className="weight-bar-fill"
-                          style={{ width: `${weight * 100 * 3.5}%` }}
-                        />
+                        <div className="weight-bar-fill" style={{ width: `${weight * 100 * 3.5}%` }} />
                       </div>
                     </td>
                   </tr>
@@ -107,7 +99,6 @@ export function RiskTab({ geojson, center, params }: Props) {
         </div>
       )}
 
-      {/* Factor Layer Toggles */}
       {factorUrls && (
         <div className="factor-toggles">
           <button
@@ -128,11 +119,7 @@ export function RiskTab({ geojson, center, params }: Props) {
         </div>
       )}
 
-      <TileMap
-        center={center}
-        tileUrl={displayTileUrl}
-        tileName={displayTileName}
-      />
+      <TileMap center={center} tileUrl={displayTileUrl} tileName={displayTileName} />
 
       {stats.data && (
         <div className="metrics-grid">

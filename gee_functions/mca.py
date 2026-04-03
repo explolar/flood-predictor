@@ -131,7 +131,7 @@ def compute_ahp_weights(matrix=None):
         "cr": round(float(cr), 4),
         "ci": round(float(ci), 4),
         "lambda_max": round(float(lambda_max), 4),
-        "consistent": cr < 0.10,
+        "consistent": bool(cr < 0.10),
         "ri": ri,
         "n_factors": n,
     }

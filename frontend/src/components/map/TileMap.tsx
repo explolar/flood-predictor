@@ -46,13 +46,13 @@ export function TileMap({
       <MapContainer
         center={center}
         zoom={zoom}
-        style={{ height: "100%", width: "100%", borderRadius: 16 }}
+        style={{ height: "100%", width: "100%", borderRadius: 12 }}
         scrollWheelZoom
         zoomControl={true}
       >
         <TileLayer
           attribution='&copy; <a href="https://carto.com/">CARTO</a>'
-          url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+          url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
         />
         <MapUpdater center={center} />
         {tileUrl && <OverlayLayer url={tileUrl} name={tileName} />}

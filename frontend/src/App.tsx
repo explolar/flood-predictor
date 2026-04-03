@@ -137,39 +137,33 @@ function AppInner() {
           </div>
         ) : (
           <div className="empty-state">
-            <div className="empty-icon" style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <Droplets size={48} color="#1a73e8" strokeWidth={1.5} />
-            </div>
-            <div className="empty-title">Select a Study Area</div>
-            <div className="empty-text">
-              Search a location or set coordinates to begin flood risk analysis
-            </div>
+            <Droplets size={40} color="var(--accent)" strokeWidth={1.5} />
+            <div className="empty-title">Begin Analysis</div>
+            <div className="empty-text">Search a location or draw an AOI to start</div>
             <div className="quick-start-grid">
               <button className="quick-start-card" onClick={() => handleSearch("Patna, Bihar")}>
-                <MapPin size={18} />
+                <MapPin size={16} />
                 <div>
                   <strong>Patna, Bihar</strong>
                   <span>Flood-prone Gangetic plain</span>
                 </div>
               </button>
               <button className="quick-start-card" onClick={() => handleSearch("Guwahati, Assam")}>
-                <MapPin size={18} />
+                <MapPin size={16} />
                 <div>
                   <strong>Guwahati, Assam</strong>
                   <span>Brahmaputra basin floods</span>
                 </div>
               </button>
               <button className="quick-start-card" onClick={() => handleSearch("Kochi, Kerala")}>
-                <MapPin size={18} />
+                <MapPin size={16} />
                 <div>
                   <strong>Kochi, Kerala</strong>
                   <span>Monsoon & coastal flooding</span>
                 </div>
               </button>
             </div>
-            <div style={{ marginTop: 20, fontSize: 11, opacity: 0.45, letterSpacing: "0.03em" }}>
-              Powered by WeatherEx
-            </div>
+            <div className="empty-footer">Powered by WeatherEx</div>
           </div>
         )}
       </main>

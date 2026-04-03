@@ -96,21 +96,17 @@ const QUICK_LOCATIONS = [
 
 function BrandLogo() {
   return (
-    <svg width="36" height="40" viewBox="0 0 36 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-      {/* Hexagon outline */}
-      <path
-        d="M18 2 L32 10 L32 26 L18 34 L4 26 L4 10 Z"
-        fill="rgba(26, 115, 232, 0.10)"
-        stroke="#1a73e8"
-        strokeWidth="1.5"
-        strokeLinejoin="round"
-      />
-      {/* Water drop */}
-      <path
-        d="M18 11 C18 11 12 19 12 22.5 C12 25.8 14.7 28.5 18 28.5 C21.3 28.5 24 25.8 24 22.5 C24 19 18 11 18 11Z"
-        fill="#1a73e8"
-        opacity="0.85"
-      />
+    <svg width="34" height="34" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="logo-bg" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#0891b2" />
+          <stop offset="100%" stopColor="#0e7490" />
+        </linearGradient>
+      </defs>
+      <rect width="32" height="32" rx="7" fill="url(#logo-bg)" />
+      <path d="M10 7 L22 7 M10 7 L10 25 M10 15 L19 15" stroke="white" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" opacity="0.95" />
+      <path d="M8 22 Q12 19 16 22 Q20 25 24 22" stroke="rgba(255,255,255,0.5)" strokeWidth="1.8" strokeLinecap="round" fill="none" />
+      <path d="M8 26 Q12 23 16 26 Q20 29 24 26" stroke="rgba(255,255,255,0.3)" strokeWidth="1.4" strokeLinecap="round" fill="none" />
     </svg>
   );
 }
@@ -180,7 +176,7 @@ export function Sidebar({
       <div className="sidebar-brand" style={{ display: "flex", alignItems: "center", gap: 10, position: "relative" }}>
         <BrandLogo />
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div className="brand-title" style={{ fontWeight: 700, fontSize: 16, letterSpacing: "0.02em" }}>HydroRisk</div>
+          <div className="brand-title" style={{ fontWeight: 700, fontSize: 16, letterSpacing: "0.02em" }}>FluviaAI</div>
           <div className="brand-sub" style={{ fontSize: 10, opacity: 0.55, marginTop: 1 }}>Powered by WeatherEx</div>
         </div>
         <button
