@@ -1,4 +1,4 @@
-import { Shield, Radar, Brain, Cloud, Layers, Droplets, CloudRain } from "lucide-react";
+import { Shield, Radar, Brain, Cloud, Layers, CloudRain } from "lucide-react";
 
 interface Tab {
   id: string;
@@ -14,8 +14,7 @@ const TABS: Tab[] = [
   { id: "ml", label: "ML", icon: <Brain size={14} />, shortcut: "3", desc: "ML classification models" },
   { id: "climate", label: "Climate", icon: <Cloud size={14} />, shortcut: "4", desc: "Multi-year & drought" },
   { id: "indices", label: "Indices", icon: <Layers size={14} />, shortcut: "5", desc: "Spectral indices" },
-  { id: "hydrology", label: "Hydro", icon: <Droplets size={14} />, shortcut: "6", desc: "Watershed analysis" },
-  { id: "forecast", label: "Forecast", icon: <CloudRain size={14} />, shortcut: "7", desc: "Weather forecast" },
+  { id: "forecast", label: "Forecast", icon: <CloudRain size={14} />, shortcut: "6", desc: "Weather forecast" },
 ];
 
 interface TabBarProps {

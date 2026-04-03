@@ -122,11 +122,23 @@ class SARFloodClassifier:
             flood_image = fc.reduceToImage(["ml_pred"], ee.Reducer.first()).clip(aoi_geom).selfMask()
             tile_url = flood_image.getMapId({"palette": ["FF6B6B"]})["tile_fetcher"].url_format
 
-        # Estimate areas using sample proportions
-        aoi_geom_info = aoi_geom.area(maxError=1).getInfo()
-        aoi_ha = aoi_geom_info / 10000
-        ml_area_ha = round(aoi_ha * ml_flood_count / total_count, 1)
-        threshold_area_ha = round(aoi_ha * threshold_flood_count / total_count, 1)
+        # Compute flood area from actual GEE pixels, not sample proportions
+        try:
+            if return_probability:
+                flood_binary = flood_image.gte(0.5)
+            else:
+                flood_binary = flood_image.mask()
+            area_m2 = (
+                flood_binary.multiply(ee.Image.pixelArea())
+                .reduceRegion(reducer=ee.Reducer.sum(), geometry=aoi_geom, scale=100, maxPixels=1e9)
+                .values()
+                .get(0)
+            )
+            ml_area_ha = round(ee.Number(area_m2).divide(10000).getInfo(), 1)
+        except Exception:
+            aoi_ha = aoi_geom.area(maxError=1).getInfo() / 10000
+            ml_area_ha = round(aoi_ha * ml_flood_count / total_count, 1)
+        threshold_area_ha = None  # threshold area not meaningful for pixel-based calc
 
         return {
             "tile_url": tile_url,

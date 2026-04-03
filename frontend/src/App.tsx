@@ -16,10 +16,9 @@ const SARTab = lazy(() => import("./pages/SARTab").then((m) => ({ default: m.SAR
 const MLTab = lazy(() => import("./pages/MLTab").then((m) => ({ default: m.MLTab })));
 const ClimateTab = lazy(() => import("./pages/ClimateTab").then((m) => ({ default: m.ClimateTab })));
 const IndicesTab = lazy(() => import("./pages/IndicesTab").then((m) => ({ default: m.IndicesTab })));
-const HydrologyTab = lazy(() => import("./pages/HydrologyTab").then((m) => ({ default: m.HydrologyTab })));
 const ForecastTab = lazy(() => import("./pages/ForecastTab").then((m) => ({ default: m.ForecastTab })));
 
-const TAB_IDS = ["risk", "sar", "ml", "climate", "indices", "hydrology", "forecast"];
+const TAB_IDS = ["risk", "sar", "ml", "climate", "indices", "forecast"];
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -66,7 +65,7 @@ function AppInner() {
     const handler = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) return;
       const num = parseInt(e.key);
-      if (num >= 1 && num <= 7) {
+      if (num >= 1 && num <= 6) {
         setActiveTab(TAB_IDS[num - 1]);
       } else if (e.key === "Escape") {
         setSidebarCollapsed((c) => !c);
@@ -85,7 +84,6 @@ function AppInner() {
         import("./pages/MLTab"),
         import("./pages/ClimateTab"),
         import("./pages/IndicesTab"),
-        import("./pages/HydrologyTab"),
         import("./pages/ForecastTab"),
       ]);
     }
@@ -140,9 +138,6 @@ function AppInner() {
             </TabPanel>
             <TabPanel id="indices" active={activeTab}>
               <IndicesTab {...tabProps} />
-            </TabPanel>
-            <TabPanel id="hydrology" active={activeTab}>
-              <HydrologyTab {...tabProps} />
             </TabPanel>
             <TabPanel id="forecast" active={activeTab}>
               <ForecastTab {...tabProps} />
