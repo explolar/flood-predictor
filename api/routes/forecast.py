@@ -26,7 +26,8 @@ async def forecast_weather(request: ForecastRequest):
     try:
         from gee_functions.gfs_forecast import get_gfs_forecast
 
-        result = await asyncio.to_thread(get_gfs_forecast, aoi_json, request.forecast_days)
+        forecast_hours = (request.forecast_days or 5) * 24
+        result = await asyncio.to_thread(get_gfs_forecast, aoi_json, forecast_hours)
         return AnalysisResponse(success=True, data=result)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

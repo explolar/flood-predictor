@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, lazy, Suspense } from "react";
+import { useState, useCallback, useEffect, useRef, lazy, Suspense } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Header } from "./components/layout/Header";
 import { Sidebar, DEFAULT_PARAMS, type SidebarParams } from "./components/layout/Sidebar";
@@ -186,8 +186,15 @@ function AppInner() {
 }
 
 function TabPanel({ id, active, children }: { id: string; active: string; children: React.ReactNode }) {
+  const isActive = active === id;
+  const visited = useRef(false);
+  if (isActive) visited.current = true;
+
+  // Don't mount until first visit — avoids Leaflet NaN errors in display:none containers
+  if (!visited.current) return null;
+
   return (
-    <div className="tab-panel" style={{ display: active === id ? undefined : "none" }}>
+    <div className="tab-panel" style={{ display: isActive ? undefined : "none" }}>
       <ErrorBoundary>
         <Suspense fallback={<LoadingOverlay message="Loading module..." />}>
           {children}

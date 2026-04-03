@@ -157,7 +157,6 @@ def get_gfs_forecast(aoi_json, forecast_hours=168):
         .round(1)
         .reset_index()
     )
-    daily.columns = ["Day", "Precip (mm)", "Temp (°C)", "Humidity (%)", "Wind (m/s)"]
 
     # Total forecast precipitation tile
     try:
@@ -186,14 +185,19 @@ def get_gfs_forecast(aoi_json, forecast_hours=168):
         temp_tile = None
 
     # Summary
-    total_precip_mm = round(daily["Precip (mm)"].sum(), 1)
-    max_daily_precip = round(daily["Precip (mm)"].max(), 1)
-    mean_temp = round(daily["Temp (°C)"].mean(), 1)
-    max_wind = round(daily["Wind (m/s)"].max(), 1)
+    total_precip_mm = round(float(daily["precip_mm"].sum()), 1)
+    max_daily_precip = round(float(daily["precip_mm"].max()), 1)
+    mean_temp = round(float(daily["temp_c"].mean()), 1)
+    max_wind = round(float(daily["wind_speed_ms"].max()), 1)
+
+    # Convert daily to list of dicts matching frontend DailyRecord shape
+    daily_records = [
+        {"date": f"Day {int(row['day'])}", "precip_mm": row["precip_mm"], "temp_c": row["temp_c"]}
+        for _, row in daily.iterrows()
+    ]
 
     return {
-        "hourly_df": df,
-        "daily_df": daily,
+        "daily_df": daily_records,
         "precip_tile_url": precip_tile,
         "temp_tile_url": temp_tile,
         "total_precip_mm": total_precip_mm,
@@ -222,7 +226,8 @@ def get_gfs_flood_alert(aoi_json, rp_data=None):
     if not forecast:
         return None
 
-    daily = forecast["daily_df"]
+    daily_records = forecast["daily_df"]
+    daily = pd.DataFrame(daily_records)
     total_7day = forecast["total_precip_mm"]
     max_daily = forecast["max_daily_precip_mm"]
 
@@ -256,8 +261,8 @@ def get_gfs_flood_alert(aoi_json, rp_data=None):
         else:
             level, color, icon = "NORMAL", "#1a9850", "⚪"
 
-    peak_idx = daily["Precip (mm)"].idxmax()
-    peak_day = int(daily.loc[peak_idx, "Day"])
+    peak_idx = daily["precip_mm"].idxmax()
+    peak_day = int(peak_idx)
 
     return {
         "level": level,
@@ -267,5 +272,5 @@ def get_gfs_flood_alert(aoi_json, rp_data=None):
         "max_daily_mm": max_daily,
         "peak_day": peak_day,
         "mean_temp_c": forecast["mean_temp_c"],
-        "daily_df": daily,
+        "daily_df": daily_records,
     }

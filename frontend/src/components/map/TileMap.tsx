@@ -31,11 +31,13 @@ function OverlayLayer({ url, name }: { url: string; name: string }) {
   return null;
 }
 
-function MapUpdater({ center }: { center: [number, number] }) {
+function MapUpdater({ center, zoom }: { center: [number, number]; zoom: number }) {
   const map = useMap();
   useEffect(() => {
-    map.flyTo(center, map.getZoom(), { duration: 1.0 });
-  }, [center, map]);
+    // Fix tiles after container becomes visible (e.g. tab switch)
+    requestAnimationFrame(() => map.invalidateSize());
+    map.flyTo(center, map.getZoom() || zoom, { duration: 1.0 });
+  }, [center, zoom, map]);
   return null;
 }
 
@@ -59,7 +61,7 @@ export function TileMap({
           attribution='&copy; <a href="https://carto.com/">CARTO</a>'
           url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
         />
-        <MapUpdater center={center} />
+        <MapUpdater center={center} zoom={zoom} />
         {tileUrl && <OverlayLayer url={tileUrl} name={tileName} />}
       </MapContainer>
     </div>
