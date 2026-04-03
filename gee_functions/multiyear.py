@@ -93,6 +93,7 @@ def get_multiyear_flood_comparison(aoi_json, years=None, polarization="VH", thre
             )
         except Exception as exc:
             import logging
+
             logging.warning("Multiyear %s failed: %s", year, exc)
             results.append({"year": year, "flood_area_ha": None, "pre_scenes": 0, "post_scenes": 0})
 
@@ -111,14 +112,8 @@ def get_multiyear_flood_comparison(aoi_json, years=None, polarization="VH", thre
             trend = "STABLE"
 
     # Convert to frontend-expected format: chart (ChartPoint[]) + tiles (TileData[])
-    chart = [
-        {"label": str(r["year"]), "value": r["flood_area_ha"] or 0}
-        for r in results
-    ]
-    tiles = [
-        {"tile_url": url, "metadata": {"year": year}}
-        for year, url in tile_urls.items()
-    ]
+    chart = [{"label": str(r["year"]), "value": r["flood_area_ha"] or 0} for r in results]
+    tiles = [{"tile_url": url, "metadata": {"year": year}} for year, url in tile_urls.items()]
 
     return {
         "chart": chart,
