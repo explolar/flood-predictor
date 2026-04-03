@@ -18,7 +18,6 @@ const LAYERS = [
   { key: "stream_url", label: "Stream Network" },
   { key: "flow_acc_url", label: "Flow Accumulation" },
   { key: "flow_dir_url", label: "Flow Direction" },
-  { key: "cond_dem_url", label: "Conditioned DEM" },
 ] as const;
 
 type LayerKey = (typeof LAYERS)[number]["key"];

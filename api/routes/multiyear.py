@@ -3,11 +3,10 @@
 import asyncio
 from typing import List
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
 from api.dependencies import aoi_to_json, initialize_ee_api
-from api.schemas import AnalysisResponse
 
 router = APIRouter(prefix="/multiyear", tags=["Multi-Year"])
 
@@ -19,7 +18,7 @@ class MultiyearRequest(BaseModel):
     threshold: float = Field(3.0, ge=0.5, le=6.0)
 
 
-@router.post("/comparison", response_model=AnalysisResponse)
+@router.post("/comparison")
 async def multiyear_comparison(request: MultiyearRequest):
     """Compare flood extents across multiple years."""
     initialize_ee_api()
@@ -31,6 +30,9 @@ async def multiyear_comparison(request: MultiyearRequest):
         result = await asyncio.to_thread(
             get_multiyear_flood_comparison, aoi_json, request.years, request.polarization, request.threshold
         )
-        return AnalysisResponse(success=True, data=result)
+        return {"success": True, "data": result}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        import logging
+
+        logging.exception("Multiyear comparison failed")
+        return {"success": False, "error": str(e)}

@@ -127,11 +127,14 @@ def get_gfs_forecast(aoi_json, forecast_hours=168):
         u = p.get("wind_u", 0) or 0
         v = p.get("wind_v", 0) or 0
         wind_speed = (u**2 + v**2) ** 0.5
+        temp_raw = p.get("temp_k", 273.15) or 273.15
+        # GFS temp band is Kelvin (>200); if value looks like Celsius already, skip conversion
+        temp_c = round(temp_raw - 273.15, 1) if temp_raw > 200 else round(temp_raw, 1)
         records.append(
             {
                 "forecast_hour": p.get("forecast_hour", 0),
                 "precip_mm": round((p.get("precip_rate", 0) or 0) * 3600, 2),
-                "temp_c": round((p.get("temp_k", 273.15) or 273.15) - 273.15, 1),
+                "temp_c": temp_c,
                 "humidity_pct": round(p.get("humidity_pct", 0) or 0, 1),
                 "wind_speed_ms": round(wind_speed, 1),
             }

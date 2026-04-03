@@ -50,10 +50,7 @@ export const sarTimeseries = (req: SARRequest) =>
 
 // ── ML ──
 export const mlClassify = (req: MLRequest) =>
-  api.post<AnalysisResponse<TileData>>("/ml/classify", req).then((r) => r.data);
-
-export const mlRiskPrediction = (req: MLRequest) =>
-  api.post<AnalysisResponse<TileData>>("/ml/risk-prediction", req).then((r) => r.data);
+  api.post<AnalysisResponse<Record<string, any>>>("/ml/classify", req).then((r) => r.data);
 
 // ── Indices ──
 export const indicesTiles = (req: IndicesRequest) =>

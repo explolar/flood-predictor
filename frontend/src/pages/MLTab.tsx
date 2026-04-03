@@ -2,10 +2,27 @@ import { useState } from "react";
 import { TileMap } from "../components/map/TileMap";
 import { LoadingOverlay } from "../components/common/LoadingOverlay";
 import { ErrorBanner } from "../components/common/ErrorBanner";
+import { MetricCard } from "../components/common/MetricCard";
 import { useAnalysis } from "../hooks/useAnalysis";
-import { mlClassify, mlRiskPrediction } from "../api/endpoints";
+import { mlClassify } from "../api/endpoints";
 import type { SidebarParams } from "../components/layout/Sidebar";
-import type { TileData } from "../types/api";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
+
+interface ClassifyData {
+  tile_url?: string;
+  ml_area_ha?: number;
+  threshold_area_ha?: number;
+  n_samples?: number;
+  feature_importance?: Record<string, number>;
+}
 
 interface Props {
   geojson: GeoJSON.Geometry;
@@ -22,10 +39,9 @@ const MODELS = [
 
 export function MLTab({ geojson, center, params }: Props) {
   const [model, setModel] = useState<string>("gradient_boosting");
-  const [showProb, setShowProb] = useState(false);
+  const [showProb, setShowProb] = useState(true);
 
-  const classify = useAnalysis<any, TileData>(mlClassify);
-  const risk = useAnalysis<any, TileData>(mlRiskPrediction);
+  const classify = useAnalysis<any, ClassifyData>(mlClassify);
 
   const sarReq = {
     geojson,
@@ -42,14 +58,20 @@ export function MLTab({ geojson, center, params }: Props) {
     classify.run({ ...sarReq, model, return_probability: showProb });
   };
 
-  const handleRisk = () => {
-    risk.run({ ...sarReq, model, return_probability: false });
-  };
+  const data = classify.data;
+
+  // Build feature importance chart data
+  const importanceData = data?.feature_importance
+    ? Object.entries(data.feature_importance)
+        .map(([name, value]) => ({ name: name.replace(/_/g, " "), value: +(value * 100).toFixed(1) }))
+        .sort((a, b) => b.value - a.value)
+        .slice(0, 10)
+    : [];
 
   return (
     <div className="tab-content">
       <div className="tab-header">
-        <h2>ML Intelligence</h2>
+        <h2>ML Flood Classification</h2>
         <div className="tab-actions">
           <select className="select" value={model} onChange={(e) => setModel(e.target.value)}>
             {MODELS.map((m) => (
@@ -61,28 +83,49 @@ export function MLTab({ geojson, center, params }: Props) {
             Probability
           </label>
           <button className="btn btn-primary" onClick={handleClassify} disabled={classify.isLoading}>
-            CLASSIFY
-          </button>
-          <button className="btn btn-secondary" onClick={handleRisk} disabled={risk.isLoading}>
-            RISK MAP
+            {classify.isLoading ? "Classifying..." : "CLASSIFY"}
           </button>
         </div>
       </div>
 
-      {(classify.isLoading || risk.isLoading) && <LoadingOverlay message="Running ML model..." />}
+      {classify.isLoading && <LoadingOverlay message="Running ML model..." />}
       {classify.error && <ErrorBanner message={classify.error} onDismiss={classify.reset} />}
-      {risk.error && <ErrorBanner message={risk.error} onDismiss={risk.reset} />}
 
-      <div className="map-grid">
-        <div>
-          <h3 className="map-title">Classification ({MODELS.find((m) => m.id === model)?.label})</h3>
-          <TileMap center={center} tileUrl={classify.data?.tile_url} tileName="ML Classification" height="460px" />
-        </div>
-        <div>
-          <h3 className="map-title">Risk Prediction</h3>
-          <TileMap center={center} tileUrl={risk.data?.tile_url} tileName="Risk Prediction" height="460px" />
-        </div>
-      </div>
+      {data && (
+        <>
+          <h3 className="map-title">
+            Classification ({MODELS.find((m) => m.id === model)?.label})
+          </h3>
+          <TileMap center={center} tileUrl={data.tile_url} tileName="ML Classification" height="460px" />
+
+          <div className="metrics-grid">
+            {data.ml_area_ha != null && (
+              <MetricCard label="ML Flood Area" value={data.ml_area_ha.toFixed(1)} unit="ha" color="#ff6b81" />
+            )}
+            {data.threshold_area_ha != null && (
+              <MetricCard label="Threshold Area" value={data.threshold_area_ha.toFixed(1)} unit="ha" color="#ffc554" />
+            )}
+            {data.n_samples != null && (
+              <MetricCard label="Samples" value={data.n_samples.toLocaleString()} />
+            )}
+          </div>
+
+          {importanceData.length > 0 && (
+            <div className="chart-container">
+              <h3>Feature Importance</h3>
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={importanceData} layout="vertical" margin={{ left: 80 }}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis type="number" unit="%" />
+                  <YAxis type="category" dataKey="name" width={80} tick={{ fontSize: 12 }} />
+                  <Tooltip formatter={(v) => `${v}%`} />
+                  <Bar dataKey="value" name="Importance" fill="var(--accent, #0891b2)" radius={[0, 4, 4, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }

@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { TileMap } from "../components/map/TileMap";
 import { MetricCard } from "../components/common/MetricCard";
 import { LoadingOverlay } from "../components/common/LoadingOverlay";
 import { ErrorBanner } from "../components/common/ErrorBanner";
@@ -23,7 +22,7 @@ interface Props {
   params: SidebarParams;
 }
 
-export function ForecastTab({ geojson, center }: Props) {
+export function ForecastTab({ geojson }: Props) {
   const [days, setDays] = useState(5);
   const forecast = useAnalysis<any, ForecastData>(forecastWeather);
 
@@ -54,17 +53,6 @@ export function ForecastTab({ geojson, center }: Props) {
 
       {data && (
         <>
-          <div className="map-pair">
-            <div className="map-pair-item">
-              <h3>Precipitation</h3>
-              <TileMap center={center} tileUrl={data.precip_tile_url} tileName="Precipitation" />
-            </div>
-            <div className="map-pair-item">
-              <h3>Temperature</h3>
-              <TileMap center={center} tileUrl={data.temp_tile_url} tileName="Temperature" />
-            </div>
-          </div>
-
           <div className="metrics-grid">
             <MetricCard label="Total precipitation" value={data.total_precip_mm.toFixed(1)} unit="mm" />
             <MetricCard label="Max daily precipitation" value={data.max_daily_precip_mm.toFixed(1)} unit="mm" />
