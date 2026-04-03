@@ -35,9 +35,35 @@ except ImportError:
 
 
 class _FloodLSTM(nn.Module if _TORCH else object):
-    """LSTM network for flood probability prediction from climate time-series."""
+    """LSTM network with multi-head self-attention for flood probability prediction.
 
-    def __init__(self, input_size=5, hidden_size=64, num_layers=2, dropout=0.2):
+    Architecture:
+        1. A multi-layer LSTM encodes the input climate time-series, producing
+           hidden representations at every timestep.
+        2. Multi-head self-attention (nn.MultiheadAttention) is applied across
+           the full sequence of LSTM outputs so each timestep can attend to all
+           others.  This lets the model learn long-range temporal dependencies
+           (e.g. sustained rainfall weeks before a flood event) that the LSTM
+           alone might underweight.
+        3. The attended representation at the final timestep is fed through a
+           fully-connected head to produce a scalar flood probability.
+
+    Backward compatibility:
+        - Default constructor arguments match the original signature so that
+          existing callers (``_FloodLSTM(input_size=5)``) continue to work.
+        - Input / output tensor shapes are unchanged:
+          input  ``(batch, seq_len, input_size)`` -> output ``(batch, 1)``.
+    """
+
+    def __init__(
+        self,
+        input_size=5,
+        hidden_size=64,
+        num_layers=2,
+        dropout=0.2,
+        output_size=1,
+        n_heads=4,
+    ):
         if not _TORCH:
             return
         super().__init__()
@@ -48,18 +74,34 @@ class _FloodLSTM(nn.Module if _TORCH else object):
             dropout=dropout,
             batch_first=True,
         )
+        # Multi-head self-attention over the time dimension.
+        # Each of the ``n_heads`` heads independently learns which
+        # timesteps are most relevant, then their outputs are concatenated
+        # and linearly projected back to ``hidden_size``.
+        self.attention = nn.MultiheadAttention(hidden_size, n_heads, dropout=dropout, batch_first=True)
+        self.layer_norm = nn.LayerNorm(hidden_size)
         self.fc = nn.Sequential(
             nn.Linear(hidden_size, 32),
             nn.ReLU(),
             nn.Dropout(dropout),
-            nn.Linear(32, 1),
+            nn.Linear(32, output_size),
             nn.Sigmoid(),
         )
 
     def forward(self, x):
-        lstm_out, _ = self.lstm(x)
-        last_hidden = lstm_out[:, -1, :]
-        return self.fc(last_hidden)
+        # x: (batch, seq_len, input_size)
+        lstm_out, _ = self.lstm(x)  # (batch, seq_len, hidden_size)
+
+        # Self-attention: query=key=value=lstm_out so every timestep
+        # attends to every other timestep.
+        attn_out, _ = self.attention(lstm_out, lstm_out, lstm_out)
+
+        # Residual connection + layer norm for training stability
+        attn_out = self.layer_norm(attn_out + lstm_out)
+
+        # Use the last attended timestep as the sequence representation
+        out = self.fc(attn_out[:, -1, :])
+        return out
 
 
 # ── Main Forecaster Class ──────────────────────────────────

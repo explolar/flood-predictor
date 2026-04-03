@@ -52,6 +52,9 @@ export const sarTimeseries = (req: SARRequest) =>
 export const mlClassify = (req: MLRequest) =>
   api.post<AnalysisResponse<Record<string, any>>>("/ml/classify", req).then((r) => r.data);
 
+export const mlExplain = (req: MLRequest) =>
+  api.post<AnalysisResponse<Record<string, any>>>("/ml/explain", req).then((r) => r.data);
+
 // ── Indices ──
 export const indicesTiles = (req: IndicesRequest) =>
   api.post<AnalysisResponse<IndicesData>>("/indices/tiles", req).then((r) => r.data);

@@ -1,7 +1,7 @@
 """
 Paper-grade AHP-MCDM Flood Susceptibility Mapping.
 
-Implements a 10-factor Analytic Hierarchy Process (AHP) with:
+Implements an 11-factor Analytic Hierarchy Process (AHP) with:
   - Saaty pairwise comparison matrix & eigenvector weights
   - Consistency Ratio (CR) validation (CR < 0.10)
   - Complete 1-5 reclassification for every factor
@@ -9,20 +9,22 @@ Implements a 10-factor Analytic Hierarchy Process (AHP) with:
 
 Factors (literature standard):
   1. Distance to River   — HydroSHEDS flow accumulation
-  2. Rainfall            — CHIRPS annual precipitation
-  3. Slope               — SRTM DEM
-  4. Elevation           — SRTM DEM
-  5. Drainage Density    — HydroSHEDS stream network
-  6. TWI                 — Topographic Wetness Index (SRTM + HydroSHEDS)
-  7. LULC                — ESA WorldCover v200
-  8. Soil                — OpenLandMap soil texture
-  9. NDVI                — MODIS annual composite
- 10. Curvature           — DEM second derivative (Laplacian)
+  2. HAND                — Height Above Nearest Drainage (HydroSHEDS)
+  3. Rainfall            — CHIRPS annual precipitation
+  4. Slope               — SRTM DEM
+  5. Elevation           — SRTM DEM
+  6. Drainage Density    — HydroSHEDS stream network
+  7. TWI                 — Topographic Wetness Index (SRTM + HydroSHEDS)
+  8. LULC                — ESA WorldCover v200
+  9. Soil                — OpenLandMap soil texture
+ 10. NDVI                — MODIS annual composite
+ 11. Curvature           — DEM second derivative (Laplacian)
 
 References:
   - Saaty, T.L. (1980). The Analytic Hierarchy Process. McGraw-Hill.
   - Tehrany et al. (2014). J. Hydrology, 512, 332-343.
   - Khosravi et al. (2018). Sci. Total Environ., 644, 903-914.
+  - Nobre et al. (2011). J. Hydrology, 404, 13-29. (HAND method)
 """
 
 import json
@@ -39,6 +41,7 @@ from utils.cache import cache_data
 
 FACTOR_NAMES = [
     "distance_to_river",
+    "hand",
     "rainfall",
     "slope",
     "elevation",
@@ -52,6 +55,7 @@ FACTOR_NAMES = [
 
 FACTOR_LABELS = {
     "distance_to_river": "Distance to River",
+    "hand": "HAND",
     "rainfall": "Rainfall",
     "slope": "Slope",
     "elevation": "Elevation",
@@ -66,25 +70,39 @@ FACTOR_LABELS = {
 # Expert-derived pairwise matrix based on literature consensus.
 # Row i vs Column j: how much more important is factor i over j?
 # Upper triangle only — lower triangle is 1/value.
+# Factor order: dist, hand, rain, slope, elev, drain, twi, lulc, soil, ndvi, curv
 _AHP_MATRIX = np.array(
     [
-        #  dist   rain  slope  elev  drain   twi   lulc  soil  ndvi  curv
-        [1, 2, 3, 3, 4, 4, 5, 6, 7, 8],  # dist_river
-        [1 / 2, 1, 2, 2, 3, 3, 4, 5, 6, 7],  # rainfall
-        [1 / 3, 1 / 2, 1, 1, 2, 2, 3, 4, 5, 6],  # slope
-        [1 / 3, 1 / 2, 1, 1, 2, 2, 3, 3, 5, 5],  # elevation
-        [1 / 4, 1 / 3, 1 / 2, 1 / 2, 1, 1, 2, 3, 4, 5],  # drain_dens
-        [1 / 4, 1 / 3, 1 / 2, 1 / 2, 1, 1, 2, 3, 3, 4],  # twi
-        [1 / 5, 1 / 4, 1 / 3, 1 / 3, 1 / 2, 1 / 2, 1, 2, 3, 3],  # lulc
-        [1 / 6, 1 / 5, 1 / 4, 1 / 3, 1 / 3, 1 / 3, 1 / 2, 1, 2, 3],  # soil
-        [1 / 7, 1 / 6, 1 / 5, 1 / 5, 1 / 4, 1 / 3, 1 / 3, 1 / 2, 1, 2],  # ndvi
-        [1 / 8, 1 / 7, 1 / 6, 1 / 5, 1 / 5, 1 / 4, 1 / 3, 1 / 3, 1 / 2, 1],  # curvature
+        #  dist  hand  rain  slope  elev  drain  twi   lulc  soil  ndvi  curv
+        [1, 2, 3, 3, 4, 4, 5, 6, 7, 8, 9],  # dist_river
+        [1 / 2, 1, 2, 2, 3, 3, 4, 4, 5, 6, 7],  # hand
+        [1 / 3, 1 / 2, 1, 2, 2, 3, 3, 4, 5, 6, 7],  # rainfall
+        [1 / 3, 1 / 2, 1 / 2, 1, 1, 2, 2, 3, 4, 5, 6],  # slope
+        [1 / 4, 1 / 3, 1 / 2, 1, 1, 2, 2, 3, 3, 5, 5],  # elevation
+        [1 / 4, 1 / 3, 1 / 3, 1 / 2, 1 / 2, 1, 1, 2, 3, 4, 5],  # drain_dens
+        [1 / 5, 1 / 4, 1 / 3, 1 / 2, 1 / 2, 1, 1, 2, 3, 3, 4],  # twi
+        [1 / 6, 1 / 4, 1 / 4, 1 / 3, 1 / 3, 1 / 2, 1 / 2, 1, 2, 3, 3],  # lulc
+        [1 / 7, 1 / 5, 1 / 5, 1 / 4, 1 / 3, 1 / 3, 1 / 3, 1 / 2, 1, 2, 3],  # soil
+        [1 / 8, 1 / 6, 1 / 6, 1 / 5, 1 / 5, 1 / 4, 1 / 3, 1 / 3, 1 / 2, 1, 2],  # ndvi
+        [1 / 9, 1 / 7, 1 / 7, 1 / 6, 1 / 5, 1 / 5, 1 / 4, 1 / 3, 1 / 3, 1 / 2, 1],  # curvature
     ],
     dtype=np.float64,
 )
 
 # Random Consistency Index (Saaty, 1980) for matrix size n
-_RI_TABLE = {1: 0, 2: 0, 3: 0.58, 4: 0.90, 5: 1.12, 6: 1.24, 7: 1.32, 8: 1.41, 9: 1.45, 10: 1.49}
+_RI_TABLE = {
+    1: 0,
+    2: 0,
+    3: 0.58,
+    4: 0.90,
+    5: 1.12,
+    6: 1.24,
+    7: 1.32,
+    8: 1.41,
+    9: 1.45,
+    10: 1.49,
+    11: 1.51,
+}
 
 # Visualization
 MCA_VIZ = {"min": 1, "max": 5, "palette": ["1a9850", "91cf60", "ffffbf", "fc8d59", "d73027"]}
@@ -182,7 +200,7 @@ def _percentile_reclassify(image, band, aoi_geom, invert=False):
 
 
 def compute_factor_layers(aoi_geom):
-    """Compute all 10 conditioning factor layers reclassified to 1-5 scale.
+    """Compute all 11 conditioning factor layers reclassified to 1-5 scale.
 
     Returns dict mapping factor name -> reclassified ee.Image (1-5).
     """
@@ -202,7 +220,44 @@ def compute_factor_layers(aoi_geom):
     dist_m = dist_px.multiply(pixel_scale).rename("dist")
     factors["distance_to_river"] = _percentile_reclassify(dist_m, "dist", aoi_geom, invert=True)
 
-    # ── 2. Rainfall ─────────────────────────────────────────
+    # ── 2. HAND (Height Above Nearest Drainage) ────────────
+    # Lower HAND = closer to drainage level = higher flood risk (class 5)
+    # Compute from HydroSHEDS conditioned DEM and flow accumulation
+    cond_dem = ee.Image("WWF/HydroSHEDS/15CONDEM").select("b1").clip(aoi_geom)
+    drainage_mask = flow_acc.gt(stream_threshold)
+    drainage_elev = cond_dem.updateMask(drainage_mask)
+
+    # Propagate nearest drainage elevation via iterative focal minimum
+    nearest_drainage = drainage_elev
+    for radius in [3, 5, 10, 20, 30, 40]:
+        filled = nearest_drainage.focal_min(radius=radius, kernelType="circle", units="pixels")
+        nearest_drainage = nearest_drainage.unmask(filled)
+
+    # Final fallback: fill remaining gaps with AOI minimum DEM
+    dem_min_val = cond_dem.reduceRegion(
+        reducer=ee.Reducer.min(),
+        geometry=aoi_geom,
+        scale=90,
+        bestEffort=True,
+    )
+    nearest_drainage = nearest_drainage.unmask(ee.Number(dem_min_val.get("b1")))
+
+    # HAND = DEM - nearest drainage elevation (clamped >= 0)
+    hand_raw = cond_dem.subtract(nearest_drainage).max(0).rename("hand")
+
+    # Reclassify HAND into 1-5 risk classes (lower HAND = higher risk)
+    # 0-2m -> 5 (Very High), 2-5m -> 4, 5-10m -> 3, 10-20m -> 2, >20m -> 1
+    hand_classified = (
+        ee.Image(1)
+        .where(hand_raw.lte(20), 2)
+        .where(hand_raw.lte(10), 3)
+        .where(hand_raw.lte(5), 4)
+        .where(hand_raw.lte(2), 5)
+        .clip(aoi_geom)
+    )
+    factors["hand"] = hand_classified
+
+    # ── 3. Rainfall ─────────────────────────────────────────
     # Higher rainfall = higher risk (class 5)
     rain = (
         ee.ImageCollection("UCSB-CHG/CHIRPS/DAILY")
@@ -213,17 +268,17 @@ def compute_factor_layers(aoi_geom):
     )
     factors["rainfall"] = _percentile_reclassify(rain, "rain", aoi_geom, invert=False)
 
-    # ── 3. Slope ────────────────────────────────────────────
+    # ── 4. Slope ────────────────────────────────────────────
     # Lower slope (flat) = higher risk — water pools on flat terrain
     slope_r = slope.rename("slope")
     factors["slope"] = _percentile_reclassify(slope_r, "slope", aoi_geom, invert=True)
 
-    # ── 4. Elevation ────────────────────────────────────────
+    # ── 5. Elevation ────────────────────────────────────────
     # Lower elevation = higher risk — lowlands flood first
     elev = dem.rename("elevation")
     factors["elevation"] = _percentile_reclassify(elev, "elevation", aoi_geom, invert=True)
 
-    # ── 5. Drainage Density ─────────────────────────────────
+    # ── 6. Drainage Density ─────────────────────────────────
     # Higher density = more streams = higher risk
     streams_mask = flow_acc.gt(stream_threshold).selfMask()
     dd = (
@@ -235,7 +290,7 @@ def compute_factor_layers(aoi_geom):
     )
     factors["drainage_density"] = _percentile_reclassify(dd, "dd", aoi_geom, invert=False)
 
-    # ── 6. TWI (Topographic Wetness Index) ──────────────────
+    # ── 7. TWI (Topographic Wetness Index) ──────────────────
     # TWI = ln(a / tan(β)), higher TWI = wetter = higher risk
     slope_rad = slope.multiply(math.pi / 180)
     tan_slope = slope_rad.tan().max(0.001)  # avoid division by zero
@@ -244,7 +299,7 @@ def compute_factor_layers(aoi_geom):
     twi = contrib_area.divide(tan_slope).log().rename("twi").clip(aoi_geom)
     factors["twi"] = _percentile_reclassify(twi, "twi", aoi_geom, invert=False)
 
-    # ── 7. LULC ─────────────────────────────────────────────
+    # ── 8. LULC ─────────────────────────────────────────────
     # Remap ESA WorldCover classes to flood vulnerability 1-5
     lulc = ee.ImageCollection("ESA/WorldCover/v200").mosaic().select("Map").clip(aoi_geom)
     # 10=Trees, 20=Shrub, 30=Grass, 40=Cropland, 50=Built-up,
@@ -254,7 +309,7 @@ def compute_factor_layers(aoi_geom):
         [1, 2, 3, 4, 5, 4, 1, 5, 5, 4, 3],
     ).clip(aoi_geom)
 
-    # ── 8. Soil Texture ─────────────────────────────────────
+    # ── 9. Soil Texture ─────────────────────────────────────
     # Clay-rich = poor drainage = high risk; Sandy = low risk
     soil = ee.Image("OpenLandMap/SOL/SOL_TEXTURE-CLASS_USDA-TT_M/v02").select("b0").clip(aoi_geom)
     # USDA classes: 1=Clay,2=SiltyClay,3=SandyClay,4=ClayLoam,5=SiltyClayLoam,
@@ -265,7 +320,7 @@ def compute_factor_layers(aoi_geom):
         [5, 5, 4, 4, 4, 3, 3, 3, 2, 4, 2, 1],
     ).clip(aoi_geom)
 
-    # ── 9. NDVI ─────────────────────────────────────────────
+    # ── 10. NDVI ────────────────────────────────────────────
     # Lower NDVI = less vegetation = more runoff = higher risk
     ndvi = (
         ee.ImageCollection("MODIS/061/MOD13A2")
@@ -278,7 +333,7 @@ def compute_factor_layers(aoi_geom):
     )
     factors["ndvi"] = _percentile_reclassify(ndvi, "ndvi", aoi_geom, invert=True)
 
-    # ── 10. Curvature ───────────────────────────────────────
+    # ── 11. Curvature ───────────────────────────────────────
     # Negative (concave) = collects water = higher risk
     # Positive (convex)  = sheds water    = lower risk
     laplacian_kernel = ee.Kernel.fixed(3, 3, [[0, 1, 0], [1, -4, 1], [0, 1, 0]])

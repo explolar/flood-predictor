@@ -21,7 +21,7 @@ class MCARequest(AOIRequest):
     method: str = Field("ahp", pattern="^(ahp|custom)$", description="Weight method: ahp or custom")
     custom_weights: Optional[Dict[str, float]] = Field(
         None,
-        description="Custom factor weights (sum to 1.0). Keys: distance_to_river, rainfall, slope, elevation, drainage_density, twi, lulc, soil, ndvi, curvature",
+        description="Custom factor weights (sum to 1.0). Keys: distance_to_river, hand, rainfall, slope, elevation, drainage_density, twi, lulc, soil, ndvi, curvature",
     )
 
     # Legacy fields — kept for backward compatibility

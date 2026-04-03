@@ -21,12 +21,13 @@ interface SidebarProps {
 }
 
 export const FACTOR_NAMES = [
-  "distance_to_river", "rainfall", "slope", "elevation", "drainage_density",
+  "distance_to_river", "hand", "rainfall", "slope", "elevation", "drainage_density",
   "twi", "lulc", "soil", "ndvi", "curvature",
 ] as const;
 
 export const FACTOR_LABELS: Record<string, string> = {
   distance_to_river: "Distance to River",
+  hand: "HAND",
   rainfall: "Rainfall",
   slope: "Slope",
   elevation: "Elevation",
@@ -57,14 +58,15 @@ export interface SidebarParams {
 }
 
 const DEFAULT_CUSTOM_WEIGHTS: Record<string, number> = {
-  distance_to_river: 0.25,
-  rainfall: 0.18,
-  slope: 0.13,
-  elevation: 0.11,
-  drainage_density: 0.08,
-  twi: 0.07,
-  lulc: 0.06,
-  soil: 0.05,
+  distance_to_river: 0.22,
+  hand: 0.16,
+  rainfall: 0.14,
+  slope: 0.10,
+  elevation: 0.09,
+  drainage_density: 0.07,
+  twi: 0.06,
+  lulc: 0.05,
+  soil: 0.04,
   ndvi: 0.04,
   curvature: 0.03,
 };
@@ -323,7 +325,7 @@ export function Sidebar({
 
           {params.mca_method === "ahp" ? (
             <div className="weight-summary" style={{ fontSize: "11px", opacity: 0.8, lineHeight: 1.6 }}>
-              10-factor AHP with Saaty pairwise matrix.
+              11-factor AHP with Saaty pairwise matrix.
               <br />Weights & CR computed automatically.
             </div>
           ) : (

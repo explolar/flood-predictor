@@ -19,6 +19,7 @@ from utils.cache import cache_data
 try:
     import torch
     import torch.nn as nn
+    import torch.nn.functional as F
 
     _TORCH = True
 except ImportError:
@@ -36,43 +37,149 @@ except ImportError:
 # ── Lightweight U-Net fallback ─────────────────────────────
 
 
+class AttentionGate(nn.Module if _TORCH else object):
+    """Attention gate for U-Net skip connections.
+
+    Learns to suppress irrelevant spatial regions in the encoder feature map
+    ``x`` by using the coarser gating signal ``g`` from the decoder.  The gate
+    produces a soft attention mask (0-1) that is element-wise multiplied with
+    ``x`` so only flood-relevant features pass through to the decoder.
+
+    Reference: Oktay et al., "Attention U-Net", 2018 (arXiv:1804.03999).
+
+    Args:
+        F_g: Number of channels in the gating signal (decoder feature map).
+        F_l: Number of channels in the encoder skip-connection feature map.
+        F_int: Number of intermediate channels for the attention computation.
+    """
+
+    def __init__(self, F_g, F_l, F_int):
+        if not _TORCH:
+            return
+        super().__init__()
+        self.W_g = nn.Conv2d(F_g, F_int, kernel_size=1, bias=True)
+        self.W_x = nn.Conv2d(F_l, F_int, kernel_size=1, bias=True)
+        self.psi = nn.Sequential(nn.Conv2d(F_int, 1, kernel_size=1, bias=True), nn.Sigmoid())
+        self.relu = nn.ReLU(inplace=True)
+
+    def forward(self, g, x):
+        """Compute attention-gated skip features.
+
+        Args:
+            g: Gating signal from the decoder (coarser resolution).
+            x: Encoder feature map (finer resolution).
+
+        Returns:
+            Attention-weighted encoder features with the same shape as ``x``.
+        """
+        g1 = self.W_g(g)
+        x1 = self.W_x(x)
+        # Interpolate gating signal to match encoder spatial dims if needed
+        if g1.shape[2:] != x1.shape[2:]:
+            g1 = F.interpolate(g1, size=x1.shape[2:], mode="bilinear", align_corners=True)
+        psi = self.relu(g1 + x1)
+        psi = self.psi(psi)
+        return x * psi
+
+
+class ResBlock(nn.Module if _TORCH else object):
+    """Residual convolutional block.
+
+    Two 3x3 convolutions with BatchNorm, wrapped by a residual (identity)
+    shortcut.  The shortcut helps gradients flow through deeper networks and
+    stabilises training for the U-Net encoder/decoder stages.
+
+    Args:
+        ch: Number of input and output channels (kept equal for the identity
+            shortcut).
+    """
+
+    def __init__(self, ch):
+        if not _TORCH:
+            return
+        super().__init__()
+        self.conv = nn.Sequential(
+            nn.Conv2d(ch, ch, 3, padding=1),
+            nn.BatchNorm2d(ch),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(ch, ch, 3, padding=1),
+            nn.BatchNorm2d(ch),
+        )
+        self.relu = nn.ReLU(inplace=True)
+
+    def forward(self, x):
+        return self.relu(self.conv(x) + x)
+
+
 class _MiniUNet(nn.Module if _TORCH else object):
-    """Minimal U-Net for SAR flood segmentation when Prithvi unavailable."""
+    """U-Net with residual blocks and attention-gated skip connections.
+
+    Upgrades over the original minimal U-Net:
+        * **Residual connections** in every encoder and decoder stage improve
+          gradient flow and let each block learn *refinements* on top of the
+          identity mapping.
+        * **Attention gates** on the skip connections learn to highlight
+          flood-relevant spatial regions in the encoder features before they
+          are concatenated with the decoder, reducing false positives from
+          irrelevant background structures.
+
+    The input/output interface is unchanged:
+        input  ``(batch, in_channels, H, W)`` -> output ``(batch, 1, H, W)``
+        with values in [0, 1] (sigmoid activation).
+    """
 
     def __init__(self, in_channels=4):
         if not _TORCH:
             return
         super().__init__()
-        self.enc1 = nn.Sequential(
+        # ---- Encoder Stage 1 ----
+        self.enc1_conv = nn.Sequential(
             nn.Conv2d(in_channels, 32, 3, padding=1),
             nn.BatchNorm2d(32),
             nn.ReLU(),
-            nn.Conv2d(32, 32, 3, padding=1),
-            nn.BatchNorm2d(32),
-            nn.ReLU(),
         )
-        self.enc2 = nn.Sequential(
-            nn.MaxPool2d(2),
+        self.enc1_res = ResBlock(32)
+
+        # ---- Encoder Stage 2 ----
+        self.pool = nn.MaxPool2d(2)
+        self.enc2_conv = nn.Sequential(
             nn.Conv2d(32, 64, 3, padding=1),
             nn.BatchNorm2d(64),
             nn.ReLU(),
-            nn.Conv2d(64, 64, 3, padding=1),
-            nn.BatchNorm2d(64),
-            nn.ReLU(),
         )
-        self.dec1 = nn.Sequential(
-            nn.ConvTranspose2d(64, 32, 2, stride=2),
-            nn.Conv2d(64, 32, 3, padding=1),
+        self.enc2_res = ResBlock(64)
+
+        # ---- Attention Gate (decoder->encoder skip) ----
+        # F_g=64 (decoder / gating channels), F_l=32 (encoder skip), F_int=16
+        self.attn_gate1 = AttentionGate(F_g=64, F_l=32, F_int=16)
+
+        # ---- Decoder Stage 1 ----
+        self.up1 = nn.ConvTranspose2d(64, 32, kernel_size=2, stride=2)
+        self.dec1_conv = nn.Sequential(
+            nn.Conv2d(64, 32, 3, padding=1),  # 64 because of cat with skip
             nn.BatchNorm2d(32),
             nn.ReLU(),
         )
+        self.dec1_res = ResBlock(32)
+
+        # ---- Output head ----
         self.out = nn.Conv2d(32, 1, 1)
 
     def forward(self, x):
-        e1 = self.enc1(x)
-        e2 = self.enc2(e1)
-        d1_up = self.dec1[0](e2)
-        d1 = self.dec1[1:](torch.cat([d1_up, e1], dim=1))
+        # Encoder
+        e1 = self.enc1_conv(x)
+        e1 = self.enc1_res(e1)  # (B, 32, H, W)
+
+        e2 = self.pool(e1)
+        e2 = self.enc2_conv(e2)
+        e2 = self.enc2_res(e2)  # (B, 64, H/2, W/2)
+
+        # Decoder with attention-gated skip connection
+        d1_up = self.up1(e2)  # (B, 32, H, W)
+        e1_att = self.attn_gate1(g=e2, x=e1)  # attention-weighted encoder features
+        d1 = self.dec1_conv(torch.cat([d1_up, e1_att], dim=1))
+        d1 = self.dec1_res(d1)  # (B, 32, H, W)
+
         return torch.sigmoid(self.out(d1))
 
 

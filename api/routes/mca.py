@@ -13,7 +13,7 @@ router = APIRouter(prefix="/mca", tags=["MCA"])
 
 @router.post("/risk-map", response_model=AnalysisResponse)
 async def compute_mca(request: MCARequest):
-    """Compute AHP-MCDM flood susceptibility map with 10 conditioning factors.
+    """Compute AHP-MCDM flood susceptibility map with 11 conditioning factors.
 
     Returns composite tile URL, individual factor tile URLs, and AHP metadata
     (weights, CR, lambda_max, consistency status).
