@@ -1,6 +1,7 @@
-"""SAR API routes."""
+"""SAR API routes with v2 reference strategies and quality metadata."""
 
 import asyncio
+from typing import Optional
 
 from fastapi import APIRouter, HTTPException
 
@@ -10,9 +11,16 @@ from api.schemas import AnalysisResponse, SARRequest
 router = APIRouter(prefix="/sar", tags=["SAR"])
 
 
+class SAR2Request(SARRequest):
+    """Extended SAR request with reference strategy selection."""
+    reference_strategy: str = "event_pair"
+    rolling_days: int = 90
+    include_optical: bool = False
+
+
 @router.post("/flood-detection", response_model=AnalysisResponse)
-async def detect_flood(request: SARRequest):
-    """Run SAR flood detection and return results."""
+async def detect_flood(request: SAR2Request):
+    """Run SAR flood detection with selectable reference strategy."""
     initialize_ee_api()
     aoi_json = aoi_to_json(request.geojson)
 
@@ -29,29 +37,23 @@ async def detect_flood(request: SARRequest):
             request.threshold,
             request.polarization,
             request.speckle,
+            request.reference_strategy,
+            request.rolling_days,
+            request.include_optical,
         )
-        return AnalysisResponse(
-            success=True,
-            data={
-                "area_ha": result["area_ha"],
-                "pop_exposed": result["pop_exposed"],
-                "flood_url": result["flood_url"],
-                "severity_url": result["severity_url"],
-            },
-        )
+        return AnalysisResponse(success=True, data=result)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/depth", response_model=AnalysisResponse)
 async def get_depth(request: SARRequest):
-    """Run SAR flood depth and return results."""
+    """Run SAR flood depth estimation."""
     initialize_ee_api()
     aoi_json = aoi_to_json(request.geojson)
     try:
         from gee_functions.sar import get_flood_depth_tile
 
-        # get_flood_depth_tile signature in sar.py expects aoi_json and dates
         result = await asyncio.to_thread(
             get_flood_depth_tile,
             aoi_json,
@@ -70,13 +72,10 @@ async def get_depth(request: SARRequest):
 
 @router.post("/crop-loss", response_model=AnalysisResponse)
 async def get_crop_loss(request: dict):
-    """Run SAR flood crop loss estimation and return results."""
-    # request is SARRequest & { crop_type: string; crop_price: number }
+    """Run SAR flood crop loss estimation."""
     initialize_ee_api()
     aoi_json = aoi_to_json(request.get("geojson", {}))
     try:
-        # We simulate the crop loss or use a gee function if available
-        # The frontend expects a generic AnalysisResponse.
         from gee_functions.sar import get_crop_loss_data
 
         result = await asyncio.to_thread(
@@ -93,7 +92,6 @@ async def get_crop_loss(request: dict):
         )
         return AnalysisResponse(success=True, data=result)
     except Exception:
-        # Fallback if get_crop_loss_data isn't implemented in gee_functions.sar yet
         return AnalysisResponse(
             success=True, data={"affected_ha": 0, "estimated_loss_usd": 0, "message": "Crop loss not fully implemented"}
         )

@@ -4,9 +4,9 @@ import { LoadingOverlay } from "../components/common/LoadingOverlay";
 import { ErrorBanner } from "../components/common/ErrorBanner";
 import { MetricCard } from "../components/common/MetricCard";
 import { useAnalysis } from "../hooks/useAnalysis";
-import { multiyearComparison, droughtAnalysis, projectionsAnalysis } from "../api/endpoints";
+import { multiyearComparison, droughtAnalysis, projectionsAnalysis, scenarioComparison } from "../api/endpoints";
 import type { SidebarParams } from "../components/layout/Sidebar";
-import type { TileData, ChartPoint } from "../types/api";
+import type { TileData, ChartPoint, ScenarioComparisonData } from "../types/api";
 import { LEGENDS } from "../config/legends";
 import {
   ComposedChart,
@@ -18,6 +18,7 @@ import {
   Tooltip,
   ResponsiveContainer,
   Legend,
+  BarChart,
 } from "recharts";
 
 interface Props {
@@ -26,7 +27,7 @@ interface Props {
   params: SidebarParams;
 }
 
-type SubTab = "multiyear" | "drought" | "projections";
+type SubTab = "multiyear" | "drought" | "projections" | "scenario-compare";
 
 interface ProjectionsData {
   mean_precip_mm_yr?: number;
@@ -37,20 +38,29 @@ interface ProjectionsData {
   scenario?: string;
   model?: string;
   period?: string;
-  // Support scenario-comparison shape as well
   scenarios?: Record<string, { mean_precip_mm?: number; mean_temp_c?: number }>;
   baseline?: { mean_precip_mm?: number; mean_temp_c?: number };
 }
+
+const CMIP6_MODELS = ["GFDL-ESM4", "ACCESS-CM2", "MPI-ESM1-2-HR", "UKESM1-0-LL", "IPSL-CM6A-LR"];
+const SCENARIO_COLORS: Record<string, string> = {
+  ssp126: "#2166ac",
+  ssp245: "#4393c3",
+  ssp370: "#f4a582",
+  ssp585: "#d6604d",
+};
 
 export function ClimateTab({ geojson, center, params }: Props) {
   const [subTab, setSubTab] = useState<SubTab>("multiyear");
   const [years] = useState([2019, 2020, 2021, 2022, 2023, 2024]);
   const [droughtYear, setDroughtYear] = useState(2024);
   const [scenario, setScenario] = useState("ssp245");
+  const [comparisonModel, setComparisonModel] = useState("ACCESS-CM2");
 
   const multiyear = useAnalysis<any, { chart: ChartPoint[]; tiles: TileData[] }>(multiyearComparison);
   const drought = useAnalysis<any, { spi: TileData; ndvi_anomaly: TileData }>(droughtAnalysis);
   const projections = useAnalysis<any, ProjectionsData>(projectionsAnalysis);
+  const compare = useAnalysis<any, ScenarioComparisonData>(scenarioComparison);
 
   return (
     <div className="tab-content">
@@ -58,8 +68,10 @@ export function ClimateTab({ geojson, center, params }: Props) {
         <button className={`tab-item ${subTab === "multiyear" ? "tab-active" : ""}`} onClick={() => setSubTab("multiyear")}>MULTI-YEAR</button>
         <button className={`tab-item ${subTab === "drought" ? "tab-active" : ""}`} onClick={() => setSubTab("drought")}>DROUGHT</button>
         <button className={`tab-item ${subTab === "projections" ? "tab-active" : ""}`} onClick={() => setSubTab("projections")}>PROJECTIONS</button>
+        <button className={`tab-item ${subTab === "scenario-compare" ? "tab-active" : ""}`} onClick={() => setSubTab("scenario-compare")}>SCENARIO COMPARISON</button>
       </nav>
 
+      {/* ── Multi-Year ── */}
       {subTab === "multiyear" && (
         <>
           <div className="tab-header">
@@ -88,6 +100,7 @@ export function ClimateTab({ geojson, center, params }: Props) {
         </>
       )}
 
+      {/* ── Drought ── */}
       {subTab === "drought" && (
         <>
           <div className="tab-header">
@@ -125,6 +138,7 @@ export function ClimateTab({ geojson, center, params }: Props) {
         </>
       )}
 
+      {/* ── Projections ── */}
       {subTab === "projections" && (
         <>
           <div className="tab-header">
@@ -158,7 +172,6 @@ export function ClimateTab({ geojson, center, params }: Props) {
 
           {projections.data && (
             <div className="projections-results">
-              {/* Header info */}
               {(projections.data.model || projections.data.period || projections.data.scenario) && (
                 <p className="projections-meta">
                   Model: <strong>{projections.data.model ?? "N/A"}</strong>
@@ -167,93 +180,22 @@ export function ClimateTab({ geojson, center, params }: Props) {
                 </p>
               )}
 
-              {/* Standard projections response (get_cmip6_projections) */}
               {(projections.data.mean_precip_mm_yr != null ||
                 projections.data.mean_tasmax_c != null ||
                 projections.data.mean_tasmin_c != null) && (
                 <div className="metric-grid">
                   {projections.data.mean_precip_mm_yr != null && (
-                    <MetricCard
-                      label="Projected Mean Precipitation"
-                      value={projections.data.mean_precip_mm_yr}
-                      unit="mm/yr"
-                      color="#0891b2"
-                    />
+                    <MetricCard label="Projected Mean Precipitation" value={projections.data.mean_precip_mm_yr} unit="mm/yr" color="#0891b2" />
                   )}
                   {projections.data.mean_tasmax_c != null && (
-                    <MetricCard
-                      label="Projected Max Temperature"
-                      value={projections.data.mean_tasmax_c}
-                      unit="°C"
-                      color="#dc2626"
-                    />
+                    <MetricCard label="Projected Max Temperature" value={projections.data.mean_tasmax_c} unit="°C" color="#dc2626" />
                   )}
                   {projections.data.mean_tasmin_c != null && (
-                    <MetricCard
-                      label="Projected Min Temperature"
-                      value={projections.data.mean_tasmin_c}
-                      unit="°C"
-                      color="#2563eb"
-                    />
+                    <MetricCard label="Projected Min Temperature" value={projections.data.mean_tasmin_c} unit="°C" color="#2563eb" />
                   )}
                 </div>
               )}
 
-              {/* Scenario-comparison response (get_cmip6_scenario_comparison) */}
-              {projections.data.baseline && (
-                <div style={{ marginTop: "1rem" }}>
-                  <h3 className="map-title">Baseline</h3>
-                  <div className="metric-grid">
-                    {projections.data.baseline.mean_precip_mm != null && (
-                      <MetricCard
-                        label="Baseline Precipitation"
-                        value={projections.data.baseline.mean_precip_mm}
-                        unit="mm/yr"
-                        color="#4a5568"
-                      />
-                    )}
-                    {projections.data.baseline.mean_temp_c != null && (
-                      <MetricCard
-                        label="Baseline Temperature"
-                        value={projections.data.baseline.mean_temp_c}
-                        unit="°C"
-                        color="#4a5568"
-                      />
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {projections.data.scenarios && (
-                <div style={{ marginTop: "1rem" }}>
-                  <h3 className="map-title">Projected Scenarios</h3>
-                  {Object.entries(projections.data.scenarios).map(([key, vals]) => (
-                    <div key={key} style={{ marginBottom: "0.75rem" }}>
-                      <h4 style={{ marginBottom: "0.25rem", color: "#4a5568" }}>{key.replace(/_/g, " ").toUpperCase()}</h4>
-                      <div className="metric-grid">
-                        {vals.mean_precip_mm != null && (
-                          <MetricCard
-                            label="Projected Precipitation"
-                            value={vals.mean_precip_mm}
-                            unit="mm/yr"
-                            color="#0891b2"
-                          />
-                        )}
-                        {vals.mean_temp_c != null && (
-                          <MetricCard
-                            label="Projected Temperature"
-                            value={vals.mean_temp_c}
-                            unit="°C"
-                            color="#dc2626"
-                          />
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Tile maps if available */}
               {(projections.data.precip_tile_url || projections.data.temp_tile_url) && (
                 <div className="map-grid" style={{ marginTop: "1rem" }}>
                   {projections.data.precip_tile_url && (
@@ -274,6 +216,112 @@ export function ClimateTab({ geojson, center, params }: Props) {
           )}
         </>
       )}
+
+      {/* ── Scenario Comparison ── */}
+      {subTab === "scenario-compare" && (
+        <>
+          <div className="tab-header">
+            <h2>Scenario Comparison (SSP245 vs SSP585)</h2>
+            <div className="tab-actions">
+              <select className="select" value={comparisonModel} onChange={(e) => setComparisonModel(e.target.value)}>
+                {CMIP6_MODELS.map((m) => (
+                  <option key={m} value={m}>{m}</option>
+                ))}
+              </select>
+              <button
+                className="btn btn-primary"
+                onClick={() =>
+                  compare.run({ geojson, model: comparisonModel })
+                }
+                disabled={compare.isLoading}
+              >
+                COMPARE SCENARIOS
+              </button>
+            </div>
+          </div>
+          {compare.isLoading && <LoadingOverlay message="Comparing SSP scenarios across periods..." />}
+          {compare.error && <ErrorBanner message={compare.error} onDismiss={compare.reset} />}
+
+          {compare.data && (
+            <ScenarioComparisonView data={compare.data} />
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+/* ---------- Scenario Comparison View ---------- */
+
+function ScenarioComparisonView({ data }: { data: ScenarioComparisonData }) {
+  const rows = data.comparison ?? [];
+
+  if (rows.length === 0) {
+    return <p style={{ color: "var(--text-secondary)", textAlign: "center", marginTop: "2rem" }}>No comparison data available.</p>;
+  }
+
+  // Build chart data from comparison records
+  const chartData = rows.map((row) => {
+    const entry: Record<string, any> = { period: row.period ?? row.label ?? "—" };
+    for (const [k, v] of Object.entries(row)) {
+      if (k !== "period" && k !== "label" && typeof v === "number") {
+        entry[k] = Math.round(v * 100) / 100;
+      }
+    }
+    return entry;
+  });
+
+  // Extract numeric keys for bars
+  const numericKeys = Object.keys(chartData[0] ?? {}).filter((k) => k !== "period" && typeof chartData[0][k] === "number");
+  const barColors = ["#2166ac", "#d6604d", "#4393c3", "#f4a582", "#92c5de", "#fddbc7"];
+
+  return (
+    <div>
+      <p style={{ marginBottom: "0.5rem", color: "var(--text-secondary)" }}>
+        Model: <strong>{data.model}</strong>
+      </p>
+
+      {/* Chart */}
+      {chartData.length > 0 && numericKeys.length > 0 && (
+        <div className="chart-container">
+          <ResponsiveContainer width="100%" height={320}>
+            <BarChart data={chartData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+              <XAxis dataKey="period" stroke="#4a5568" />
+              <YAxis stroke="#4a5568" />
+              <Tooltip />
+              <Legend />
+              {numericKeys.map((key, i) => (
+                <Bar key={key} dataKey={key} fill={barColors[i % barColors.length]} name={key.replace(/_/g, " ")} />
+              ))}
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      {/* Table */}
+      <div className="ahp-weights-table" style={{ marginTop: "1.5rem" }}>
+        <table>
+          <thead>
+            <tr>
+              {Object.keys(rows[0]).map((k) => (
+                <th key={k}>{k.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, i) => (
+              <tr key={i}>
+                {Object.values(row).map((v, j) => (
+                  <td key={j} className="weight-value">
+                    {typeof v === "number" ? (Number.isInteger(v) ? v : v.toFixed(2)) : String(v ?? "—")}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -284,7 +332,6 @@ function computeTrend(points: ChartPoint[]): ChartPoint[] {
   const n = points.length;
   if (n < 2) return points.map((p) => ({ ...p, value: p.value }));
 
-  // Simple linear regression: y = a + b*x
   const xs = points.map((_, i) => i);
   const ys = points.map((p) => p.value);
   const sumX = xs.reduce((s, x) => s + x, 0);

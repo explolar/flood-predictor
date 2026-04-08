@@ -36,6 +36,14 @@ export const LEGENDS: Record<string, LegendConfig> = {
     palette: ["ffffbf", "fc8d59", "d73027"],
     labels: ["Low", "Medium", "High"],
   },
+  "Flood Depth": {
+    title: "Flood Depth",
+    type: "continuous",
+    palette: ["ffffcc", "fed976", "fd8d3c", "f03b20", "bd0026"],
+    min: 0,
+    max: 4,
+    unit: "m",
+  },
 
   /* ── ML model ── */
   "ML Probability": {

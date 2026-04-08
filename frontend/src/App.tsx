@@ -8,7 +8,9 @@ import { LoadingOverlay } from "./components/common/LoadingOverlay";
 import { ErrorBoundary } from "./components/common/ErrorBoundary";
 import { ToastContainer, toast } from "./components/common/Toast";
 import { geocode } from "./api/endpoints";
-import { Droplets, MapPin, Menu } from "lucide-react";
+import { Droplets, MapPin, Menu, FolderOpen } from "lucide-react";
+import { useProjectStore } from "./hooks/useProjectStore";
+import { ProjectPanel } from "./components/common/ProjectPanel";
 import "./index.css";
 
 const RiskTab = lazy(() => import("./pages/RiskTab").then((m) => ({ default: m.RiskTab })));
@@ -17,8 +19,10 @@ const MLTab = lazy(() => import("./pages/MLTab").then((m) => ({ default: m.MLTab
 const ClimateTab = lazy(() => import("./pages/ClimateTab").then((m) => ({ default: m.ClimateTab })));
 const IndicesTab = lazy(() => import("./pages/IndicesTab").then((m) => ({ default: m.IndicesTab })));
 const ForecastTab = lazy(() => import("./pages/ForecastTab").then((m) => ({ default: m.ForecastTab })));
+const HydrologyTab = lazy(() => import("./pages/HydrologyTab").then((m) => ({ default: m.HydrologyTab })));
+const ImpactTab = lazy(() => import("./pages/ImpactTab").then((m) => ({ default: m.ImpactTab })));
 
-const TAB_IDS = ["risk", "sar", "ml", "climate", "indices", "forecast"];
+const TAB_IDS = ["risk", "sar", "ml", "climate", "indices", "forecast", "hydrology", "impact"];
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -31,6 +35,8 @@ function AppInner() {
   const [activeTab, setActiveTab] = useState("risk");
   const [params, setParams] = useState<SidebarParams>(DEFAULT_PARAMS);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [projectPanelOpen, setProjectPanelOpen] = useState(false);
+  const projectStore = useProjectStore();
 
   const handleParamsChange = useCallback(
     (patch: Partial<SidebarParams>) => setParams((p) => ({ ...p, ...patch })),
@@ -65,7 +71,7 @@ function AppInner() {
     const handler = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) return;
       const num = parseInt(e.key);
-      if (num >= 1 && num <= 6) {
+      if (num >= 1 && num <= TAB_IDS.length) {
         setActiveTab(TAB_IDS[num - 1]);
       } else if (e.key === "Escape") {
         setSidebarCollapsed((c) => !c);
@@ -85,6 +91,8 @@ function AppInner() {
         import("./pages/ClimateTab"),
         import("./pages/IndicesTab"),
         import("./pages/ForecastTab"),
+        import("./pages/HydrologyTab"),
+        import("./pages/ImpactTab"),
       ]);
     }
   }, [isActive]);
@@ -135,7 +143,44 @@ function AppInner() {
           >
             <Menu size={18} />
           </button>
+          <button
+            className="mobile-menu-btn"
+            onClick={() => setProjectPanelOpen((p) => !p)}
+            title="Saved AOIs & History"
+            style={{ marginLeft: 8 }}
+          >
+            <FolderOpen size={18} />
+          </button>
         </Header>
+
+        {projectPanelOpen && (
+          <ProjectPanel
+            savedAOIs={projectStore.savedAOIs}
+            runHistory={projectStore.runHistory}
+            onLoadAOI={(saved) => {
+              setFromGeoJSON(saved.geojson);
+              toast("success", `Loaded AOI: ${saved.name}`);
+              setProjectPanelOpen(false);
+            }}
+            onDeleteAOI={(id) => {
+              projectStore.deleteAOI(id);
+              toast("info", "AOI deleted");
+            }}
+            onClearHistory={() => {
+              projectStore.clearHistory();
+              toast("info", "History cleared");
+            }}
+            onSaveCurrentAOI={() => {
+              if (aoi.geojson) {
+                projectStore.saveAOI(aoi.name || "Unnamed AOI", aoi.geojson, aoi.center);
+                toast("success", `AOI saved: ${aoi.name || "Unnamed AOI"}`);
+              }
+            }}
+            currentAOIName={aoi.name}
+            isAOIActive={isActive}
+          />
+        )}
+
         <TabBar activeTab={activeTab} onTabChange={setActiveTab} />
 
         {isActive ? (
@@ -157,6 +202,12 @@ function AppInner() {
             </TabPanel>
             <TabPanel id="forecast" active={activeTab}>
               <ForecastTab {...tabProps} />
+            </TabPanel>
+            <TabPanel id="hydrology" active={activeTab}>
+              <HydrologyTab {...tabProps} />
+            </TabPanel>
+            <TabPanel id="impact" active={activeTab}>
+              <ImpactTab {...tabProps} />
             </TabPanel>
           </ErrorBoundary>
         ) : (

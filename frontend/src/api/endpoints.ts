@@ -7,13 +7,18 @@ import type {
   AOIRequest,
   SARRequest,
   SARData,
+  SARDepthData,
+  CropLossData,
   MLRequest,
+  MLClassifyData,
+  MLExplainData,
   IndicesRequest,
   DroughtRequest,
   HydrologyRequest,
   ForecastRequest,
   MultiyearRequest,
   ProjectionsRequest,
+  ProjectionsData,
   TileData,
   ChartPoint,
   TimeseriesPoint,
@@ -23,6 +28,9 @@ import type {
   ScenarioComparisonRequest,
   ScenarioComparisonData,
   MLRiskPredictionData,
+  ImpactRequest,
+  ImpactData,
+  ForecastInundationData,
 } from "../types/api";
 
 // ── MCA (AHP-MCDM) ──
@@ -43,20 +51,20 @@ export const sarFloodDetection = (req: SARRequest) =>
   api.post<AnalysisResponse<SARData>>("/sar/flood-detection", req).then((r) => r.data);
 
 export const sarDepth = (req: SARRequest) =>
-  api.post<AnalysisResponse<TileData>>("/sar/depth", req).then((r) => r.data);
+  api.post<AnalysisResponse<SARDepthData>>("/sar/depth", req).then((r) => r.data);
 
-export const sarCropLoss = (req: SARRequest) =>
-  api.post<AnalysisResponse>("/sar/crop-loss", req).then((r) => r.data);
+export const sarCropLoss = (req: SARRequest & { crop_type?: string; crop_price?: number }) =>
+  api.post<AnalysisResponse<CropLossData>>("/sar/crop-loss", req).then((r) => r.data);
 
 export const sarTimeseries = (req: SARRequest) =>
   api.post<AnalysisResponse<{ series: TimeseriesPoint[] }>>("/sar/timeseries", req).then((r) => r.data);
 
 // ── ML ──
 export const mlClassify = (req: MLRequest) =>
-  api.post<AnalysisResponse<Record<string, any>>>("/ml/classify", req).then((r) => r.data);
+  api.post<AnalysisResponse<MLClassifyData>>("/ml/classify", req).then((r) => r.data);
 
 export const mlExplain = (req: MLRequest) =>
-  api.post<AnalysisResponse<Record<string, any>>>("/ml/explain", req).then((r) => r.data);
+  api.post<AnalysisResponse<MLExplainData>>("/ml/explain", req).then((r) => r.data);
 
 export const mlRiskPrediction = (req: MLRequest) =>
   api.post<AnalysisResponse<MLRiskPredictionData>>("/ml/risk-prediction", req).then((r) => r.data);
@@ -83,10 +91,28 @@ export const forecastWeather = (req: ForecastRequest) =>
 
 // ── Projections ──
 export const projectionsAnalysis = (req: ProjectionsRequest) =>
-  api.post<AnalysisResponse>("/projections/analysis", req).then((r) => r.data);
+  api.post<AnalysisResponse<ProjectionsData>>("/projections/analysis", req).then((r) => r.data);
 
 export const scenarioComparison = (req: ScenarioComparisonRequest) =>
   api.post<AnalysisResponse<ScenarioComparisonData>>("/projections/scenario-comparison", req).then((r) => r.data);
+
+// ── Impact ──
+export const impactAssessment = (req: ImpactRequest) =>
+  api.post<AnalysisResponse<ImpactData>>("/impact/assessment", req).then((r) => r.data);
+
+// ── Forecast Inundation ──
+export const forecastInundation = (req: { geojson: GeoJSON.Geometry; flood_depth_m?: number; stream_threshold?: number; forecast_days?: number }) =>
+  api.post<AnalysisResponse<ForecastInundationData>>("/forecast/inundation", req).then((r) => r.data);
+
+// ── Advanced ──
+export const advancedFusion = (req: SARRequest & { cloud_thresh?: number; fusion_weight?: number }) =>
+  api.post<AnalysisResponse>("/advanced/fusion", req).then((r) => r.data);
+
+export const advancedBatch = (req: { aois: Record<string, any>[]; analysis_type?: string }) =>
+  api.post<AnalysisResponse>("/advanced/batch", req).then((r) => r.data);
+
+export const advancedWatchpointCheck = (req: { geojson: GeoJSON.Geometry; name: string; alert_threshold_ha?: number }) =>
+  api.post<AnalysisResponse>("/advanced/watchpoint/check", req).then((r) => r.data);
 
 // ── Geocoding ──
 export const geocode = (query: string) =>

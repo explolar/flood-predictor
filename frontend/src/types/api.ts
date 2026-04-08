@@ -82,6 +82,23 @@ export interface SARData {
   pop_exposed: number;
   flood_url: string;
   severity_url: string;
+  water_url?: string;
+  pre_url?: string;
+  post_url?: string;
+  diff_url?: string;
+}
+
+export interface SARDepthData {
+  tile_url: string;
+  mean_depth: number;
+  max_depth: number;
+  histogram: Record<string, number>;
+}
+
+export interface CropLossData {
+  affected_ha: number;
+  estimated_loss_usd: number;
+  message?: string;
 }
 
 export interface AHPReport {
@@ -150,9 +167,46 @@ export interface IndicesData {
   indices: Record<string, { tile_url: string; mean_value: number; n_scenes: number }>;
 }
 
+export interface ProjectionsData {
+  mean_precip_mm_yr?: number;
+  mean_tasmax_c?: number;
+  mean_tasmin_c?: number;
+  precip_tile_url?: string;
+  temp_tile_url?: string;
+  scenario?: string;
+  model?: string;
+  period?: string;
+}
+
 export interface ScenarioComparisonData {
   model: string;
   comparison: Record<string, string | number>[];
+}
+
+export interface DroughtData {
+  spi: { tile_url: string; value?: number };
+  ndvi_anomaly: { tile_url: string; value?: number };
+}
+
+export interface MultiyearData {
+  chart: ChartPoint[];
+  tiles: TileData[];
+}
+
+export interface MLClassifyData {
+  tile_url: string;
+  ml_area_ha?: number;
+  threshold_area_ha?: number;
+  n_samples?: number;
+  oob_score?: number;
+  feature_importance?: Record<string, number>;
+}
+
+export interface MLExplainData {
+  shap_importance?: Record<string, number>;
+  summary_plot_b64?: string;
+  n_samples_explained?: number;
+  model_name?: string;
 }
 
 export interface MLRiskPredictionData {
@@ -161,4 +215,86 @@ export interface MLRiskPredictionData {
   oob_score?: number;
   feature_importance?: Record<string, number>;
   risk_distribution: Record<string, number>;
+}
+
+/** Impact module types */
+export interface ImpactRequest extends SARRequest {
+  include_population?: boolean;
+  include_buildings?: boolean;
+  include_infrastructure?: boolean;
+  include_crop_loss?: boolean;
+  crop_type?: string;
+  crop_price?: number;
+}
+
+export interface PopulationImpact {
+  total_population: number;
+  displaced_estimate: number;
+  children_affected: number;
+  elderly_affected: number;
+  displacement_rate: number;
+}
+
+export interface BuildingDamage {
+  total_buildings: number;
+  total_affected: number;
+  damage_counts: { minor: number; moderate: number; severe: number; destroyed: number };
+  tile_url?: string;
+}
+
+export interface InfrastructureImpact {
+  facilities: { lat: number; lon: number; type: string; name: string }[];
+  roads?: { total_km: number; km_by_type: Record<string, number> };
+  dams?: { name: string; river: string; capacity_mcm: number }[];
+}
+
+export interface ImpactData {
+  flood_area_ha: number;
+  population?: PopulationImpact;
+  buildings?: BuildingDamage;
+  infrastructure?: InfrastructureImpact;
+  crop_loss?: CropLossData;
+}
+
+/** Forecast inundation types */
+export interface ForecastInundationData {
+  observed_flood_url?: string;
+  forecast_flood_url?: string;
+  forecast_depth_url?: string;
+  observed_area_ha?: number;
+  forecast_area_ha?: number;
+  alert_level?: string;
+  alert_color?: string;
+  forecast_max_precip_mm?: number;
+  exceedance_return_period?: number;
+  hand_stats?: {
+    mean_hand_m: number;
+    p10_hand_m: number;
+    p50_hand_m: number;
+    p90_hand_m: number;
+  };
+}
+
+/** SAR 2.0 types */
+export type ReferenceStrategy = "event_pair" | "seasonal_baseline" | "rolling_baseline" | "anomaly_mode";
+
+export interface SAR2Request extends SARRequest {
+  reference_strategy?: ReferenceStrategy;
+  rolling_days?: number;
+  include_optical?: boolean;
+}
+
+export interface SARQualityMetadata {
+  n_pre_scenes: number;
+  n_post_scenes: number;
+  orbit_consistency: boolean;
+  temporal_gap_days: number;
+  confidence_score: number;
+  low_data_warning?: string;
+  reference_strategy: ReferenceStrategy;
+}
+
+export interface SAR2Data extends SARData {
+  quality: SARQualityMetadata;
+  optical_context_url?: string;
 }

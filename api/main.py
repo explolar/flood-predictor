@@ -13,7 +13,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from api.routes import drought, forecast, geocode, indices, mca, ml, multiyear, projections, sar
+from api.routes import advanced, drought, forecast, geocode, hydrology, impact, indices, mca, ml, multiyear, projections, sar
 
 app = FastAPI(
     title="HydroRisk Atlas API",
@@ -41,6 +41,9 @@ app.include_router(drought.router)
 app.include_router(multiyear.router)
 app.include_router(forecast.router)
 app.include_router(projections.router)
+app.include_router(hydrology.router)
+app.include_router(impact.router)
+app.include_router(advanced.router)
 app.include_router(geocode.router)
 
 
@@ -67,6 +70,12 @@ async def api_info():
             "/sar/crop-loss",
             "/sar/timeseries",
             "/projections/scenario-comparison",
+            "/hydrology/analysis",
+            "/impact/assessment",
+            "/forecast/inundation",
+            "/advanced/fusion",
+            "/advanced/batch",
+            "/advanced/watchpoint/check",
         ],
     }
 
