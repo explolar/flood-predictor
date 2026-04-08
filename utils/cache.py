@@ -3,10 +3,10 @@ Caching with TTL support using distributed Redis or fallback cachetools.
 """
 
 import functools
-import time
+import hashlib
 import os
 import pickle
-import hashlib
+import time
 
 try:
     from cachetools import TTLCache, cached
@@ -59,10 +59,10 @@ def cache_data(ttl=3600, show_spinner=False):
                         return pickle.loads(cached_val)
                     except pickle.PickleError:
                         pass
-                
+
                 result = func(*args, **kwargs)
                 try:
-                    # Cache None values for negative caching, but only briefly to avoid long-term poisoned cache 
+                    # Cache None values for negative caching, but only briefly to avoid long-term poisoned cache
                     # if the EE server has an intermittent outage.
                     store_ttl = ttl if result is not None else min(ttl, 60)
                     _redis.setex(key_str, store_ttl, pickle.dumps(result))

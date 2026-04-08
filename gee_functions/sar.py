@@ -336,7 +336,7 @@ def get_sar_timeseries(aoi_json, p_start, f_end, polarization):
                         "date": props['date'],
                         "value": round(props['value'], 2)
                     })
-        
+
         # Sort chronologically just in case
         series = sorted(series, key=lambda x: x["date"])
         return series

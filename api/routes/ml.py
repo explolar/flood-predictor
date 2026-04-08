@@ -205,7 +205,7 @@ async def get_task_status(task_id: str):
     try:
         from api.worker import celery_app
         task_result = celery_app.AsyncResult(task_id)
-        
+
         if task_result.state == 'PENDING':
             return AnalysisResponse(success=True, data={"status": "pending"})
         elif task_result.state == 'PROGRESS':
