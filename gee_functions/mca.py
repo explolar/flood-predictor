@@ -431,35 +431,41 @@ def get_ahp_weights():
 
 @cache_data(ttl=3600)
 def get_factor_stats(aoi_json):
-    """Compute per-factor area distribution across risk classes 1-5."""
+    """Compute per-factor area distribution across risk classes 1-5.
+
+    Batched: builds a single ee.Dictionary with all factor-class areas
+    and performs ONE getInfo() call instead of 11 sequential calls.
+    """
     aoi_geom = ee.Geometry(json.loads(aoi_json))
     factors = compute_factor_layers(aoi_geom)
     total_area = ee.Number(aoi_geom.area(maxError=1)).divide(1e6)  # km2
 
-    stats = {}
+    # Build a single server-side dictionary with all 11*5 = 55 area values
+    batch = {}
     for name, img in factors.items():
-        class_areas = {}
         for cls in range(1, 6):
-            mask = img.eq(cls)
+            key = f"{name}__{cls}"
             area = (
-                mask.multiply(ee.Image.pixelArea())
+                img.eq(cls)
+                .multiply(ee.Image.pixelArea())
                 .reduceRegion(reducer=ee.Reducer.sum(), geometry=aoi_geom, scale=100, bestEffort=True)
                 .values()
                 .get(0)
             )
-            class_areas[str(cls)] = ee.Number(area).divide(1e6)  # km2
+            batch[key] = ee.Number(area).divide(1e6)
 
-        stats[name] = ee.Dictionary(class_areas).getInfo()
+    batch["__total_area_km2"] = total_area
 
-    stats["total_area_km2"] = round(total_area.getInfo(), 2)
+    # Single round-trip to GEE server
+    result = ee.Dictionary(batch).getInfo() or {}
+
+    # Unpack into per-factor dicts
+    stats = {}
+    for name in factors:
+        stats[name] = {}
+        for cls in range(1, 6):
+            stats[name][str(cls)] = result.get(f"{name}__{cls}", 0)
+
+    stats["total_area_km2"] = round(result.get("__total_area_km2", 0), 2)
     return stats
 
-
-# ── Legacy compatibility ────────────────────────────────────
-# Keep old function signature working for existing callers
-
-
-def calculate_flood_risk(aoi_geom, w_lulc=0.40, w_slope=0.30, w_rain=0.30):
-    """Legacy 3-factor wrapper. Redirects to full AHP."""
-    composite, _, _ = compute_flood_susceptibility(aoi_geom)
-    return composite

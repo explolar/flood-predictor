@@ -1,9 +1,10 @@
 """
 Caching with TTL support using cachetools.
-Falls back to functools.lru_cache if cachetools is not installed.
+Falls back to a custom dict-based TTL cache if cachetools is not installed.
 """
 
 import functools
+import time
 
 try:
     from cachetools import TTLCache, cached
@@ -19,7 +20,11 @@ def _make_hashable(v):
         return tuple(_make_hashable(i) for i in v)
     if isinstance(v, dict):
         return tuple(sorted((k, _make_hashable(val)) for k, val in v.items()))
-    return v
+    try:
+        hash(v)
+        return v
+    except TypeError:
+        return str(v)
 
 
 def _hashable_key(*args, **kwargs):
@@ -42,7 +47,36 @@ def cache_data(ttl=3600, show_spinner=False):
 
         return decorator
     else:
-        return functools.lru_cache(maxsize=256)
+        # Fallback: dict-based cache with TTL tracking (no lru_cache)
+        _store: dict = {}  # key -> (value, expiry_timestamp)
+
+        def _evict_expired():
+            now = time.monotonic()
+            expired = [k for k, (_, exp) in _store.items() if now >= exp]
+            for k in expired:
+                del _store[k]
+
+        def decorator(func):
+            @functools.wraps(func)
+            def wrapper(*args, **kwargs):
+                _evict_expired()
+                key = _hashable_key(*args, **kwargs)
+                entry = _store.get(key)
+                if entry is not None:
+                    value, expiry = entry
+                    if time.monotonic() < expiry:
+                        return value
+                    del _store[key]
+                # Enforce maxsize
+                if len(_store) >= 256:
+                    _store.pop(next(iter(_store)))
+                result = func(*args, **kwargs)
+                _store[key] = (result, time.monotonic() + ttl)
+                return result
+
+            return wrapper
+
+        return decorator
 
 
 def cache_resource():
@@ -60,4 +94,22 @@ def cache_resource():
 
         return decorator
     else:
-        return functools.lru_cache(maxsize=1)
+        _store: dict = {}  # key -> (value, expiry_timestamp)
+
+        def decorator(func):
+            @functools.wraps(func)
+            def wrapper(*args, **kwargs):
+                key = _hashable_key(*args, **kwargs)
+                entry = _store.get(key)
+                if entry is not None:
+                    value, expiry = entry
+                    if time.monotonic() < expiry:
+                        return value
+                _store.clear()
+                result = func(*args, **kwargs)
+                _store[key] = (result, time.monotonic() + 86400)
+                return result
+
+            return wrapper
+
+        return decorator

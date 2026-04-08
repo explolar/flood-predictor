@@ -6,6 +6,7 @@ Usage:
     MODE=api uvicorn api.main:app --host 0.0.0.0 --port 8080
 """
 
+import os
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -20,9 +21,13 @@ app = FastAPI(
     version="3.0.0",
 )
 
+_default_origins = ["http://localhost:5173", "http://localhost:3000"]
+_extra = os.environ.get("ALLOWED_ORIGINS", "")
+_allowed_origins = _default_origins + [o.strip() for o in _extra.split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -58,6 +63,10 @@ async def api_info():
             "/forecast/weather",
             "/projections/analysis",
             "/geocode",
+            "/sar/depth",
+            "/sar/crop-loss",
+            "/sar/timeseries",
+            "/projections/scenario-comparison",
         ],
     }
 

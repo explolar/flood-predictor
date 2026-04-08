@@ -20,7 +20,7 @@ def get_multiyear_flood_comparison(aoi_json, years=None, polarization="VH", thre
 
     Returns dict with yearly data and tile URLs per year.
     """
-    if years is None:
+    if not years:
         years = [2019, 2020, 2021, 2022, 2023, 2024]
 
     aoi_geom = ee.Geometry(json.loads(aoi_json))

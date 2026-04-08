@@ -27,7 +27,6 @@ from .layers import get_jrc_freq_tile as get_jrc_freq_tile
 from .layers import get_ndvi_tile as get_ndvi_tile
 from .layers import get_s2_rgb_tile as get_s2_rgb_tile
 from .layers import get_s2_rgb_tiles as get_s2_rgb_tiles
-from .mca import calculate_flood_risk as calculate_flood_risk
 from .mca import compute_ahp_weights as compute_ahp_weights
 from .mca import compute_flood_susceptibility as compute_flood_susceptibility
 from .mca import get_ahp_weights as get_ahp_weights

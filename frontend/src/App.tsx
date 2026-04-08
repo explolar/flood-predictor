@@ -8,7 +8,7 @@ import { LoadingOverlay } from "./components/common/LoadingOverlay";
 import { ErrorBoundary } from "./components/common/ErrorBoundary";
 import { ToastContainer, toast } from "./components/common/Toast";
 import { geocode } from "./api/endpoints";
-import { Droplets, MapPin } from "lucide-react";
+import { Droplets, MapPin, Menu } from "lucide-react";
 import "./index.css";
 
 const RiskTab = lazy(() => import("./pages/RiskTab").then((m) => ({ default: m.RiskTab })));
@@ -97,6 +97,13 @@ function AppInner() {
 
   return (
     <div className="app-layout">
+      {/* Mobile backdrop */}
+      {!sidebarCollapsed && (
+        <div
+          className="sidebar-backdrop sidebar-backdrop-visible"
+          onClick={() => setSidebarCollapsed(true)}
+        />
+      )}
       <Sidebar
         onSearchPlace={handleSearch}
         onSetBBox={(bbox) => {
@@ -120,7 +127,15 @@ function AppInner() {
         onToggleCollapse={() => setSidebarCollapsed((c) => !c)}
       />
       <main className="main-content">
-        <Header />
+        <Header>
+          <button
+            className="mobile-menu-btn"
+            onClick={() => setSidebarCollapsed((c) => !c)}
+            title="Toggle menu"
+          >
+            <Menu size={18} />
+          </button>
+        </Header>
         <TabBar activeTab={activeTab} onTabChange={setActiveTab} />
 
         {isActive ? (

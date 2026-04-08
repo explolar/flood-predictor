@@ -103,8 +103,8 @@ function BrandLogo() {
     <svg width="34" height="34" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
       <defs>
         <linearGradient id="logo-bg" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="#0891b2" />
-          <stop offset="100%" stopColor="#0e7490" />
+          <stop offset="0%" stopColor="#0369a1" />
+          <stop offset="100%" stopColor="#075985" />
         </linearGradient>
       </defs>
       <rect width="32" height="32" rx="7" fill="url(#logo-bg)" />
@@ -176,7 +176,7 @@ export function Sidebar({
   }
 
   return (
-    <aside className="sidebar">
+    <aside className={`sidebar${collapsed ? "" : " sidebar-open"}`}>
       {/* Brand */}
       <div className="sidebar-brand" style={{ display: "flex", alignItems: "center", gap: 10, position: "relative" }}>
         <BrandLogo />

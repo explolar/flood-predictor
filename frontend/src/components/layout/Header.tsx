@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { healthCheck } from "../../api/endpoints";
 
-export function Header() {
+export function Header({ children }: { children?: ReactNode }) {
   const [geeStatus, setGeeStatus] = useState<"checking" | "connected" | "offline">("checking");
 
   useEffect(() => {
@@ -19,11 +19,12 @@ export function Header() {
 
   return (
     <header className="header">
+      {children}
       <svg width="28" height="28" viewBox="0 0 32 32" fill="none">
         <defs>
           <linearGradient id="hdr-bg" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
-            <stop offset="0%" stopColor="#0891b2" />
-            <stop offset="100%" stopColor="#0e7490" />
+            <stop offset="0%" stopColor="#0369a1" />
+            <stop offset="100%" stopColor="#075985" />
           </linearGradient>
         </defs>
         <rect width="32" height="32" rx="7" fill="url(#hdr-bg)" />
