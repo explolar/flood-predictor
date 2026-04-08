@@ -54,9 +54,7 @@ async def scenario_comparison(request: ScenarioComparisonRequest):
     try:
         from gee_functions.cmip6 import get_cmip6_scenario_comparison
 
-        result = await asyncio.to_thread(
-            get_cmip6_scenario_comparison, aoi_json, request.model, request.periods
-        )
+        result = await asyncio.to_thread(get_cmip6_scenario_comparison, aoi_json, request.model, request.periods)
         if result is None:
             return AnalysisResponse(success=True, data={"message": "No CMIP6 data available", "comparison": []})
         # Convert DataFrame to JSON-safe records

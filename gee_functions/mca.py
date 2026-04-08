@@ -468,4 +468,3 @@ def get_factor_stats(aoi_json):
 
     stats["total_area_km2"] = round(result.get("__total_area_km2", 0), 2)
     return stats
-

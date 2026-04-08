@@ -38,7 +38,10 @@ def get_aoi_stats(aoi_json):
     combined = dem.rename("elev").addBands(slope.rename("slope"))
     stats = (
         combined.reduceRegion(
-            reducer=ee.Reducer.minMax().combine(ee.Reducer.mean(), "", True), geometry=aoi_geom, scale=100, maxPixels=1e9
+            reducer=ee.Reducer.minMax().combine(ee.Reducer.mean(), "", True),
+            geometry=aoi_geom,
+            scale=100,
+            maxPixels=1e9,
         ).getInfo()
         or {}
     )

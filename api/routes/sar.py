@@ -77,6 +77,7 @@ async def get_crop_loss(request: dict):
         # We simulate the crop loss or use a gee function if available
         # The frontend expects a generic AnalysisResponse.
         from gee_functions.sar import get_crop_loss_data
+
         result = await asyncio.to_thread(
             get_crop_loss_data,
             aoi_json,
@@ -93,8 +94,7 @@ async def get_crop_loss(request: dict):
     except Exception:
         # Fallback if get_crop_loss_data isn't implemented in gee_functions.sar yet
         return AnalysisResponse(
-            success=True,
-            data={"affected_ha": 0, "estimated_loss_usd": 0, "message": "Crop loss not fully implemented"}
+            success=True, data={"affected_ha": 0, "estimated_loss_usd": 0, "message": "Crop loss not fully implemented"}
         )
 
 
@@ -105,6 +105,7 @@ async def get_timeseries(request: SARRequest):
     aoi_json = aoi_to_json(request.geojson)
     try:
         from gee_functions.sar import get_sar_timeseries
+
         result = await asyncio.to_thread(
             get_sar_timeseries,
             aoi_json,
