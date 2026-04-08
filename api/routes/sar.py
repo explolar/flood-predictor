@@ -72,7 +72,6 @@ async def get_crop_loss(request: dict):
     """Run SAR flood crop loss estimation and return results."""
     # request is SARRequest & { crop_type: string; crop_price: number }
     initialize_ee_api()
-    import json
     aoi_json = aoi_to_json(request.get("geojson", {}))
     try:
         # We simulate the crop loss or use a gee function if available
@@ -94,7 +93,7 @@ async def get_crop_loss(request: dict):
     except Exception:
         # Fallback if get_crop_loss_data isn't implemented in gee_functions.sar yet
         return AnalysisResponse(
-            success=True, 
+            success=True,
             data={"affected_ha": 0, "estimated_loss_usd": 0, "message": "Crop loss not fully implemented"}
         )
 
