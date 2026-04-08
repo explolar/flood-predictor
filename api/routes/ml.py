@@ -182,6 +182,7 @@ async def classify_flood_async(request: MLRequest):
 
     try:
         from api.worker import train_ml_model_task
+
         task = train_ml_model_task.delay(
             request.model,
             aoi_json,
@@ -204,17 +205,18 @@ async def get_task_status(task_id: str):
     """Poll the status of a long-running Celery queue task."""
     try:
         from api.worker import celery_app
+
         task_result = celery_app.AsyncResult(task_id)
 
-        if task_result.state == 'PENDING':
+        if task_result.state == "PENDING":
             return AnalysisResponse(success=True, data={"status": "pending"})
-        elif task_result.state == 'PROGRESS':
+        elif task_result.state == "PROGRESS":
             # Support custom progress metadata
             meta = task_result.info or {}
-            return AnalysisResponse(success=True, data={"status": "processing", "message": meta.get('message', '')})
-        elif task_result.state == 'SUCCESS':
+            return AnalysisResponse(success=True, data={"status": "processing", "message": meta.get("message", "")})
+        elif task_result.state == "SUCCESS":
             return AnalysisResponse(success=True, data={"status": "done", "result": task_result.result})
-        elif task_result.state == 'FAILURE':
+        elif task_result.state == "FAILURE":
             return AnalysisResponse(success=False, error=str(task_result.info))
         else:
             return AnalysisResponse(success=True, data={"status": task_result.state})

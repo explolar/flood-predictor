@@ -10,12 +10,14 @@ import time
 
 try:
     from cachetools import TTLCache, cached
+
     _HAS_CACHETOOLS = True
 except ImportError:
     _HAS_CACHETOOLS = False
 
 try:
     import redis
+
     _REDIS_URL = os.environ.get("REDIS_URL")
     if _REDIS_URL:
         # decode_responses=False to keep bytes for pickle
@@ -48,6 +50,7 @@ def _hashable_key(*args, **kwargs):
 def cache_data(ttl=3600, show_spinner=False):
     """TTL-aware cache decorator. Uses Redis if available, else local cachetools."""
     if _HAS_REDIS:
+
         def decorator(func):
             @functools.wraps(func)
             def wrapper(*args, **kwargs):
@@ -69,7 +72,9 @@ def cache_data(ttl=3600, show_spinner=False):
                 except Exception:
                     pass
                 return result
+
             return wrapper
+
         return decorator
 
     elif _HAS_CACHETOOLS:
@@ -82,6 +87,7 @@ def cache_data(ttl=3600, show_spinner=False):
                 return func(*args, **kwargs)
 
             return wrapper
+
         return decorator
     else:
         # Fallback: dict-based cache with TTL tracking
@@ -109,7 +115,9 @@ def cache_data(ttl=3600, show_spinner=False):
                 result = func(*args, **kwargs)
                 _store[key] = (result, time.monotonic() + ttl)
                 return result
+
             return wrapper
+
         return decorator
 
 
@@ -117,15 +125,19 @@ def cache_resource():
     """Singleton-cache decorator for expensive resources (e.g. EE init)."""
     if _HAS_CACHETOOLS:
         _cache = TTLCache(maxsize=1, ttl=86400)
+
         def decorator(func):
             @cached(cache=_cache)
             @functools.wraps(func)
             def wrapper(*args, **kwargs):
                 return func(*args, **kwargs)
+
             return wrapper
+
         return decorator
     else:
         _store: dict = {}
+
         def decorator(func):
             @functools.wraps(func)
             def wrapper(*args, **kwargs):
@@ -139,5 +151,7 @@ def cache_resource():
                 result = func(*args, **kwargs)
                 _store[key] = (result, time.monotonic() + 86400)
                 return result
+
             return wrapper
+
         return decorator

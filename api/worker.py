@@ -18,6 +18,7 @@ celery_app.conf.update(
     enable_utc=True,
 )
 
+
 @celery_app.task(bind=True, name="train_ml_model_task")
 def train_ml_model_task(self, model_name, aoi_json, f_start, f_end, p_start, p_end, threshold, polarization, speckle):
     """Background task to extract Earth Engine samples and train Random Forest/XGBoost over an extended period."""
@@ -30,7 +31,7 @@ def train_ml_model_task(self, model_name, aoi_json, f_start, f_end, p_start, p_e
     # Get model and train
     classifier = _get_classifier(model_name)
 
-    self.update_state(state='PROGRESS', meta={'message': 'Extracting GEE samples...'})
+    self.update_state(state="PROGRESS", meta={"message": "Extracting GEE samples..."})
 
     # Actually run the classification which trains and returns a payload
     result = classifier.classify_for_aoi(

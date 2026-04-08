@@ -261,6 +261,7 @@ def get_recession_data(aoi_json, f_end_str, p_start_str, p_end_str, polarization
     except Exception:
         return None
 
+
 @cache_data(ttl=3600)
 def get_crop_loss_data(aoi_json, f_start, f_end, p_start, p_end, threshold, polarization, crop_type, crop_price):
     try:
@@ -296,10 +297,11 @@ def get_crop_loss_data(aoi_json, f_start, f_end, p_start, p_end, threshold, pola
         return {
             "affected_ha": affected_ha,
             "estimated_loss_usd": round(affected_ha * crop_price, 2),
-            "message": f"{affected_ha} hectares of {crop_type} flooded."
+            "message": f"{affected_ha} hectares of {crop_type} flooded.",
         }
     except Exception as e:
         return {"affected_ha": 0, "estimated_loss_usd": 0, "message": str(e)}
+
 
 @cache_data(ttl=3600)
 def get_sar_timeseries(aoi_json, p_start, f_end, polarization):
@@ -314,28 +316,17 @@ def get_sar_timeseries(aoi_json, p_start, f_end, polarization):
         )
 
         def calculate_mean(image):
-            mean_dict = image.reduceRegion(
-                reducer=ee.Reducer.mean(),
-                geometry=aoi_geom,
-                scale=100,
-                maxPixels=1e9
-            )
-            return ee.Feature(None, {
-                'date': image.date().format('YYYY-MM-dd'),
-                'value': mean_dict.get(polarization)
-            })
+            mean_dict = image.reduceRegion(reducer=ee.Reducer.mean(), geometry=aoi_geom, scale=100, maxPixels=1e9)
+            return ee.Feature(None, {"date": image.date().format("YYYY-MM-dd"), "value": mean_dict.get(polarization)})
 
         timeseries_features = s1.map(calculate_mean).getInfo()
 
         series = []
-        if timeseries_features and 'features' in timeseries_features:
-            for feat in timeseries_features['features']:
-                props = feat.get('properties', {})
-                if props.get('value') is not None:
-                    series.append({
-                        "date": props['date'],
-                        "value": round(props['value'], 2)
-                    })
+        if timeseries_features and "features" in timeseries_features:
+            for feat in timeseries_features["features"]:
+                props = feat.get("properties", {})
+                if props.get("value") is not None:
+                    series.append({"date": props["date"], "value": round(props["value"], 2)})
 
         # Sort chronologically just in case
         series = sorted(series, key=lambda x: x["date"])
