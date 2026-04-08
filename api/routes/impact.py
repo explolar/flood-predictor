@@ -1,7 +1,6 @@
 """Impact assessment API — combines population, buildings, infrastructure, and crop loss."""
 
 import asyncio
-from typing import Optional
 
 from fastapi import APIRouter, HTTPException
 
@@ -73,7 +72,7 @@ async def impact_assessment(request: ImpactRequest):
 
         if request.include_infrastructure:
             async def get_infra():
-                from gee_functions.infrastructure import get_osm_infrastructure, get_osm_roads, get_dam_data
+                from gee_functions.infrastructure import get_dam_data, get_osm_infrastructure, get_osm_roads
                 facilities = await asyncio.to_thread(get_osm_infrastructure, aoi_json)
                 roads_data = await asyncio.to_thread(get_osm_roads, aoi_json)
                 dams = await asyncio.to_thread(get_dam_data, aoi_json)

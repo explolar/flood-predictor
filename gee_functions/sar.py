@@ -83,7 +83,6 @@ def _get_reference_image(
 
     # Compute quality metadata
     p_start_dt = datetime.date.fromisoformat(str(p_start))
-    f_end_dt = datetime.date.fromisoformat(str(f_end))
     temporal_gap = (datetime.date.fromisoformat(str(f_start)) - p_start_dt).days
 
     # Orbit consistency check

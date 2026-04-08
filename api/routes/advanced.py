@@ -1,7 +1,7 @@
 """Advanced analysis modes — optical fusion, batch AOI, alert watchpoints."""
 
 import asyncio
-from typing import List, Optional
+from typing import List
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -115,6 +115,7 @@ async def check_watchpoint(request: WatchpointRequest):
 
     try:
         import datetime
+
         from gee_functions.sar import get_all_sar_data
 
         today = datetime.date.today()

@@ -13,7 +13,20 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from api.routes import advanced, drought, forecast, geocode, hydrology, impact, indices, mca, ml, multiyear, projections, sar
+from api.routes import (
+    advanced,
+    drought,
+    forecast,
+    geocode,
+    hydrology,
+    impact,
+    indices,
+    mca,
+    ml,
+    multiyear,
+    projections,
+    sar,
+)
 
 app = FastAPI(
     title="HydroRisk Atlas API",

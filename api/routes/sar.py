@@ -1,7 +1,6 @@
 """SAR API routes with v2 reference strategies and quality metadata."""
 
 import asyncio
-from typing import Optional
 
 from fastapi import APIRouter, HTTPException
 
