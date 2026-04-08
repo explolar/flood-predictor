@@ -12,6 +12,7 @@ router = APIRouter(prefix="/sar", tags=["SAR"])
 
 class SAR2Request(SARRequest):
     """Extended SAR request with reference strategy selection."""
+
     reference_strategy: str = "event_pair"
     rolling_days: int = 90
     include_optical: bool = False

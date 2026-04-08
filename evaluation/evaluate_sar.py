@@ -91,17 +91,19 @@ def run_evaluation(strategies=None, thresholds=None, polarization="VH", speckle=
                 elapsed = round(time.time() - t0, 1)
                 metrics = _compute_metrics(predicted_ha, aoi["expected_area_ha"] or 0, aoi["is_flood"])
 
-                results.append({
-                    "aoi_name": aoi["name"],
-                    "is_flood": aoi["is_flood"],
-                    "expected_area_ha": aoi["expected_area_ha"],
-                    "predicted_area_ha": predicted_ha,
-                    "strategy": strategy,
-                    "threshold": threshold,
-                    "elapsed_s": elapsed,
-                    "quality": quality,
-                    **metrics,
-                })
+                results.append(
+                    {
+                        "aoi_name": aoi["name"],
+                        "is_flood": aoi["is_flood"],
+                        "expected_area_ha": aoi["expected_area_ha"],
+                        "predicted_area_ha": predicted_ha,
+                        "strategy": strategy,
+                        "threshold": threshold,
+                        "elapsed_s": elapsed,
+                        "quality": quality,
+                        **metrics,
+                    }
+                )
 
     return results
 
@@ -147,7 +149,9 @@ def main():
     parser.add_argument("--output", default="evaluation/results.json")
     args = parser.parse_args()
 
-    print(f"Running evaluation: {len(BENCHMARK_AOIS)} AOIs x {len(args.strategies)} strategies x {len(args.thresholds)} thresholds")
+    print(
+        f"Running evaluation: {len(BENCHMARK_AOIS)} AOIs x {len(args.strategies)} strategies x {len(args.thresholds)} thresholds"
+    )
     results = run_evaluation(strategies=args.strategies, thresholds=args.thresholds)
     agg = aggregate_metrics(results)
 
@@ -160,7 +164,9 @@ def main():
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(json.dumps(report, indent=2))
     print(f"\nResults written to {output_path}")
-    print(f"Aggregate: accuracy={agg.get('overall_accuracy')}, F1={agg.get('f1')}, FP rate={agg.get('dry_scene_false_positive_rate')}")
+    print(
+        f"Aggregate: accuracy={agg.get('overall_accuracy')}, F1={agg.get('f1')}, FP rate={agg.get('dry_scene_false_positive_rate')}"
+    )
 
 
 if __name__ == "__main__":

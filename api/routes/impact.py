@@ -12,6 +12,7 @@ router = APIRouter(prefix="/impact", tags=["Impact"])
 
 class ImpactRequest(SARRequest):
     """Impact assessment request — SAR params + toggles for each module."""
+
     include_population: bool = True
     include_buildings: bool = True
     include_infrastructure: bool = True
@@ -53,26 +54,38 @@ async def impact_assessment(request: ImpactRequest):
         tasks = {}
 
         if request.include_population:
+
             async def get_pop():
                 from gee_functions.population import get_displacement_estimate
+
                 return await asyncio.to_thread(get_displacement_estimate, aoi_json)
+
             tasks["population"] = get_pop()
 
         if request.include_buildings:
+
             async def get_buildings():
                 from gee_functions.buildings import get_building_damage
+
                 return await asyncio.to_thread(
                     get_building_damage,
                     aoi_json,
-                    request.f_start, request.f_end,
-                    request.p_start, request.p_end,
-                    request.threshold, request.polarization, request.speckle,
+                    request.f_start,
+                    request.f_end,
+                    request.p_start,
+                    request.p_end,
+                    request.threshold,
+                    request.polarization,
+                    request.speckle,
                 )
+
             tasks["buildings"] = get_buildings()
 
         if request.include_infrastructure:
+
             async def get_infra():
                 from gee_functions.infrastructure import get_dam_data, get_osm_infrastructure, get_osm_roads
+
                 facilities = await asyncio.to_thread(get_osm_infrastructure, aoi_json)
                 roads_data = await asyncio.to_thread(get_osm_roads, aoi_json)
                 dams = await asyncio.to_thread(get_dam_data, aoi_json)
@@ -91,19 +104,27 @@ async def impact_assessment(request: ImpactRequest):
                         for d in (dams or [])[:10]
                     ],
                 }
+
             tasks["infrastructure"] = get_infra()
 
         if request.include_crop_loss:
+
             async def get_crops():
                 from gee_functions.sar import get_crop_loss_data
+
                 return await asyncio.to_thread(
                     get_crop_loss_data,
                     aoi_json,
-                    request.f_start, request.f_end,
-                    request.p_start, request.p_end,
-                    request.threshold, request.polarization,
-                    request.crop_type, request.crop_price,
+                    request.f_start,
+                    request.f_end,
+                    request.p_start,
+                    request.p_end,
+                    request.threshold,
+                    request.polarization,
+                    request.crop_type,
+                    request.crop_price,
                 )
+
             tasks["crop_loss"] = get_crops()
 
         # Gather all sub-results

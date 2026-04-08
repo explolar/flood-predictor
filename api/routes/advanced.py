@@ -14,6 +14,7 @@ router = APIRouter(prefix="/advanced", tags=["Advanced"])
 
 # ── Optical + SAR Fusion ──
 
+
 class FusionRequest(SARRequest):
     cloud_thresh: int = 40
     fusion_weight: float = 0.5
@@ -31,10 +32,15 @@ async def optical_sar_fusion(request: FusionRequest):
         result = await asyncio.to_thread(
             get_fused_flood_mask,
             aoi_json,
-            request.f_start, request.f_end,
-            request.p_start, request.p_end,
-            request.threshold, request.polarization, request.speckle,
-            request.cloud_thresh, request.fusion_weight,
+            request.f_start,
+            request.f_end,
+            request.p_start,
+            request.p_end,
+            request.threshold,
+            request.polarization,
+            request.speckle,
+            request.cloud_thresh,
+            request.fusion_weight,
         )
         if result is None:
             return AnalysisResponse(
@@ -47,6 +53,7 @@ async def optical_sar_fusion(request: FusionRequest):
 
 
 # ── Batch AOI Execution ──
+
 
 class BatchAOIRequest(BaseModel):
     aois: List[dict]  # List of {name, geojson, ...params}
@@ -67,8 +74,10 @@ async def batch_aoi_execution(request: BatchAOIRequest):
         try:
             if request.analysis_type == "sar":
                 from gee_functions.sar import get_all_sar_data
+
                 result = await asyncio.to_thread(
-                    get_all_sar_data, aoi_json,
+                    get_all_sar_data,
+                    aoi_json,
                     aoi_spec.get("f_start", "2024-07-01"),
                     aoi_spec.get("f_end", "2024-08-01"),
                     aoi_spec.get("p_start", "2024-01-01"),
@@ -80,8 +89,11 @@ async def batch_aoi_execution(request: BatchAOIRequest):
                 return {"name": name, "status": "success", "area_ha": result.get("area_ha", 0)}
             elif request.analysis_type == "hydrology":
                 from gee_functions.watershed import get_all_hydrology_data
+
                 result = await asyncio.to_thread(
-                    get_all_hydrology_data, aoi_json, aoi_spec.get("stream_threshold", 100),
+                    get_all_hydrology_data,
+                    aoi_json,
+                    aoi_spec.get("stream_threshold", 100),
                 )
                 return {"name": name, "status": "success", "stream_length_km": result.get("stream_length_km", 0)}
             else:
@@ -94,6 +106,7 @@ async def batch_aoi_execution(request: BatchAOIRequest):
 
 
 # ── Alert / Watchpoint ──
+
 
 class WatchpointRequest(BaseModel):
     geojson: dict
@@ -126,22 +139,33 @@ async def check_watchpoint(request: WatchpointRequest):
 
         result = await asyncio.to_thread(
             get_all_sar_data,
-            aoi_json, f_start, f_end, p_start, p_end,
-            request.threshold, request.polarization, True,
-            "rolling_baseline", 90, False,
+            aoi_json,
+            f_start,
+            f_end,
+            p_start,
+            p_end,
+            request.threshold,
+            request.polarization,
+            True,
+            "rolling_baseline",
+            90,
+            False,
         )
 
         area_ha = result.get("area_ha", 0)
         alert_triggered = area_ha >= request.alert_threshold_ha
 
-        return AnalysisResponse(success=True, data={
-            "name": request.name,
-            "checked_at": today.isoformat(),
-            "flood_area_ha": area_ha,
-            "alert_threshold_ha": request.alert_threshold_ha,
-            "alert_triggered": alert_triggered,
-            "quality": result.get("quality"),
-            "flood_url": result.get("flood_url"),
-        })
+        return AnalysisResponse(
+            success=True,
+            data={
+                "name": request.name,
+                "checked_at": today.isoformat(),
+                "flood_area_ha": area_ha,
+                "alert_threshold_ha": request.alert_threshold_ha,
+                "alert_triggered": alert_triggered,
+                "quality": result.get("quality"),
+                "flood_url": result.get("flood_url"),
+            },
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

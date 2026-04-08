@@ -15,9 +15,16 @@ from utils.cache import cache_data
 
 @cache_data(ttl=3600)
 def get_fused_flood_mask(
-    aoi_json, f_start, f_end, p_start, p_end,
-    threshold=3.0, polarization="VH", speckle=True,
-    cloud_thresh=40, fusion_weight=0.5,
+    aoi_json,
+    f_start,
+    f_end,
+    p_start,
+    p_end,
+    threshold=3.0,
+    polarization="VH",
+    speckle=True,
+    cloud_thresh=40,
+    fusion_weight=0.5,
 ):
     """Create a fused SAR+optical flood mask.
 
@@ -72,7 +79,8 @@ def get_fused_flood_mask(
     fused_area = (
         fused_mask.multiply(ee.Image.pixelArea())
         .reduceRegion(reducer=ee.Reducer.sum(), geometry=aoi_geom, scale=30, maxPixels=1e9)
-        .getInfo() or {}
+        .getInfo()
+        or {}
     )
     area_val = list(fused_area.values())[0] if fused_area else 0
     fused_ha = round((area_val or 0) / 10000, 2)
@@ -80,7 +88,8 @@ def get_fused_flood_mask(
     sar_area = (
         sar_binary.multiply(ee.Image.pixelArea())
         .reduceRegion(reducer=ee.Reducer.sum(), geometry=aoi_geom, scale=30, maxPixels=1e9)
-        .getInfo() or {}
+        .getInfo()
+        or {}
     )
     sar_val = list(sar_area.values())[0] if sar_area else 0
     sar_ha = round((sar_val or 0) / 10000, 2)
@@ -89,7 +98,9 @@ def get_fused_flood_mask(
         "fused_url": fused_mask.getMapId({"palette": ["00FFFF"]})["tile_fetcher"].url_format,
         "sar_only_url": sar_flood.getMapId({"palette": ["FF6B6B"]})["tile_fetcher"].url_format,
         "optical_url": optical_water.selfMask().getMapId({"palette": ["0077FF"]})["tile_fetcher"].url_format,
-        "mndwi_url": mndwi.getMapId({"min": -0.5, "max": 0.5, "palette": ["d73027", "ffffbf", "2166ac"]})["tile_fetcher"].url_format,
+        "mndwi_url": mndwi.getMapId({"min": -0.5, "max": 0.5, "palette": ["d73027", "ffffbf", "2166ac"]})[
+            "tile_fetcher"
+        ].url_format,
         "fused_area_ha": fused_ha,
         "sar_only_area_ha": sar_ha,
         "s2_scenes_used": s2_count,

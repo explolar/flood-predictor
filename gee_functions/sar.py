@@ -23,10 +23,7 @@ def _build_s1_collection(aoi_geom, polarization):
     )
 
 
-def _get_reference_image(
-    s1, aoi_geom, strategy, f_start, f_end, p_start, p_end,
-    speckle, rolling_days=90
-):
+def _get_reference_image(s1, aoi_geom, strategy, f_start, f_end, p_start, p_end, speckle, rolling_days=90):
     """Build pre-flood reference and post-flood image based on strategy.
 
     Returns (pre, post, quality_meta) where quality_meta is a dict with
@@ -127,12 +124,12 @@ def _get_reference_image(
 
 def _make_flood_mask(pre, post, threshold, aoi_geom, dem=None, elev_p40=None):
     """Calibrated flood mask with 6-layer quality filters:
-      1. Terrain slope < 8 deg
-      2. Permanent water exclusion (JRC seasonality >= 10)
-      3. JRC flood frequency gate (occurrence >= 5%)
-      4. Elevation <= 40th percentile
-      5. Minimum patch >= 56 pixels (~5 ha at 30 m)
-      6. Morphological cleanup (focal_mode 40 m circle)
+    1. Terrain slope < 8 deg
+    2. Permanent water exclusion (JRC seasonality >= 10)
+    3. JRC flood frequency gate (occurrence >= 5%)
+    4. Elevation <= 40th percentile
+    5. Minimum patch >= 56 pixels (~5 ha at 30 m)
+    6. Morphological cleanup (focal_mode 40 m circle)
     """
     if dem is None:
         dem = ee.Image("USGS/SRTMGL1_003").select("elevation").clip(aoi_geom)
@@ -193,8 +190,17 @@ def _get_optical_context(aoi_geom, f_start, f_end):
 
 @cache_data(ttl=3600)
 def get_all_sar_data(
-    aoi_json, f_start, f_end, p_start, p_end, threshold, polarization, speckle,
-    reference_strategy="event_pair", rolling_days=90, include_optical=False,
+    aoi_json,
+    f_start,
+    f_end,
+    p_start,
+    p_end,
+    threshold,
+    polarization,
+    speckle,
+    reference_strategy="event_pair",
+    rolling_days=90,
+    include_optical=False,
 ):
     """Compute all SAR layers and stats with selectable reference strategy.
 
@@ -207,7 +213,15 @@ def get_all_sar_data(
     strategy = reference_strategy if reference_strategy in VALID_STRATEGIES else "event_pair"
 
     pre, post, quality = _get_reference_image(
-        s1, aoi_geom, strategy, f_start, f_end, p_start, p_end, speckle, rolling_days,
+        s1,
+        aoi_geom,
+        strategy,
+        f_start,
+        f_end,
+        p_start,
+        p_end,
+        speckle,
+        rolling_days,
     )
 
     if not quality["n_pre_scenes"] or not quality["n_post_scenes"]:
@@ -451,10 +465,7 @@ def get_crop_loss_data(aoi_json, f_start, f_end, p_start, p_end, threshold, pola
 def get_sar_timeseries(aoi_json, p_start, f_end, polarization):
     try:
         aoi_geom = ee.Geometry(json.loads(aoi_json))
-        s1 = (
-            _build_s1_collection(aoi_geom, polarization)
-            .filterDate(str(p_start), str(f_end))
-        )
+        s1 = _build_s1_collection(aoi_geom, polarization).filterDate(str(p_start), str(f_end))
 
         def calculate_mean(image):
             mean_dict = image.reduceRegion(reducer=ee.Reducer.mean(), geometry=aoi_geom, scale=100, maxPixels=1e9)

@@ -92,7 +92,9 @@ async def forecast_inundation(request: InundationRequest):
             from gee_functions.glofas import get_flood_exceedance_forecast
 
             exceedance = await asyncio.to_thread(
-                get_flood_exceedance_forecast, aoi_json, request.forecast_days or 7,
+                get_flood_exceedance_forecast,
+                aoi_json,
+                request.forecast_days or 7,
             )
             if exceedance:
                 result["alert_level"] = exceedance.get("level")
@@ -111,8 +113,10 @@ async def forecast_inundation(request: InundationRequest):
                 sar_result = await asyncio.to_thread(
                     get_all_sar_data,
                     aoi_json,
-                    request.f_start, request.f_end,
-                    request.p_start, request.p_end,
+                    request.f_start,
+                    request.f_end,
+                    request.p_start,
+                    request.p_end,
                     request.threshold or 3.0,
                     request.polarization or "VH",
                     request.speckle if request.speckle is not None else True,
