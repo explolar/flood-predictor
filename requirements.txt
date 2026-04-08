@@ -22,6 +22,8 @@ uvicorn
 pydantic
 httpx
 cachetools
+redis
+celery
 
 # Optional (uncomment as needed)
 # torch              # LSTM flood forecaster (falls back to GBM without it)

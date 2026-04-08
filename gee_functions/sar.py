@@ -260,3 +260,85 @@ def get_recession_data(aoi_json, f_end_str, p_start_str, p_end_str, polarization
         return results
     except Exception:
         return None
+
+@cache_data(ttl=3600)
+def get_crop_loss_data(aoi_json, f_start, f_end, p_start, p_end, threshold, polarization, crop_type, crop_price):
+    try:
+        aoi_geom = ee.Geometry(json.loads(aoi_json))
+        s1 = (
+            ee.ImageCollection("COPERNICUS/S1_GRD")
+            .filterBounds(aoi_geom)
+            .filter(ee.Filter.listContains("transmitterReceiverPolarisation", polarization))
+            .select(polarization)
+        )
+        pre = s1.filterDate(str(p_start), str(p_end)).median().clip(aoi_geom)
+        post = s1.filterDate(str(f_start), str(f_end)).median().clip(aoi_geom)
+
+        flood, _ = _make_flood_mask(pre, post, threshold, aoi_geom)
+
+        # WorldCover v200 Crop class is 40
+        worldcover = ee.Image("ESA/WorldCover/v200/2021").select("Map")
+        crop_mask = worldcover.eq(40).clip(aoi_geom)
+
+        # Intersect flood mask with crop mask
+        flooded_crops = flood.updateMask(crop_mask)
+
+        # Calculate area in hectares
+        _area_info = (
+            flooded_crops.multiply(ee.Image.pixelArea())
+            .reduceRegion(reducer=ee.Reducer.sum(), geometry=aoi_geom, scale=10, maxPixels=1e10)
+            .getInfo()
+            or {}
+        )
+        area_m2 = list(_area_info.values())[0] if _area_info and list(_area_info.values()) else 0
+        affected_ha = round((area_m2 or 0) / 10000, 2)
+
+        return {
+            "affected_ha": affected_ha,
+            "estimated_loss_usd": round(affected_ha * crop_price, 2),
+            "message": f"{affected_ha} hectares of {crop_type} flooded."
+        }
+    except Exception as e:
+        return {"affected_ha": 0, "estimated_loss_usd": 0, "message": str(e)}
+
+@cache_data(ttl=3600)
+def get_sar_timeseries(aoi_json, p_start, f_end, polarization):
+    try:
+        aoi_geom = ee.Geometry(json.loads(aoi_json))
+        s1 = (
+            ee.ImageCollection("COPERNICUS/S1_GRD")
+            .filterBounds(aoi_geom)
+            .filter(ee.Filter.listContains("transmitterReceiverPolarisation", polarization))
+            .select(polarization)
+            .filterDate(str(p_start), str(f_end))
+        )
+
+        def calculate_mean(image):
+            mean_dict = image.reduceRegion(
+                reducer=ee.Reducer.mean(),
+                geometry=aoi_geom,
+                scale=100,
+                maxPixels=1e9
+            )
+            return ee.Feature(None, {
+                'date': image.date().format('YYYY-MM-dd'),
+                'value': mean_dict.get(polarization)
+            })
+
+        timeseries_features = s1.map(calculate_mean).getInfo()
+
+        series = []
+        if timeseries_features and 'features' in timeseries_features:
+            for feat in timeseries_features['features']:
+                props = feat.get('properties', {})
+                if props.get('value') is not None:
+                    series.append({
+                        "date": props['date'],
+                        "value": round(props['value'], 2)
+                    })
+        
+        # Sort chronologically just in case
+        series = sorted(series, key=lambda x: x["date"])
+        return series
+    except Exception:
+        return []

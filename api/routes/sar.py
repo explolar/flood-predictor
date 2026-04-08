@@ -61,6 +61,7 @@ async def get_depth(request: SARRequest):
             request.p_end,
             request.threshold,
             request.polarization,
+            request.speckle,
         )
         return AnalysisResponse(success=True, data=result)
     except Exception as e:

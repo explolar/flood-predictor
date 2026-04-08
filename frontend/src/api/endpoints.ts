@@ -20,6 +20,9 @@ import type {
   ForecastData,
   HydrologyData,
   IndicesData,
+  ScenarioComparisonRequest,
+  ScenarioComparisonData,
+  MLRiskPredictionData,
 } from "../types/api";
 
 // ── MCA (AHP-MCDM) ──
@@ -42,7 +45,7 @@ export const sarFloodDetection = (req: SARRequest) =>
 export const sarDepth = (req: SARRequest) =>
   api.post<AnalysisResponse<TileData>>("/sar/depth", req).then((r) => r.data);
 
-export const sarCropLoss = (req: SARRequest & { crop_type: string; crop_price: number }) =>
+export const sarCropLoss = (req: SARRequest) =>
   api.post<AnalysisResponse>("/sar/crop-loss", req).then((r) => r.data);
 
 export const sarTimeseries = (req: SARRequest) =>
@@ -54,6 +57,9 @@ export const mlClassify = (req: MLRequest) =>
 
 export const mlExplain = (req: MLRequest) =>
   api.post<AnalysisResponse<Record<string, any>>>("/ml/explain", req).then((r) => r.data);
+
+export const mlRiskPrediction = (req: MLRequest) =>
+  api.post<AnalysisResponse<MLRiskPredictionData>>("/ml/risk-prediction", req).then((r) => r.data);
 
 // ── Indices ──
 export const indicesTiles = (req: IndicesRequest) =>
@@ -78,6 +84,9 @@ export const forecastWeather = (req: ForecastRequest) =>
 // ── Projections ──
 export const projectionsAnalysis = (req: ProjectionsRequest) =>
   api.post<AnalysisResponse>("/projections/analysis", req).then((r) => r.data);
+
+export const scenarioComparison = (req: ScenarioComparisonRequest) =>
+  api.post<AnalysisResponse<ScenarioComparisonData>>("/projections/scenario-comparison", req).then((r) => r.data);
 
 // ── Geocoding ──
 export const geocode = (query: string) =>

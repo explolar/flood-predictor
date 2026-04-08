@@ -61,6 +61,11 @@ export interface ProjectionsRequest extends AOIRequest {
   end_year: number;
 }
 
+export interface ScenarioComparisonRequest extends AOIRequest {
+  model?: string;
+  periods?: string[];
+}
+
 export interface AnalysisResponse<T = Record<string, unknown>> {
   success: boolean;
   data?: T;
@@ -143,4 +148,17 @@ export interface HydrologyData {
 
 export interface IndicesData {
   indices: Record<string, { tile_url: string; mean_value: number; n_scenes: number }>;
+}
+
+export interface ScenarioComparisonData {
+  model: string;
+  comparison: Record<string, string | number>[];
+}
+
+export interface MLRiskPredictionData {
+  tile_url: string;
+  n_samples: number;
+  oob_score?: number;
+  feature_importance?: Record<string, number>;
+  risk_distribution: Record<string, number>;
 }

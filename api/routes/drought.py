@@ -30,10 +30,10 @@ async def drought_analysis(request: DroughtRequest):
         return AnalysisResponse(
             success=True,
             data={
-                "spi": {"tile_url": spi.get("tile_url"), "value": spi.get("value")},
+                "spi": {"tile_url": spi.get("tile_url"), "value": spi.get("spi_value")},
                 "ndvi_anomaly": {
                     "tile_url": ndvi.get("tile_url"),
-                    "value": ndvi.get("value"),
+                    "value": ndvi.get("anomaly_value"),
                 },
             },
         )

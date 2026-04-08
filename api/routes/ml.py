@@ -172,3 +172,51 @@ async def predict_risk(request: MLRequest):
         return AnalysisResponse(success=False, error="Prediction returned no results.")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/classify-async", response_model=AnalysisResponse)
+async def classify_flood_async(request: MLRequest):
+    """Dispatch the heavy ML extraction to the Celery Background Queue."""
+    initialize_ee_api()
+    aoi_json = aoi_to_json(request.geojson)
+
+    try:
+        from api.worker import train_ml_model_task
+        task = train_ml_model_task.delay(
+            request.model,
+            aoi_json,
+            request.f_start,
+            request.f_end,
+            request.p_start,
+            request.p_end,
+            request.threshold,
+            request.polarization,
+            request.speckle,
+        )
+        return AnalysisResponse(success=True, data={"task_id": task.id, "status": "processing"})
+    except Exception as e:
+        logger.exception("Async classification dispatch failed")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/task/status/{task_id}", response_model=AnalysisResponse)
+async def get_task_status(task_id: str):
+    """Poll the status of a long-running Celery queue task."""
+    try:
+        from api.worker import celery_app
+        task_result = celery_app.AsyncResult(task_id)
+        
+        if task_result.state == 'PENDING':
+            return AnalysisResponse(success=True, data={"status": "pending"})
+        elif task_result.state == 'PROGRESS':
+            # Support custom progress metadata
+            meta = task_result.info or {}
+            return AnalysisResponse(success=True, data={"status": "processing", "message": meta.get('message', '')})
+        elif task_result.state == 'SUCCESS':
+            return AnalysisResponse(success=True, data={"status": "done", "result": task_result.result})
+        elif task_result.state == 'FAILURE':
+            return AnalysisResponse(success=False, error=str(task_result.info))
+        else:
+            return AnalysisResponse(success=True, data={"status": task_result.state})
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

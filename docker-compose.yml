@@ -10,6 +10,7 @@ services:
     environment:
       - MODE=api
       - GEE_PROJECT=${GEE_PROJECT:-xward-481405}
+      - REDIS_URL=redis://redis:6379/0
     command: uvicorn api.main:app --host 0.0.0.0 --port 8080 --workers 4
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
@@ -25,4 +26,27 @@ services:
       - "3000:80"
     depends_on:
       api:
+        condition: service_healthy
+
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  celery_worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: celery -A api.worker.celery_app worker --loglevel=info
+    environment:
+      - MODE=worker
+      - REDIS_URL=redis://redis:6379/0
+      - GEE_PROJECT=${GEE_PROJECT:-xward-481405}
+    depends_on:
+      redis:
         condition: service_healthy
