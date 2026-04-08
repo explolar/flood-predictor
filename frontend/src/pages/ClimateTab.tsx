@@ -43,12 +43,6 @@ interface ProjectionsData {
 }
 
 const CMIP6_MODELS = ["GFDL-ESM4", "ACCESS-CM2", "MPI-ESM1-2-HR", "UKESM1-0-LL", "IPSL-CM6A-LR"];
-const SCENARIO_COLORS: Record<string, string> = {
-  ssp126: "#2166ac",
-  ssp245: "#4393c3",
-  ssp370: "#f4a582",
-  ssp585: "#d6604d",
-};
 
 export function ClimateTab({ geojson, center, params }: Props) {
   const [subTab, setSubTab] = useState<SubTab>("multiyear");
