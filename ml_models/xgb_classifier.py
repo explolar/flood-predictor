@@ -76,7 +76,7 @@ class XGBFloodClassifier:
     ):
         import ee
 
-        from ml_models.data_extraction import dataframe_to_ee_fc, extract_sar_training_samples
+        from ml_models.data_extraction import dataframe_to_ee_fc, extract_sar_training_samples, interpolate_ml_image
 
         pretrained = self.load()
 
@@ -104,13 +104,15 @@ class XGBFloodClassifier:
         if return_probability:
             df["ml_pred_int"] = (df["ml_pred"] * 100).astype(int)
             fc = dataframe_to_ee_fc(df, "ml_pred_int")
-            flood_image = fc.reduceToImage(["ml_pred_int"], ee.Reducer.first()).clip(aoi_geom).divide(100)
+            raw = fc.reduceToImage(["ml_pred_int"], ee.Reducer.first()).clip(aoi_geom).divide(100)
+            flood_image = interpolate_ml_image(raw, aoi_geom)
             tile_url = flood_image.getMapId(
                 {"min": 0, "max": 1, "palette": ["000005", "0d1b2a", "1b4f72", "2e86c1", "00FFFF", "ffffff"]}
             )["tile_fetcher"].url_format
         else:
             fc = dataframe_to_ee_fc(df, "ml_pred")
-            flood_image = fc.reduceToImage(["ml_pred"], ee.Reducer.first()).clip(aoi_geom).selfMask()
+            raw = fc.reduceToImage(["ml_pred"], ee.Reducer.first()).clip(aoi_geom)
+            flood_image = interpolate_ml_image(raw, aoi_geom).selfMask()
             tile_url = flood_image.getMapId({"palette": ["FF6B6B"]})["tile_fetcher"].url_format
 
         try:

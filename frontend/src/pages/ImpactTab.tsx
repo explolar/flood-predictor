@@ -70,7 +70,7 @@ export function ImpactTab({ geojson, center, params }: Props) {
         </div>
       </div>
 
-      {impact.isLoading && <LoadingOverlay message="Computing impact across all modules..." />}
+      {impact.isLoading && <LoadingOverlay message="Computing impact across all modules..." estimatedSeconds={180} />}
       {impact.error && <ErrorBanner message={impact.error} onDismiss={impact.reset} />}
 
       {data && (
@@ -88,7 +88,7 @@ export function ImpactTab({ geojson, center, params }: Props) {
               <MetricCard label="Buildings Affected" value={data.buildings.total_affected?.toLocaleString() ?? "N/A"} color="#8856a7" />
             )}
             {data.crop_loss && (
-              <MetricCard label="Crop Loss" value={`$${(data.crop_loss.estimated_loss_usd ?? 0).toLocaleString()}`} color="#e6550d" />
+              <MetricCard label="Crop Loss" value={`₹${(data.crop_loss.estimated_loss_usd ?? 0).toLocaleString()}`} color="#e6550d" />
             )}
           </div>
 
@@ -188,7 +188,7 @@ export function ImpactTab({ geojson, center, params }: Props) {
               <h3 className="map-title">Crop Loss</h3>
               <div className="metrics-grid">
                 <MetricCard label="Affected Cropland" value={data.crop_loss.affected_ha?.toFixed(1) ?? "N/A"} unit="ha" color="#e6550d" />
-                <MetricCard label="Estimated Loss" value={`$${(data.crop_loss.estimated_loss_usd ?? 0).toLocaleString()}`} color="#d73027" />
+                <MetricCard label="Estimated Loss" value={`₹${(data.crop_loss.estimated_loss_usd ?? 0).toLocaleString()}`} color="#d73027" />
               </div>
               {data.crop_loss.message && <p style={{ color: "var(--text-secondary)" }}>{data.crop_loss.message}</p>}
             </section>

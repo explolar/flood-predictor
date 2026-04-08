@@ -182,3 +182,21 @@ def dataframe_to_ee_fc(df, value_col, lat_col="latitude", lon_col="longitude", m
         geom = ee.Geometry.Point([row[lon_col], row[lat_col]])
         features.append(ee.Feature(geom, {value_col: int(row[value_col])}))
     return ee.FeatureCollection(features)
+
+
+def interpolate_ml_image(raw_image, aoi_geom, radius_m=300):
+    """Fill gaps in a sparse reduceToImage result using focal interpolation.
+
+    Point-sampled ML predictions have unsampled pixels between sample points.
+    This applies a focal_mean fill followed by a light smooth so the output
+    looks continuous instead of dotted.
+    """
+    # Fill unsampled pixels with the mean of nearby sampled pixels
+    filled = raw_image.unmask(-999)
+    filled = filled.where(
+        filled.eq(-999),
+        raw_image.focal_mean(radius=radius_m, kernelType="circle", units="meters"),
+    )
+    # Light smoothing pass to blend boundaries
+    smoothed = filled.focal_mean(radius=150, kernelType="circle", units="meters")
+    return smoothed.clip(aoi_geom)

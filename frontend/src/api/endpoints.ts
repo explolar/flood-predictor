@@ -1,4 +1,4 @@
-import { api } from "./client";
+import { api, apiHeavy } from "./client";
 import type {
   AnalysisResponse,
   MCARequest,
@@ -98,11 +98,11 @@ export const scenarioComparison = (req: ScenarioComparisonRequest) =>
 
 // ── Impact ──
 export const impactAssessment = (req: ImpactRequest) =>
-  api.post<AnalysisResponse<ImpactData>>("/impact/assessment", req).then((r) => r.data);
+  apiHeavy.post<AnalysisResponse<ImpactData>>("/impact/assessment", req).then((r) => r.data);
 
 // ── Forecast Inundation ──
 export const forecastInundation = (req: { geojson: GeoJSON.Geometry; flood_depth_m?: number; stream_threshold?: number; forecast_days?: number }) =>
-  api.post<AnalysisResponse<ForecastInundationData>>("/forecast/inundation", req).then((r) => r.data);
+  apiHeavy.post<AnalysisResponse<ForecastInundationData>>("/forecast/inundation", req).then((r) => r.data);
 
 // ── Advanced ──
 export const advancedFusion = (req: SARRequest & { cloud_thresh?: number; fusion_weight?: number }) =>

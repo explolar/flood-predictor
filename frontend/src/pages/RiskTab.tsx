@@ -60,7 +60,7 @@ export function RiskTab({ geojson, center, params }: Props) {
         </button>
       </div>
 
-      {risk.isLoading && <LoadingOverlay message="Computing 11-factor AHP susceptibility map..." />}
+      {risk.isLoading && <LoadingOverlay message="Computing 11-factor AHP susceptibility map..." estimatedSeconds={90} />}
       {risk.error && <ErrorBanner message={risk.error} onDismiss={risk.reset} />}
 
       {ahp && (

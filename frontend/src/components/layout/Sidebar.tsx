@@ -420,7 +420,7 @@ export function Sidebar({
 
       {/* Keyboard shortcuts hint */}
       <div className="sidebar-footer">
-        <span className="kbd-hint">Press <kbd>1</kbd>-<kbd>7</kbd> to switch tabs</span>
+        <span className="kbd-hint">Press <kbd>1</kbd>-<kbd>8</kbd> to switch tabs</span>
       </div>
     </aside>
   );

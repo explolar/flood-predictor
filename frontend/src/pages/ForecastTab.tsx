@@ -79,7 +79,7 @@ export function ForecastTab({ geojson, center, params }: Props) {
             </div>
           </div>
 
-          {forecast.isLoading && <LoadingOverlay message="Fetching GFS forecast data..." />}
+          {forecast.isLoading && <LoadingOverlay message="Fetching GFS forecast data..." estimatedSeconds={45} />}
           {forecast.error && <ErrorBanner message={forecast.error} onDismiss={forecast.reset} />}
 
           {forecast.data && (
@@ -136,7 +136,7 @@ export function ForecastTab({ geojson, center, params }: Props) {
             </div>
           </div>
 
-          {inundation.isLoading && <LoadingOverlay message="Computing HAND-based inundation forecast..." />}
+          {inundation.isLoading && <LoadingOverlay message="Computing HAND-based inundation forecast..." estimatedSeconds={180} />}
           {inundation.error && <ErrorBanner message={inundation.error} onDismiss={inundation.reset} />}
 
           {inundation.data && (

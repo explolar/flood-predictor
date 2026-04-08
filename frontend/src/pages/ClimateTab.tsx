@@ -85,7 +85,7 @@ export function ClimateTab({ geojson, center, params }: Props) {
               {multiyear.isLoading ? "Loading..." : "COMPARE YEARS"}
             </button>
           </div>
-          {multiyear.isLoading && <LoadingOverlay message="Comparing monsoon years..." />}
+          {multiyear.isLoading && <LoadingOverlay message="Comparing monsoon years..." estimatedSeconds={90} />}
           {multiyear.error && <ErrorBanner message={multiyear.error} onDismiss={multiyear.reset} />}
 
           {multiyear.data?.chart && (
@@ -114,7 +114,7 @@ export function ClimateTab({ geojson, center, params }: Props) {
               </button>
             </div>
           </div>
-          {drought.isLoading && <LoadingOverlay message="Computing drought indices..." />}
+          {drought.isLoading && <LoadingOverlay message="Computing drought indices..." estimatedSeconds={45} />}
           {drought.error && <ErrorBanner message={drought.error} onDismiss={drought.reset} />}
 
           {drought.data && (
@@ -161,7 +161,7 @@ export function ClimateTab({ geojson, center, params }: Props) {
               </button>
             </div>
           </div>
-          {projections.isLoading && <LoadingOverlay message="Running climate projections..." />}
+          {projections.isLoading && <LoadingOverlay message="Running climate projections..." estimatedSeconds={60} />}
           {projections.error && <ErrorBanner message={projections.error} onDismiss={projections.reset} />}
 
           {projections.data && (
@@ -233,7 +233,7 @@ export function ClimateTab({ geojson, center, params }: Props) {
               </button>
             </div>
           </div>
-          {compare.isLoading && <LoadingOverlay message="Comparing SSP scenarios across periods..." />}
+          {compare.isLoading && <LoadingOverlay message="Comparing SSP scenarios across periods..." estimatedSeconds={90} />}
           {compare.error && <ErrorBanner message={compare.error} onDismiss={compare.reset} />}
 
           {compare.data && (

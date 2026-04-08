@@ -315,7 +315,13 @@ def get_month_sar_tile(aoi_json, year, month_num, polarization, threshold, speck
 
 @cache_data(ttl=3600)
 def get_flood_depth_tile(aoi_json, f_start, f_end, p_start, p_end, threshold, polarization, speckle):
-    """Estimate water depth per pixel using DEM + flood mask."""
+    """Estimate water depth per pixel using DEM + flood mask.
+
+    Uses a neighbourhood water-surface approach: for each flooded pixel the
+    water level is the maximum DEM elevation among nearby non-flooded pixels
+    (i.e. the flood boundary). This avoids the single-value p95 problem that
+    returns 0 when the flood mask is thin or flat.
+    """
     try:
         aoi_geom = ee.Geometry(json.loads(aoi_json))
         s1 = _build_s1_collection(aoi_geom, polarization)
@@ -325,23 +331,21 @@ def get_flood_depth_tile(aoi_json, f_start, f_end, p_start, p_end, threshold, po
             pre = pre.focal_mean(radius=1, kernelType="square", units="pixels")
             post = post.focal_mean(radius=1, kernelType="square", units="pixels")
         flood, dem = _make_flood_mask(pre, post, threshold, aoi_geom)
-        flood_dem = dem.updateMask(flood)
 
-        ep = (
-            flood_dem.reduceRegion(
-                reducer=ee.Reducer.percentile([95]), geometry=aoi_geom, scale=30, maxPixels=1e9
-            ).getInfo()
-            or {}
-        )
-        water_surface = ep.get("elevation_p95", 0) or 0
+        # Neighbourhood water-surface: take the max DEM of dry pixels within
+        # a 500 m radius of each flooded pixel — this represents the local
+        # water-surface elevation at the flood boundary.
+        dry_dem = dem.updateMask(flood.Not())
+        water_surface = dry_dem.focal_max(radius=500, kernelType="circle", units="meters")
 
-        depth = ee.Image(float(water_surface)).subtract(dem).updateMask(flood).max(ee.Image(0))
+        # Depth = local water surface − pixel DEM, clamped to [0, 10]
+        depth = water_surface.subtract(dem).updateMask(flood).max(0).min(10).rename("depth")
 
         depth_stats = (
             depth.reduceRegion(
                 reducer=ee.Reducer.mean().combine(ee.Reducer.max(), "", True),
                 geometry=aoi_geom,
-                scale=30,
+                scale=100,
                 maxPixels=1e9,
             ).getInfo()
             or {}
@@ -349,18 +353,21 @@ def get_flood_depth_tile(aoi_json, f_start, f_end, p_start, p_end, threshold, po
 
         _hist_info = (
             depth.reduceRegion(
-                reducer=ee.Reducer.fixedHistogram(0, 4, 8), geometry=aoi_geom, scale=30, maxPixels=1e9
+                reducer=ee.Reducer.fixedHistogram(0, 4, 8),
+                geometry=aoi_geom,
+                scale=100,
+                maxPixels=1e9,
             ).getInfo()
             or {}
         )
-        hist_raw = _hist_info.get("constant", [])
+        hist_raw = _hist_info.get("depth", [])
         hist_labels = ["0-0.5", "0.5-1", "1-1.5", "1.5-2", "2-2.5", "2.5-3", "3-3.5", "3.5-4"]
         hist = {hist_labels[i]: int(row[1]) for i, row in enumerate(hist_raw) if i < len(hist_labels)}
 
         return {
             "tile_url": depth.getMapId(DEPTH_VIZ)["tile_fetcher"].url_format,
-            "mean_depth": round(depth_stats.get("constant_mean", 0) or 0, 2),
-            "max_depth": round(depth_stats.get("constant_max", 0) or 0, 2),
+            "mean_depth": round(depth_stats.get("depth_mean", 0) or 0, 2),
+            "max_depth": round(depth_stats.get("depth_max", 0) or 0, 2),
             "histogram": hist,
         }
     except Exception:

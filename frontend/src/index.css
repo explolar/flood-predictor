@@ -900,6 +900,29 @@ input[type="date"] { color-scheme: light; }
 
 @keyframes spin { to { transform: rotate(360deg); } }
 
+.loading-elapsed {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--accent);
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.loading-progress-track {
+  width: 220px;
+  height: 6px;
+  background: var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.loading-progress-bar {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 3px;
+  transition: width 1s linear;
+}
+
 .loading-eta {
   font-family: var(--font-mono);
   font-size: 0.7rem;

@@ -57,7 +57,7 @@ export function HydrologyTab({ geojson, center }: Props) {
         </div>
       </div>
 
-      {hydro.isLoading && <LoadingOverlay message="Computing watershed analysis..." />}
+      {hydro.isLoading && <LoadingOverlay message="Computing watershed analysis..." estimatedSeconds={60} />}
       {hydro.error && <ErrorBanner message={hydro.error} onDismiss={hydro.reset} />}
 
       {data && (

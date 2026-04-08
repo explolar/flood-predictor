@@ -109,7 +109,7 @@ export function SARTab({ geojson, center, params }: Props) {
             </div>
           </div>
 
-          {sar.isLoading && <LoadingOverlay message="Processing Sentinel-1 SAR data..." />}
+          {sar.isLoading && <LoadingOverlay message="Processing Sentinel-1 SAR data..." estimatedSeconds={60} />}
           {sar.error && <ErrorBanner message={sar.error} onDismiss={sar.reset} />}
 
           {sar.data?.quality && <QualityCard quality={sar.data.quality} />}
@@ -156,7 +156,7 @@ export function SARTab({ geojson, center, params }: Props) {
             </button>
           </div>
 
-          {depth.isLoading && <LoadingOverlay message="Estimating flood depth from DEM + SAR..." />}
+          {depth.isLoading && <LoadingOverlay message="Estimating flood depth from DEM + SAR..." estimatedSeconds={90} />}
           {depth.error && <ErrorBanner message={depth.error} onDismiss={depth.reset} />}
 
           {depth.data && (
@@ -187,7 +187,7 @@ export function SARTab({ geojson, center, params }: Props) {
             <h2>Crop Loss Estimation</h2>
             <div className="tab-actions">
               <span className="label-inline">
-                Crop: <strong>{params.crop_type}</strong> @ ${params.crop_price}/ha
+                Crop: <strong>{params.crop_type}</strong> @ ₹{params.crop_price}/ha
               </span>
               <button className="btn btn-primary" onClick={handleRunCropLoss} disabled={cropLoss.isLoading}>
                 {cropLoss.isLoading ? "Computing..." : "ESTIMATE CROP LOSS"}
@@ -195,7 +195,7 @@ export function SARTab({ geojson, center, params }: Props) {
             </div>
           </div>
 
-          {cropLoss.isLoading && <LoadingOverlay message="Intersecting flood mask with cropland..." />}
+          {cropLoss.isLoading && <LoadingOverlay message="Intersecting flood mask with cropland..." estimatedSeconds={60} />}
           {cropLoss.error && <ErrorBanner message={cropLoss.error} onDismiss={cropLoss.reset} />}
 
           {cropLoss.data && (
@@ -204,7 +204,7 @@ export function SARTab({ geojson, center, params }: Props) {
                 <MetricCard label="Affected Cropland" value={cropLoss.data.affected_ha.toFixed(1)} unit="ha" color="#e6550d" />
                 <MetricCard
                   label="Estimated Loss"
-                  value={`$${cropLoss.data.estimated_loss_usd.toLocaleString()}`}
+                  value={`₹${cropLoss.data.estimated_loss_usd.toLocaleString()}`}
                   color="#d73027"
                 />
               </div>
@@ -226,7 +226,7 @@ export function SARTab({ geojson, center, params }: Props) {
             </button>
           </div>
 
-          {timeseries.isLoading && <LoadingOverlay message="Extracting SAR time-series..." />}
+          {timeseries.isLoading && <LoadingOverlay message="Extracting SAR time-series..." estimatedSeconds={45} />}
           {timeseries.error && <ErrorBanner message={timeseries.error} onDismiss={timeseries.reset} />}
 
           {timeseries.data?.series && timeseries.data.series.length > 0 && (

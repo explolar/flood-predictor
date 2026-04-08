@@ -66,7 +66,7 @@ function AppInner() {
     [setFromBBox]
   );
 
-  // Keyboard shortcuts: 1-7 for tabs, Esc to toggle sidebar
+  // Keyboard shortcuts: 1-8 for tabs, Esc to toggle sidebar
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) return;

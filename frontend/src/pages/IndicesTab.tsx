@@ -51,7 +51,7 @@ export function IndicesTab({ geojson, center, params }: Props) {
         </button>
       </div>
 
-      {indices.isLoading && <LoadingOverlay message="Computing spectral indices..." />}
+      {indices.isLoading && <LoadingOverlay message="Computing spectral indices..." estimatedSeconds={45} />}
       {indices.error && <ErrorBanner message={indices.error} onDismiss={indices.reset} />}
 
       {indices.data && (

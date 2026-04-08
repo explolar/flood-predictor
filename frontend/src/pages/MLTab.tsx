@@ -121,8 +121,8 @@ export function MLTab({ geojson, center, params }: Props) {
         </div>
       </div>
 
-      {classify.isLoading && <LoadingOverlay message="Running ML model..." />}
-      {shap.isLoading && <LoadingOverlay message="Computing SHAP explanations..." />}
+      {classify.isLoading && <LoadingOverlay message="Running ML model..." estimatedSeconds={75} />}
+      {shap.isLoading && <LoadingOverlay message="Computing SHAP explanations..." estimatedSeconds={60} />}
       {classify.error && <ErrorBanner message={classify.error} onDismiss={classify.reset} />}
       {shap.error && <ErrorBanner message={shap.error} onDismiss={shap.reset} />}
 
